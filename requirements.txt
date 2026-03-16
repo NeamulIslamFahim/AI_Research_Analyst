@@ -1,0 +1,16 @@
+streamlit
+langchain
+langchain-community
+langchain-huggingface
+langchain-groq
+langchain-openai
+langchain-classic
+langchain-text-splitters
+faiss-cpu
+sentence-transformers
+huggingface-hub
+pypdf
+python-dotenv
+arxiv
+requests
+rank-bm25
