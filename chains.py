@@ -47,7 +47,7 @@ RESEARCH_PROMPT = PromptTemplate(
         "- research_gaps MUST contain one gap per selected paper (list format).\n"
         "- generated_idea MUST synthesize all gaps into one concrete solution.\n"
         "- generated_idea_steps MUST be 6-8 detailed steps, including tools/datasets where relevant.\n"
-        "- If a dataset, model, or approach is not specified in the paper, write \"Not specified in paper\".\n"
+        "- NEVER leave any field blank. If information is missing, write \"Not specified in paper\".\n"
         "- generated_idea_citations MUST list paper_name values used in the idea.\n\n"
         "Example (format only, use real content):\n"
         "{{\"table\":[{{\"paper_name\":\"...\",\"paper_url\":\"...\",\"authors_name\":\"...\","

@@ -12,6 +12,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.documents import Document
 import json
 import requests
+import re
 
 from chains import (
     paper_reviewer_chain,
@@ -56,8 +57,8 @@ from retriever import (
 )
 
 
-DEFAULT_LLM_MODEL_PRIMARY = "llama-3.3-70b-versatile"
-DEFAULT_LLM_MODEL_SECONDARY = "llama-3.1-8b-instant"
+DEFAULT_LLM_MODEL_PRIMARY = "llama-3.1-8b-instant"
+DEFAULT_LLM_MODEL_SECONDARY = "llama-3.3-70b-versatile"
 DEFAULT_GROQ_REASONING_EFFORT = "medium"
 DEFAULT_OSS_MODEL_ID = "gpt-oss-120b"
 
@@ -118,6 +119,70 @@ def get_model_ids() -> tuple[str, str]:
 def _is_rate_limit_error(exc: Exception) -> bool:
     message = str(exc).lower()
     return "rate limit" in message or "rate_limit_exceeded" in message or "tpd" in message
+
+
+def _tokenize(text: str) -> List[str]:
+    """Simple tokenizer for heuristic scoring."""
+    if not text:
+        return []
+    return [t for t in re.findall(r"[a-z0-9]+", text.lower()) if len(t) > 2]
+
+
+def _heuristic_scores(topic: str, title: str, abstract: str, year: str) -> tuple[int, int]:
+    """Compute simple relevance/quality scores (0-10)."""
+    topic_tokens = set(_tokenize(topic))
+    text = f"{title} {abstract}"
+    text_tokens = set(_tokenize(text))
+    overlap = len(topic_tokens & text_tokens)
+    overlap_score = min(10, max(1, overlap))
+
+    # Quality: based on recency + abstract length
+    try:
+        y = int(str(year)[:4])
+    except Exception:
+        y = 0
+    recency_score = 1
+    if y >= 2023:
+        recency_score = 8
+    elif y >= 2018:
+        recency_score = 6
+    elif y >= 2010:
+        recency_score = 4
+    else:
+        recency_score = 2
+    length_score = 2
+    if abstract:
+        length_score = 2 if len(abstract) < 400 else 4
+    quality_score = min(10, max(1, int((recency_score + length_score) / 2)))
+    return overlap_score, quality_score
+
+
+def _extract_retry_after(message: str) -> str | None:
+    """Extract retry-after time from rate-limit error messages."""
+    if not message:
+        return None
+    patterns = [
+        r"try again in\\s+([0-9a-zA-Z\\.]+)",
+        r"try again in\\s+([0-9]+m[0-9\\.]+s)",
+        r"try again in\\s+([0-9\\.]+s)",
+    ]
+    for pat in patterns:
+        match = re.search(pat, message, flags=re.IGNORECASE)
+        if match:
+            return match.group(1)
+    # Try to extract from JSON-like error payloads
+    try:
+        msg_lower = message.lower()
+        idx = msg_lower.find("try again in")
+        if idx != -1:
+            tail = message[idx + len("try again in"):].strip()
+            # Take first token as time
+            token = tail.split()[0].strip().strip(".")
+            if token:
+                return token
+    except Exception:
+        pass
+    return None
 
 
 def _invoke_with_fallback(chain_builder, invoke_payload: dict) -> Any:
@@ -321,9 +386,9 @@ def download_papers_for_topic(topic: str) -> Dict[str, Any]:
     epmc_rows, _ = europe_pmc_search(topic, max_results=6)
 
     fulltext_docs: List[Document] = []
-    if (load_env_var("DOWNLOAD_ARXIV_PDFS", "false") or "false").lower() == "true":
+    if (load_env_var("DOWNLOAD_ARXIV_PDFS", "true") or "true").lower() == "true":
         fulltext_docs.extend(_download_arxiv_fulltext(docs))
-    if (load_env_var("DOWNLOAD_EXTERNAL_PDFS", "false") or "false").lower() == "true":
+    if (load_env_var("DOWNLOAD_EXTERNAL_PDFS", "true") or "true").lower() == "true":
         fulltext_docs.extend(
             _download_external_fulltext(
                 sem_rows + oa_rows + scholar_rows + rg_rows + web_rows + sd_rows + oa_rows2 + core_rows + doaj_rows + epmc_rows
@@ -422,9 +487,9 @@ def run_research_explorer(topic: str, chat_history: str | None = None) -> Dict[s
             sem_rows + oa_rows + scholar_rows + rg_rows + web_rows + sd_rows + oa_rows2 + core_rows + doaj_rows + epmc_rows
         )
         fulltext_docs: List[Document] = []
-        if (load_env_var("DOWNLOAD_ARXIV_PDFS", "false") or "false").lower() == "true":
+        if (load_env_var("DOWNLOAD_ARXIV_PDFS", "true") or "true").lower() == "true":
             fulltext_docs.extend(_download_arxiv_fulltext(docs))
-        if (load_env_var("DOWNLOAD_EXTERNAL_PDFS", "false") or "false").lower() == "true":
+        if (load_env_var("DOWNLOAD_EXTERNAL_PDFS", "true") or "true").lower() == "true":
             fulltext_docs.extend(
                 _download_external_fulltext(
                     sem_rows + oa_rows + scholar_rows + rg_rows + web_rows + sd_rows + oa_rows2 + core_rows + doaj_rows + epmc_rows
@@ -456,6 +521,29 @@ def run_research_explorer(topic: str, chat_history: str | None = None) -> Dict[s
             if key not in merged:
                 merged[key] = d
         context_docs = list(merged.values())[:8]
+        # Build a fulltext map for per-paper snippets
+        fulltext_map: Dict[tuple, List[str]] = {}
+        fulltext_map_title: Dict[str, List[str]] = {}
+        for d in fulltext_docs:
+            meta = d.metadata or {}
+            title = meta.get("title", "")
+            key = (title, meta.get("url", ""))
+            fulltext_map.setdefault(key, []).append(d.page_content)
+            if title:
+                fulltext_map_title.setdefault(title, []).append(d.page_content)
+
+        def _fulltext_snippet(title: str, url: str) -> str:
+            snippets = fulltext_map.get((title, url), [])
+            if not snippets:
+                snippets = fulltext_map_title.get(title, [])
+            if not snippets:
+                return ""
+            return snippets[0]
+
+        def _paper_text(title: str, url: str, abstract: str) -> str:
+            text = _fulltext_snippet(title, url) or abstract or ""
+            return text.strip()
+
         if fulltext_docs:
             context = truncate_text("\n\n".join([d.page_content for d in fulltext_docs[:8]]), max_chars=6000)
         else:
@@ -506,6 +594,8 @@ def run_research_explorer(topic: str, chat_history: str | None = None) -> Dict[s
             doi = r.get("doi", "")
             url = r.get("url", "") or ""
             if url:
+                if "doi.org/https://doi.org/" in url:
+                    url = url.replace("doi.org/https://doi.org/", "doi.org/")
                 return url
             pdf_url = r.get("pdf_url", "") or ""
             if pdf_url:
@@ -524,10 +614,26 @@ def run_research_explorer(topic: str, chat_history: str | None = None) -> Dict[s
                 return "https://scholar.google.com/scholar?q=" + requests.utils.quote(title)
             return ""
 
+        # Prefer rows that have fulltext or abstract content
+        def _has_text(r: dict) -> bool:
+            abstract = (r.get("abstract", "") or "").strip()
+            if abstract:
+                return True
+            return bool(_fulltext_snippet(r.get("title", ""), _resolve_url(r)))
+
+        rows_sorted = [r for r in rows_sorted if _has_text(r)]
+        # If fulltext exists, prefer only fulltext-backed rows to avoid placeholders.
+        if fulltext_map or fulltext_map_title:
+            rows_sorted = [
+                r for r in rows_sorted if _fulltext_snippet(r.get("title", ""), _resolve_url(r))
+            ]
+
         papers_payload = []
         for r in rows_sorted:
             paper_url = _resolve_url(r)
             abstract = (r.get("abstract", "") or "").strip()
+            if not abstract:
+                abstract = _fulltext_snippet(r.get("title", ""), paper_url)
             if len(abstract) > 800:
                 abstract = abstract[:800] + "..."
             papers_payload.append(
@@ -540,17 +646,78 @@ def run_research_explorer(topic: str, chat_history: str | None = None) -> Dict[s
                     "fulltext_available": _is_fulltext(r),
                 }
             )
+        # Drop any rows still missing text after fulltext fallback.
+        papers_payload = [p for p in papers_payload if (p.get("abstract") or "").strip()]
         if len(papers_payload) > 12:
             papers_payload = papers_payload[:12]
 
-        raw_output = _invoke_with_fallback(
-            research_explainer_chain,
-            {
-                "context": context,
-                "question": topic,
-                "papers_json": json.dumps(papers_payload, ensure_ascii=True),
-            },
-        )
+        # If we have fulltext, prefer building context from selected papers' fulltext.
+        if fulltext_map and papers_payload:
+            selected_keys = {(p.get("paper_name", ""), p.get("paper_url", "")) for p in papers_payload}
+            snippets = []
+            for key, chunks in fulltext_map.items():
+                if key in selected_keys:
+                    snippets.extend(chunks[:2])
+            if snippets:
+                context = truncate_text("\n\n".join(snippets), max_chars=7000)
+
+        def _heuristic_fallback() -> Dict[str, Any]:
+            fallback_rows = []
+            for r in rows_sorted[:15]:
+                abstract = (r.get("abstract", "") or "").strip()
+                if not abstract:
+                    abstract = _fulltext_snippet(r.get("title", ""), _resolve_url(r))
+                proposed = extract_proposed_approach(abstract) or "Not specified in paper"
+                snippet = abstract.split(".")[0] if abstract else ""
+                fallback_rows.append(
+                    {
+                        "paper_name": r.get("title", ""),
+                        "paper_url": _resolve_url(r),
+                        "authors_name": r.get("authors", "") or "Not specified in paper",
+                        "summary_full_paper": abstract or "Not specified in paper",
+                        "problem_solved": snippet or "Not specified in paper",
+                        "proposed_model_or_approach": proposed,
+                        "source": r.get("source", ""),
+                        "score_relevance": 0,
+                        "score_quality": 0,
+                    }
+                )
+            fallback_gaps = []
+            for r in rows_sorted[: min(12, len(rows_sorted))]:
+                title = r.get("title", "") or "Paper"
+                abstract = (r.get("abstract", "") or "").strip()
+                if not abstract:
+                    abstract = _fulltext_snippet(title, _resolve_url(r))
+                snippet = abstract.split(".")[0] if abstract else "No abstract available"
+                fallback_gaps.append(f"{title}: {snippet}")
+            return {
+                "table": fallback_rows,
+                "research_gaps": fallback_gaps,
+                "generated_idea": "Synthesize gaps into a unified approach and validate across datasets.",
+                "generated_idea_steps": [
+                    "Define a unified problem statement covering all gaps.",
+                    "Collect or curate datasets that address the missing aspects.",
+                    "Implement a baseline and a new method targeting the gaps.",
+                    "Evaluate on standard metrics plus gap-specific diagnostics.",
+                    "Run ablations to isolate each component's impact.",
+                    "Release code, data splits, and evaluation scripts for reproducibility.",
+                ],
+                "generated_idea_citations": [r.get("title", "") for r in rows_sorted[:5]],
+            }
+
+        try:
+            raw_output = _invoke_with_fallback(
+                research_explainer_chain,
+                {
+                    "context": context,
+                    "question": topic,
+                    "papers_json": json.dumps(papers_payload, ensure_ascii=True),
+                },
+            )
+        except Exception as exc:
+            if _is_rate_limit_error(exc):
+                return _heuristic_fallback()
+            raise
         parsed = safe_json_loads(raw_output)
         if isinstance(parsed, dict) and parsed.get("error"):
             # Use primary for repair, fallback handled inside _invoke_with_fallback if needed
@@ -624,6 +791,12 @@ def run_research_explorer(topic: str, chat_history: str | None = None) -> Dict[s
         if isinstance(parsed, dict) and isinstance(parsed.get("table"), list):
             title_to_url = {r.get("title", ""): _resolve_url(r) for r in rows_sorted}
             title_to_abstract = {r.get("title", ""): (r.get("abstract", "") or "") for r in rows_sorted}
+            # Use fulltext snippet if abstract missing
+            for r in rows_sorted:
+                title = r.get("title", "")
+                url = _resolve_url(r)
+                if not title_to_abstract.get(title):
+                    title_to_abstract[title] = _fulltext_snippet(title, url)
             deduped = []
             seen = set()
             for row in parsed["table"]:
@@ -637,6 +810,9 @@ def run_research_explorer(topic: str, chat_history: str | None = None) -> Dict[s
                     for field in ["summary_full_paper", "problem_solved", "proposed_model_or_approach"]:
                         if field in row:
                             row[field] = strip_html(row.get(field, ""))
+                    # Ensure non-empty fields
+                    if not row.get("authors_name"):
+                        row["authors_name"] = "Not specified in paper"
                 if isinstance(row, dict) and not row.get("paper_url"):
                     title = row.get("paper_name", "")
                     if title in title_to_url:
@@ -644,27 +820,44 @@ def run_research_explorer(topic: str, chat_history: str | None = None) -> Dict[s
                 if isinstance(row, dict) and not row.get("summary_full_paper"):
                     title = row.get("paper_name", "")
                     abstract = title_to_abstract.get(title, "")
-                    row["summary_full_paper"] = abstract or "Not specified in paper"
+                    text = _paper_text(title, row.get("paper_url", ""), abstract)
+                    row["summary_full_paper"] = text or "Not specified in paper"
                 # Replace any "full text not provided" phrasing with abstract-based summary
                 if isinstance(row, dict):
                     summary = (row.get("summary_full_paper", "") or "").lower()
                     if "full text not provided" in summary or "supplied context" in summary:
                         title = row.get("paper_name", "")
                         abstract = title_to_abstract.get(title, "")
-                        row["summary_full_paper"] = abstract or "Not specified in paper"
+                        text = _paper_text(title, row.get("paper_url", ""), abstract)
+                        row["summary_full_paper"] = text or "Not specified in paper"
                 # Fix proposed_model_or_approach if it duplicates the paper title
                 if isinstance(row, dict):
                     title = (row.get("paper_name", "") or "").strip()
                     proposed = (row.get("proposed_model_or_approach", "") or "").strip()
                     if title and proposed and (proposed == title or proposed in title or title in proposed):
                         abstract = title_to_abstract.get(title, "")
-                        inferred = extract_proposed_approach(abstract)
+                        inferred = extract_proposed_approach(_paper_text(title, row.get("paper_url", ""), abstract))
                         row["proposed_model_or_approach"] = inferred or "Not specified in paper"
                     # Ensure problem_solved is populated
                     if isinstance(row, dict) and not row.get("problem_solved"):
-                        abstract = title_to_abstract.get(row.get("paper_name", ""), "")
-                        snippet = abstract.split(".")[0] if abstract else ""
+                        title = row.get("paper_name", "")
+                        abstract = title_to_abstract.get(title, "")
+                        text = _paper_text(title, row.get("paper_url", ""), abstract)
+                        snippet = text.split(".")[0] if text else ""
                         row["problem_solved"] = snippet or "Not specified in paper"
+                    if not row.get("proposed_model_or_approach") or row.get("proposed_model_or_approach") == row.get("problem_solved"):
+                        abstract = title_to_abstract.get(row.get("paper_name", ""), "")
+                        inferred = extract_proposed_approach(
+                            _paper_text(row.get("paper_name", ""), row.get("paper_url", ""), abstract)
+                        )
+                        row["proposed_model_or_approach"] = inferred or "Not specified in paper"
+                    if row.get("proposed_model_or_approach") == row.get("problem_solved"):
+                        row["proposed_model_or_approach"] = "Not specified in paper"
+                    if not row.get("summary_full_paper"):
+                        row["summary_full_paper"] = "Not specified in paper"
+                    # Truncate long summary to keep columns readable
+                    if row.get("summary_full_paper"):
+                        row["summary_full_paper"] = truncate_text(row.get("summary_full_paper", ""), max_chars=900)
                     # Normalize bare DOI URLs
                     paper_url = (row.get("paper_url", "") or "").strip()
                     if paper_url.startswith("10.") and "/" in paper_url:
@@ -677,13 +870,41 @@ def run_research_explorer(topic: str, chat_history: str | None = None) -> Dict[s
                     if key in seen:
                         continue
                     seen.add(key)
-                    # Ensure scores exist
-                    if row.get("score_relevance") is None:
-                        row["score_relevance"] = 0
-                    if row.get("score_quality") is None:
-                        row["score_quality"] = 0
+                    # Ensure scores exist and are non-zero (heuristic fallback)
+                    if not row.get("score_relevance") or str(row.get("score_relevance")) == "0":
+                        title = row.get("paper_name", "")
+                        abstract = title_to_abstract.get(title, "")
+                        rel, _ = _heuristic_scores(topic, title, _paper_text(title, row.get("paper_url", ""), abstract), "")
+                        row["score_relevance"] = rel
+                    if not row.get("score_quality") or str(row.get("score_quality")) == "0":
+                        title = row.get("paper_name", "")
+                        abstract = title_to_abstract.get(title, "")
+                        yr = ""
+                        for r in rows_sorted:
+                            if r.get("title", "") == title:
+                                yr = r.get("year", "")
+                                break
+                        _, qual = _heuristic_scores(topic, title, _paper_text(title, row.get("paper_url", ""), abstract), str(yr))
+                        row["score_quality"] = qual
                 deduped.append(row)
             parsed["table"] = deduped
+
+        # Drop rows that are still placeholders after fulltext/abstract filling.
+        if isinstance(parsed, dict) and isinstance(parsed.get("table"), list):
+            filtered = []
+            for row in parsed["table"]:
+                if not isinstance(row, dict):
+                    continue
+                summary = (row.get("summary_full_paper", "") or "").strip().lower()
+                problem = (row.get("problem_solved", "") or "").strip().lower()
+                proposed = (row.get("proposed_model_or_approach", "") or "").strip().lower()
+                if (
+                    summary in ["", "not specified in paper"]
+                    or (problem in ["", "not specified in paper"] and proposed in ["", "not specified in paper"])
+                ):
+                    continue
+                filtered.append(row)
+            parsed["table"] = filtered
 
         # Store model outputs back into the vector store for future retrieval.
         try:
@@ -760,8 +981,12 @@ def run_research_explorer(topic: str, chat_history: str | None = None) -> Dict[s
             for r in rows_sorted[: min(12, len(rows_sorted))]:
                 title = r.get("title", "") or "Paper"
                 abstract = (r.get("abstract", "") or "").strip()
+                if not abstract:
+                    snippets = fulltext_map.get((title, _resolve_url(r)), [])
+                    if snippets:
+                        abstract = snippets[0]
                 snippet = abstract.split(".")[0] if abstract else "No abstract available"
-                fallback_gaps.append(f"{title}: Gap not explicitly stated; inferred from abstract: {snippet}.")
+                fallback_gaps.append(f"{title}: {snippet}")
             parsed["research_gaps"] = fallback_gaps
 
         if isinstance(parsed, dict) and not parsed.get("generated_idea"):
@@ -784,27 +1009,44 @@ def run_research_explorer(topic: str, chat_history: str | None = None) -> Dict[s
                 title = r.get("title", "") or "Paper"
                 abstract = (r.get("abstract", "") or "").strip()
                 snippet = abstract.split(".")[0] if abstract else "No abstract available"
-                fallback_gaps.append(f"{title}: Gap not explicitly stated; inferred from abstract: {snippet}.")
+                fallback_gaps.append(f"{title}: {snippet}")
             parsed["research_gaps"] = fallback_gaps
 
         # Replace placeholder "gap text" with inferred gaps from abstracts.
         if isinstance(parsed, dict) and isinstance(parsed.get("research_gaps"), list):
             title_to_abstract = {r.get("title", ""): (r.get("abstract", "") or "") for r in rows_sorted}
+            for r in rows_sorted:
+                title = r.get("title", "")
+                url = _resolve_url(r)
+                if not title_to_abstract.get(title):
+                    snippets = fulltext_map.get((title, url), [])
+                    if snippets:
+                        title_to_abstract[title] = snippets[0]
             cleaned_gaps = []
             for g in parsed["research_gaps"]:
                 if not isinstance(g, str):
                     continue
                 g = strip_html(g)
-                if "gap text" in g.lower():
+                g = g.replace("Gap not explicitly stated; inferred from abstract:", "").strip()
+                if "gap text" in g.lower() or "gap not explicitly stated" in g.lower():
                     # Try to map to a paper title prefix
                     parts = g.split(":", 1)
                     title = parts[0].strip() if parts else ""
                     abstract = title_to_abstract.get(title, "")
                     snippet = abstract.split(".")[0] if abstract else "No abstract available"
-                    cleaned_gaps.append(f"{title}: Gap not explicitly stated; inferred from abstract: {snippet}.")
+                    cleaned_gaps.append(f"{title}: {snippet}")
                 else:
                     cleaned_gaps.append(g)
-            parsed["research_gaps"] = cleaned_gaps
+            # Deduplicate gaps
+            uniq_gaps = []
+            seen_gap = set()
+            for g in cleaned_gaps:
+                key = g.strip().lower()
+                if key in seen_gap:
+                    continue
+                seen_gap.add(key)
+                uniq_gaps.append(g)
+            parsed["research_gaps"] = uniq_gaps
 
         if isinstance(parsed, dict) and not parsed.get("generated_idea"):
             parsed["generated_idea"] = (
@@ -852,6 +1094,11 @@ def run_research_explorer(topic: str, chat_history: str | None = None) -> Dict[s
 
         return parsed
     except Exception as exc:
+        if _is_rate_limit_error(exc):
+            retry = _extract_retry_after(str(exc))
+            if retry:
+                return {"error": f"Sorry, rate limit reached. Please try again after {retry}."}
+            return {"error": "Sorry, rate limit reached. Please try again later."}
         return {"error": f"Research Explorer failed: {exc}"}
 
 

@@ -74,11 +74,42 @@ st.write(
     "followed by a research gap and a generated idea."
 )
 
+
+def _format_chat_history(max_turns: int = 12) -> str:
+    """Format recent chat history into a compact text context."""
+    history = st.session_state.memory[-max_turns:]
+    lines = []
+    for msg in history:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+        if not content:
+            continue
+        lines.append(f"{role.upper()}: {content}")
+    return "\n".join(lines)
+
+
+def _rebuild_memory() -> None:
+    """Rebuild memory from chat_history for continuous context."""
+    memory = []
+    for msg in st.session_state.chat_history:
+        role = msg.get("role")
+        content = msg.get("content")
+        if role == "user":
+            memory.append({"role": "user", "content": content})
+        elif role == "assistant":
+            if isinstance(content, dict):
+                summary = safe_get(content, "generated_idea") or "Provided structured research results."
+                memory.append({"role": "assistant", "content": summary})
+            else:
+                memory.append({"role": "assistant", "content": str(content)})
+    st.session_state.memory = memory
+
+
 def render_user_actions(idx: int) -> None:
     """Render edit/regenerate controls for a user message."""
     cols = st.columns([8, 1, 1])
     with cols[1]:
-        if st.button("✏️", key=f"edit_{idx}"):
+        if st.button("🖊️", key=f"edit_{idx}"):
             st.session_state.edit_mode = True
             st.session_state.edit_index = idx
             st.rerun()
@@ -86,13 +117,14 @@ def render_user_actions(idx: int) -> None:
         if st.button("🔁", key=f"regen_{idx}"):
             user_text = st.session_state.chat_history[idx]["content"]
             with st.spinner("Regenerating response..."):
-                history_text = "\n".join(st.session_state.memory[-100:])
+                history_text = _format_chat_history()
                 result = run_research_explorer(user_text, chat_history=history_text)
             if "error" in result:
                 st.error(result["error"])
                 st.session_state.chat_history.append({"role": "assistant", "content": result["error"]})
             else:
                 st.session_state.chat_history.append({"role": "assistant", "content": result})
+                _rebuild_memory()
             st.rerun()
 
 if "chat_history" not in st.session_state:
@@ -177,14 +209,15 @@ for idx, msg in enumerate(st.session_state.chat_history):
                         st.session_state.chat_history = st.session_state.chat_history[: idx + 1]
                         st.session_state.chat_history[idx]["content"] = edited
                         with st.spinner("Regenerating response..."):
-                            history_text = "\n".join(st.session_state.memory[-100:])
+                            history_text = _format_chat_history()
                             result = run_research_explorer(edited, chat_history=history_text)
                         if "error" in result:
                             st.error(result["error"])
                             st.session_state.chat_history.append({"role": "assistant", "content": result["error"]})
                         else:
                             st.session_state.chat_history.append({"role": "assistant", "content": result})
-                with cos[2]:
+                            _rebuild_memory()
+                with cols[2]:
                     if st.button("✖", key=f"cancel_edit_{idx}"):
                         st.session_state.edit_mode = False
                         st.session_state.edit_index = None
@@ -198,6 +231,7 @@ for idx, msg in enumerate(st.session_state.chat_history):
 prompt = st.chat_input("Enter a research topic or command (/review, /refs <topic>)")
 if prompt:
     st.session_state.chat_history.append({"role": "user", "content": prompt})
+    st.session_state.memory.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.write(prompt)
         render_user_actions(len(st.session_state.chat_history) - 1)
@@ -209,6 +243,7 @@ if prompt:
             st.session_state.chat_history.append(
                 {"role": "assistant", "content": "Commands: /review, /refs <topic>"}
             )
+            st.session_state.memory.append({"role": "assistant", "content": "Commands: /review, /refs <topic>"})
         elif user_text.lower().startswith("/review"):
             pdf_file = st.session_state.get("uploaded_pdf")
             if pdf_file is None:
@@ -241,6 +276,7 @@ if prompt:
                     st.markdown("**Suggested Venue**")
                     st.write(safe_get(result, "suggested_venue"))
                     st.session_state.chat_history.append({"role": "assistant", "content": result})
+                    st.session_state.memory.append({"role": "assistant", "content": "Reviewed the uploaded paper."})
         elif user_text.lower().startswith("/refs"):
             parts = user_text.split(maxsplit=1)
             if len(parts) < 2 or not parts[1].strip():
@@ -266,9 +302,12 @@ if prompt:
                     else:
                         st.write(references)
                     st.session_state.chat_history.append({"role": "assistant", "content": result})
+                    st.session_state.memory.append(
+                        {"role": "assistant", "content": f"Generated references for: {topic}"}
+                    )
         else:
             with st.spinner("Retrieving papers and generating analysis..."):
-                history_text = "\n".join(st.session_state.memory[-100:])
+                history_text = _format_chat_history()
                 result = run_research_explorer(user_text, chat_history=history_text)
             if "error" in result:
                 st.error(result["error"])
@@ -276,7 +315,6 @@ if prompt:
                     {"role": "assistant", "content": result["error"]}
                 )
             else:
-                st.session_state.memory.append(user_text)
                 st.markdown("**Results Table**")
                 table_rows = safe_get(result, "table", [])
                 if isinstance(table_rows, list) and table_rows:
