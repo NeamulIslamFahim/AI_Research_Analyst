@@ -549,7 +549,8 @@ def _run_research_explorer_impl(
             try:
                 yi = int(y[:4])
             except Exception:
-                return True if local_only else False
+                # If year is missing/unknown, keep the row.
+                return True
             return year_min <= yi <= year_max
 
         filtered_rows = [r for r in rows if _year_ok(r)]
@@ -576,7 +577,7 @@ def _run_research_explorer_impl(
             abstract = (r.get("abstract", "") or "").strip()
             return bool(abstract)
         content_rows = [r for r in rows_sorted if _has_content(r)]
-        if content_rows:
+        if len(content_rows) >= 3:
             rows_sorted = content_rows
         fulltext_only = (load_env_var("FULLTEXT_ONLY", "false") or "false").lower() == "true"
         if fulltext_only:
@@ -633,7 +634,19 @@ def _run_research_explorer_impl(
         if len(papers_payload) > 12:
             papers_payload = papers_payload[:12]
         if not papers_payload:
-            return {"error": "No papers with usable abstracts/full text found. Try another topic."}
+            # Fallback to using titles even if abstracts are missing.
+            fallback_rows = rows_sorted[:12] if rows_sorted else rows[:12]
+            for r in fallback_rows:
+                papers_payload.append(
+                    {
+                        "paper_name": r.get("title", ""),
+                        "paper_url": _resolve_url(r),
+                        "authors_name": r.get("authors", ""),
+                        "abstract": (r.get("abstract", "") or "").strip(),
+                        "source": r.get("source", ""),
+                        "fulltext_available": _is_fulltext(r),
+                    }
+                )
 
         def _heuristic_gaps() -> List[str]:
             gaps_list: List[str] = []
@@ -845,6 +858,13 @@ def _run_research_explorer_impl(
                         continue
                     seen.add(key)
                     row["paper_url"] = _fix_paper_url(row.get("paper_url", ""))
+                    # If DOI looks invalid (no slash), fall back to source search link.
+                    paper_url = row.get("paper_url", "") or ""
+                    title = row.get("paper_name", "") or ""
+                    if "doi.org/" in paper_url:
+                        suffix = paper_url.split("doi.org/", 1)[1]
+                        if "/" not in suffix and title:
+                            row["paper_url"] = "https://scholar.google.com/scholar?q=" + requests.utils.quote(title)
                     # Ensure scores exist
                     if row.get("score_relevance") is None:
                         row["score_relevance"] = 0
@@ -1292,9 +1312,14 @@ def _fix_paper_url(url: str) -> str:
     if not url:
         return ""
     trimmed = _normalize_url(url)
+    trimmed = trimmed.replace("https://arxiv.org/abs/https://arxiv.org/abs/", "https://arxiv.org/abs/")
+    trimmed = trimmed.replace("http://arxiv.org/abs/http://arxiv.org/abs/", "http://arxiv.org/abs/")
     if "doi.org/" in trimmed:
         suffix = trimmed.split("doi.org/", 1)[1]
         if _looks_like_arxiv_id(suffix):
+            return f"https://arxiv.org/abs/{suffix}"
+        # If DOI is actually a legacy arXiv id (contains slash with category), map to arXiv.
+        if "/" in suffix and any(suffix.startswith(prefix) for prefix in ["hep-", "astro-", "cs.", "math.", "physics.", "stat."]):
             return f"https://arxiv.org/abs/{suffix}"
     # If it's a bare arXiv ID, map to arXiv abs page.
     if _looks_like_arxiv_id(trimmed):
@@ -1310,6 +1335,9 @@ def _looks_like_arxiv_id(value: str) -> bool:
         v = v.split("/")[-1]
     # arXiv IDs like 2207.08146 or 1809.08274v1
     if v.count(".") == 1 and v.replace("v", "").replace(".", "").isdigit():
+        return True
+    # arXiv legacy IDs like hep-ex/0412026 or astro-ph/0611001
+    if "/" in v and any(v.startswith(prefix) for prefix in ["hep-", "astro-", "cs.", "math.", "physics.", "stat."]):
         return True
     return False
 

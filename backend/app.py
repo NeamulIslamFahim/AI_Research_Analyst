@@ -102,9 +102,13 @@ def _fix_paper_url(url: str) -> str:
     if not url:
         return ""
     trimmed = _normalize_url(url)
+    trimmed = trimmed.replace("https://arxiv.org/abs/https://arxiv.org/abs/", "https://arxiv.org/abs/")
+    trimmed = trimmed.replace("http://arxiv.org/abs/http://arxiv.org/abs/", "http://arxiv.org/abs/")
     if "doi.org/" in trimmed:
         suffix = trimmed.split("doi.org/", 1)[1]
         if suffix.count(".") == 1 and suffix.replace("v", "").replace(".", "").isdigit():
+            return f"https://arxiv.org/abs/{suffix}"
+        if "/" in suffix and any(suffix.startswith(prefix) for prefix in ["hep-", "astro-", "cs.", "math.", "physics.", "stat."]):
             return f"https://arxiv.org/abs/{suffix}"
     return trimmed
 
