@@ -5,12 +5,14 @@ from __future__ import annotations
 
 import os
 import tempfile
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, TypedDict
+from pydantic import BaseModel, Field, ValidationError
 
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langchain_openai import ChatOpenAI
 from langchain_core.documents import Document
+from langgraph.graph import StateGraph, END
 import json
 import requests
 
@@ -360,8 +362,12 @@ def download_papers_for_topic(topic: str) -> Dict[str, Any]:
         )
     # Update vector store with new PDF content for future queries
     if fulltext_docs:
-        _ensure_vector_store_with_docs(fulltext_docs)
-def run_research_explorer(
+        try:
+            _ensure_vector_store_with_docs(fulltext_docs)
+        except Exception:
+            pass
+    return {"downloaded_chunks": len(fulltext_docs)}
+def _run_research_explorer_impl(
     topic: str, chat_history: str | None = None, focus_topic: str | None = None
 ) -> Dict[str, Any]:
     """Run arXiv retrieval + RAG generation for the given topic."""
@@ -370,11 +376,15 @@ def run_research_explorer(
     try:
         load_dotenv()
         load_dotenv()
+        local_only = (load_env_var("LOCAL_ONLY", "false") or "false").lower() == "true"
+        fast_mode = (load_env_var("FAST_MODE", "false") or "false").lower() == "true"
+        max_primary = int(load_env_var("FAST_MAX_PRIMARY", "5") or "5")
+        max_secondary = int(load_env_var("FAST_MAX_SECONDARY", "4") or "4")
         # Always download new papers to update the vector database
         use_live_sources = True
         if use_live_sources:
             # Keep retrieval fast but still >10 papers total across sources.
-            docs = arxiv_search(topic, max_results=8)
+            docs = arxiv_search(topic, max_results=(max_primary if fast_mode else 8))
             if docs and docs[0].metadata.get("error"):
                 return {"error": docs[0].metadata.get("error")}
 
@@ -382,63 +392,92 @@ def run_research_explorer(
             rows = docs_to_rows(docs, source="arxiv")
         warnings: List[str] = []
 
-        sem_rows, sem_warn = semantic_scholar_search(topic, max_results=6)
+        sem_rows, sem_warn = semantic_scholar_search(
+            topic, max_results=(max_secondary if fast_mode else 6)
+        )
         if sem_warn:
             warnings.append(sem_warn)
         rows.extend(sem_rows)
 
-        oa_rows, oa_warn = semantic_scholar_open_access_search(topic, max_results=6)
+        oa_rows, oa_warn = semantic_scholar_open_access_search(
+            topic, max_results=(max_secondary if fast_mode else 6)
+        )
         if oa_warn:
             warnings.append(oa_warn)
-        rows.extend(oa_rows)
+        if not fast_mode:
+            rows.extend(oa_rows)
 
-        scholar_rows, scholar_warn = serpapi_scholar_search(topic, max_results=6)
+        scholar_rows, scholar_warn = serpapi_scholar_search(
+            topic, max_results=(max_secondary if fast_mode else 6)
+        )
         if scholar_warn:
             warnings.append(scholar_warn)
-        rows.extend(scholar_rows)
+        if not fast_mode:
+            rows.extend(scholar_rows)
 
-        rg_rows, rg_warn = serpapi_researchgate_search(topic, max_results=6)
+        rg_rows, rg_warn = serpapi_researchgate_search(
+            topic, max_results=(max_secondary if fast_mode else 6)
+        )
         if rg_warn:
             warnings.append(rg_warn)
-        rows.extend(rg_rows)
+        if not fast_mode:
+            rows.extend(rg_rows)
 
-        web_rows, web_warn = serpapi_web_search(topic, max_results=4)
+        web_rows, web_warn = serpapi_web_search(
+            topic, max_results=(max_secondary if fast_mode else 4)
+        )
         if web_warn:
             warnings.append(web_warn)
-        rows.extend(web_rows)
+        if not fast_mode:
+            rows.extend(web_rows)
 
-        sd_rows, sd_warn = serpapi_sciencedirect_search(topic, max_results=4)
+        sd_rows, sd_warn = serpapi_sciencedirect_search(
+            topic, max_results=(max_secondary if fast_mode else 4)
+        )
         if sd_warn:
             warnings.append(sd_warn)
-        rows.extend(sd_rows)
+        if not fast_mode:
+            rows.extend(sd_rows)
 
-        oa_rows2, oa2_warn = openalex_search(topic, max_results=6)
+        oa_rows2, oa2_warn = openalex_search(
+            topic, max_results=(max_secondary if fast_mode else 6)
+        )
         if oa2_warn:
             warnings.append(oa2_warn)
-        rows.extend(oa_rows2)
+        if not fast_mode:
+            rows.extend(oa_rows2)
 
-        core_rows, core_warn = core_search(topic, max_results=6)
+        core_rows, core_warn = core_search(
+            topic, max_results=(max_secondary if fast_mode else 6)
+        )
         if core_warn:
             warnings.append(core_warn)
-        rows.extend(core_rows)
+        if not fast_mode:
+            rows.extend(core_rows)
 
-        doaj_rows, doaj_warn = doaj_search(topic, max_results=6)
+        doaj_rows, doaj_warn = doaj_search(
+            topic, max_results=(max_secondary if fast_mode else 6)
+        )
         if doaj_warn:
             warnings.append(doaj_warn)
-        rows.extend(doaj_rows)
+        if not fast_mode:
+            rows.extend(doaj_rows)
 
-        epmc_rows, epmc_warn = europe_pmc_search(topic, max_results=6)
+        epmc_rows, epmc_warn = europe_pmc_search(
+            topic, max_results=(max_secondary if fast_mode else 6)
+        )
         if epmc_warn:
             warnings.append(epmc_warn)
-        rows.extend(epmc_rows)
+        if not fast_mode:
+            rows.extend(epmc_rows)
 
         all_docs = docs + rows_to_docs(
             sem_rows + oa_rows + scholar_rows + rg_rows + web_rows + sd_rows + oa_rows2 + core_rows + doaj_rows + epmc_rows
         )
         fulltext_docs: List[Document] = []
-        if (load_env_var("DOWNLOAD_ARXIV_PDFS", "true") or "true").lower() == "true":
+        if not fast_mode and (load_env_var("DOWNLOAD_ARXIV_PDFS", "true") or "true").lower() == "true":
             fulltext_docs.extend(_download_arxiv_fulltext(docs))
-        if (load_env_var("DOWNLOAD_EXTERNAL_PDFS", "true") or "true").lower() == "true":
+        if not fast_mode and (load_env_var("DOWNLOAD_EXTERNAL_PDFS", "true") or "true").lower() == "true":
             fulltext_docs.extend(
                 _download_external_fulltext(
                     sem_rows + oa_rows + scholar_rows + rg_rows + web_rows + sd_rows + oa_rows2 + core_rows + doaj_rows + epmc_rows
@@ -561,6 +600,8 @@ def run_research_explorer(
                 return pdf_url
             if doi:
                 doi_str = str(doi).strip()
+                if _looks_like_arxiv_id(doi_str):
+                    doi_str = ""
                 if "doi.org/" in doi_str:
                     doi_str = doi_str.split("doi.org/", 1)[1]
                 doi_str = doi_str.replace("https://", "").replace("http://", "").strip()
@@ -727,6 +768,12 @@ def run_research_explorer(
                     title = row.get("paper_name", "")
                     if title in title_to_url:
                         row["paper_url"] = title_to_url[title]
+                if isinstance(row, dict):
+                    paper_url = (row.get("paper_url", "") or "").strip()
+                    if not paper_url or "not specified" in paper_url.lower():
+                        title = row.get("paper_name", "")
+                        if title in title_to_url:
+                            row["paper_url"] = title_to_url[title]
                 if isinstance(row, dict) and not row.get("summary_full_paper"):
                     title = row.get("paper_name", "")
                     abstract = title_to_abstract.get(title, "")
@@ -761,6 +808,14 @@ def run_research_explorer(
                         ) in ("Not specified in paper", "Not specified in abstract"):
                             inferred = extract_proposed_approach(fulltext_snippet)
                             row["proposed_model_or_approach"] = inferred or row.get("proposed_model_or_approach", "")
+                    # Ensure proposed_model_or_approach is not just the first abstract line.
+                    proposed = (row.get("proposed_model_or_approach", "") or "").strip()
+                    summary = (row.get("summary_full_paper", "") or "").strip()
+                    problem = (row.get("problem_solved", "") or "").strip()
+                    if proposed and (proposed == summary or proposed == problem or proposed in summary):
+                        abstract = title_to_abstract.get(title, "")
+                        inferred = extract_proposed_approach(fulltext_snippet or abstract)
+                        row["proposed_model_or_approach"] = inferred or "Not specified in paper"
                 # Fix proposed_model_or_approach if it duplicates the paper title
                 if isinstance(row, dict):
                     title = (row.get("paper_name", "") or "").strip()
@@ -786,6 +841,7 @@ def run_research_explorer(
                     if key in seen:
                         continue
                     seen.add(key)
+                    row["paper_url"] = _fix_paper_url(row.get("paper_url", ""))
                     # Ensure scores exist
                     if row.get("score_relevance") is None:
                         row["score_relevance"] = 0
@@ -946,7 +1002,7 @@ def run_research_explorer(
             parsed["generated_idea"] = (
                 "Combine the identified gaps into a unified approach that improves coverage and evaluation rigor."
             )
-        if isinstance(parsed, dict) and not parsed.get("generated_idea_steps"):
+        if isinstance(parsed, dict) and (not parsed.get("generated_idea_steps") or not parsed.get("generated_idea_steps")):
             parsed["generated_idea_steps"] = [
                 "Define a unified problem statement covering all gaps.",
                 "Collect or curate datasets that address the missing aspects.",
@@ -968,11 +1024,13 @@ def run_research_explorer(
             for r in rows:
                 doi = r.get("doi", "")
                 doi_url = f"https://doi.org/{doi}" if doi else ""
+                if _looks_like_arxiv_id(str(doi or "")):
+                    doi_url = ""
                 paper_url = doi_url or r.get("url", "")
                 table_rows.append(
                     {
                         "paper_name": r.get("title", ""),
-                        "paper_url": paper_url,
+                        "paper_url": _fix_paper_url(paper_url),
                         "authors_name": r.get("authors", ""),
                         "summary_full_paper": r.get("abstract", ""),
                         "datasets_used": [],
@@ -991,7 +1049,7 @@ def run_research_explorer(
         return {"error": f"Research Explorer failed: {exc}"}
 
 
-def run_paper_reviewer(paper_text: str) -> Dict[str, Any]:
+def _run_paper_reviewer_impl(paper_text: str) -> Dict[str, Any]:
     """Run a structured reviewer chain on an uploaded PDF."""
     if not paper_text:
         return {"error": "Paper text is required."}
@@ -1025,7 +1083,7 @@ def run_paper_reviewer(paper_text: str) -> Dict[str, Any]:
         return {"error": f"Paper Reviewer failed: {exc}"}
 
 
-def run_paper_qa(question: str, paper_text: str) -> Dict[str, Any]:
+def _run_paper_qa_impl(question: str, paper_text: str) -> Dict[str, Any]:
     """Run a QA chain on the text of an uploaded paper."""
     if not question:
         return {"error": "Question is required."}
@@ -1044,7 +1102,7 @@ def run_paper_qa(question: str, paper_text: str) -> Dict[str, Any]:
         return {"error": f"Paper QA failed: {exc}"}
 
 
-def run_reference_generator(topic: str) -> Dict[str, Any]:
+def _run_reference_generator_impl(topic: str) -> Dict[str, Any]:
     """Generate 10 APA references for a topic using real arXiv metadata."""
     if not topic:
         return {"error": "Topic is required."}
@@ -1083,3 +1141,372 @@ def run_reference_generator(topic: str) -> Dict[str, Any]:
     except Exception as exc:
         return {"error": f"Reference Generator failed: {exc}"}
 from langchain_community.retrievers import BM25Retriever
+
+
+class ResearchState(TypedDict):
+    topic: str
+    chat_history: Optional[str]
+    focus_topic: Optional[str]
+    result: Optional[Dict[str, Any]]
+    retries: int
+    validation_error: Optional[str]
+
+
+class ReviewState(TypedDict):
+    paper_text: str
+    result: Optional[Dict[str, Any]]
+    retries: int
+    validation_error: Optional[str]
+
+
+class QAState(TypedDict):
+    question: str
+    paper_text: str
+    result: Optional[Dict[str, Any]]
+    retries: int
+    validation_error: Optional[str]
+
+
+class ReferenceState(TypedDict):
+    topic: str
+    result: Optional[Dict[str, Any]]
+    retries: int
+    validation_error: Optional[str]
+
+
+class ResearchRowSchema(BaseModel):
+    paper_name: str
+    paper_url: str
+    authors_name: str
+    summary_full_paper: str
+    problem_solved: str
+    proposed_model_or_approach: str
+    source: str
+    score_relevance: int = Field(ge=0, le=10)
+    score_quality: int = Field(ge=0, le=10)
+
+
+class ResearchResultSchema(BaseModel):
+    table: List[ResearchRowSchema]
+    research_gaps: List[str]
+    assistant_reply: str
+    generated_idea: str
+    generated_idea_steps: List[str]
+    generated_idea_citations: List[str] = []
+
+
+class ReviewResultSchema(BaseModel):
+    strengths: str
+    weaknesses: str
+    novelty: str
+    technical_correctness: str
+    reproducibility: str
+    recommendation: str
+    suggested_venue: str
+
+
+class QAResultSchema(BaseModel):
+    answer: str
+
+
+class ReferenceResultSchema(BaseModel):
+    references: List[str]
+
+
+def _validate_research_result(result: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(result, dict):
+        return {"error": "Invalid research result."}
+    if result.get("error"):
+        return result
+    result.setdefault("table", [])
+    result.setdefault("research_gaps", [])
+    result.setdefault("assistant_reply", "Research summary prepared.")
+    result.setdefault("generated_idea", "Not provided.")
+    result.setdefault("generated_idea_steps", [])
+    return result
+
+
+def _score_research_result(result: Dict[str, Any], topic: str) -> Dict[str, Any]:
+    if not isinstance(result, dict):
+        return result
+    table = result.get("table")
+    if not isinstance(table, list):
+        return result
+    topic_words = [w for w in (topic or "").lower().split() if len(w) > 2]
+    for row in table:
+        if not isinstance(row, dict):
+            continue
+        text = f"{row.get('paper_name','')} {row.get('summary_full_paper','')}".lower()
+        overlap = sum(1 for w in topic_words if w in text)
+        max_overlap = max(len(topic_words), 1)
+        relevance = int(min(10, round((overlap / max_overlap) * 10)))
+        quality = 0
+        if row.get("paper_url"):
+            quality += 3
+        if row.get("authors_name"):
+            quality += 2
+        if row.get("summary_full_paper"):
+            quality += 3
+        if row.get("problem_solved"):
+            quality += 1
+        if row.get("proposed_model_or_approach"):
+            quality += 1
+        quality = min(10, quality)
+        row["score_relevance"] = relevance
+        row["score_quality"] = quality
+    return result
+
+
+def _strict_validate(schema, result: Dict[str, Any]) -> tuple[bool, Optional[str]]:
+    try:
+        schema.model_validate(result)
+        return True, None
+    except ValidationError as exc:
+        return False, str(exc)
+
+
+def _normalize_url(url: str) -> str:
+    if not url:
+        return ""
+    trimmed = str(url).strip()
+    trimmed = trimmed.replace("https://doi.org/https://doi.org/", "https://doi.org/")
+    if trimmed.startswith("http://") or trimmed.startswith("https://"):
+        return trimmed
+    if trimmed.startswith("doi.org/"):
+        return f"https://{trimmed}"
+    if trimmed.startswith("doi:"):
+        doi = trimmed.replace("doi:", "").strip()
+        return f"https://doi.org/{doi}"
+    if trimmed.startswith("10."):
+        return f"https://doi.org/{trimmed}"
+    if trimmed.startswith("arxiv.org/"):
+        return f"https://{trimmed}"
+    return f"https://{trimmed}"
+
+
+def _fix_paper_url(url: str) -> str:
+    """Fix common invalid paper URLs (e.g., arXiv IDs wrongly formatted as DOIs)."""
+    if not url:
+        return ""
+    trimmed = _normalize_url(url)
+    if "doi.org/" in trimmed:
+        suffix = trimmed.split("doi.org/", 1)[1]
+        if _looks_like_arxiv_id(suffix):
+            return f"https://arxiv.org/abs/{suffix}"
+    # If it's a bare arXiv ID, map to arXiv abs page.
+    if _looks_like_arxiv_id(trimmed):
+        return f"https://arxiv.org/abs/{trimmed}"
+    return trimmed
+
+
+def _looks_like_arxiv_id(value: str) -> bool:
+    v = (value or "").strip()
+    if not v:
+        return False
+    if v.startswith("http"):
+        v = v.split("/")[-1]
+    # arXiv IDs like 2207.08146 or 1809.08274v1
+    if v.count(".") == 1 and v.replace("v", "").replace(".", "").isdigit():
+        return True
+    return False
+
+
+def _validate_review_result(result: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(result, dict):
+        return {"error": "Invalid review result."}
+    if result.get("error"):
+        return result
+    for key in [
+        "strengths",
+        "weaknesses",
+        "novelty",
+        "technical_correctness",
+        "reproducibility",
+        "recommendation",
+        "suggested_venue",
+    ]:
+        result.setdefault(key, "Not provided.")
+    return result
+
+
+def _validate_reference_result(result: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(result, dict):
+        return {"error": "Invalid references result."}
+    if result.get("error"):
+        return result
+    refs = result.get("references", [])
+    if not isinstance(refs, list):
+        result["references"] = []
+    return result
+
+
+def _validate_qa_result(result: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(result, dict):
+        return {"error": "Invalid QA result."}
+    if result.get("error"):
+        return result
+    result.setdefault("answer", "No answer found.")
+    return result
+
+
+def _build_research_graph():
+    graph = StateGraph(ResearchState)
+
+    def run_node(state: ResearchState) -> ResearchState:
+        res = _run_research_explorer_impl(
+            state["topic"], chat_history=state.get("chat_history"), focus_topic=state.get("focus_topic")
+        )
+        return {**state, "result": res}
+
+    def score_node(state: ResearchState) -> ResearchState:
+        res = _score_research_result(state.get("result") or {}, state.get("topic") or "")
+        return {**state, "result": res}
+
+    def check_node(state: ResearchState) -> ResearchState:
+        cleaned = _validate_research_result(state.get("result") or {})
+        ok, err = _strict_validate(ResearchResultSchema, cleaned)
+        retries = state.get("retries", 0)
+        if not ok:
+            retries += 1
+        return {**state, "result": cleaned, "validation_error": None if ok else err, "retries": retries}
+
+    def _route(state: ResearchState) -> str:
+        if state.get("validation_error") and state.get("retries", 0) < 2:
+            return "run"
+        return END
+
+    graph.add_node("run", run_node)
+    graph.add_node("score", score_node)
+    graph.add_node("check", check_node)
+    graph.set_entry_point("run")
+    graph.add_edge("run", "score")
+    graph.add_edge("score", "check")
+    graph.add_conditional_edges("check", _route)
+    return graph.compile()
+
+
+def _build_review_graph():
+    graph = StateGraph(ReviewState)
+
+    def run_node(state: ReviewState) -> ReviewState:
+        res = _run_paper_reviewer_impl(state["paper_text"])
+        return {**state, "result": res}
+
+    def check_node(state: ReviewState) -> ReviewState:
+        cleaned = _validate_review_result(state.get("result") or {})
+        ok, err = _strict_validate(ReviewResultSchema, cleaned)
+        retries = state.get("retries", 0)
+        if not ok:
+            retries += 1
+        return {**state, "result": cleaned, "validation_error": None if ok else err, "retries": retries}
+
+    def _route(state: ReviewState) -> str:
+        if state.get("validation_error") and state.get("retries", 0) < 2:
+            return "run"
+        return END
+
+    graph.add_node("run", run_node)
+    graph.add_node("check", check_node)
+    graph.set_entry_point("run")
+    graph.add_edge("run", "check")
+    graph.add_conditional_edges("check", _route)
+    return graph.compile()
+
+
+def _build_qa_graph():
+    graph = StateGraph(QAState)
+
+    def run_node(state: QAState) -> QAState:
+        res = _run_paper_qa_impl(state["question"], state["paper_text"])
+        return {**state, "result": res}
+
+    def check_node(state: QAState) -> QAState:
+        cleaned = _validate_qa_result(state.get("result") or {})
+        ok, err = _strict_validate(QAResultSchema, cleaned)
+        retries = state.get("retries", 0)
+        if not ok:
+            retries += 1
+        return {**state, "result": cleaned, "validation_error": None if ok else err, "retries": retries}
+
+    def _route(state: QAState) -> str:
+        if state.get("validation_error") and state.get("retries", 0) < 2:
+            return "run"
+        return END
+
+    graph.add_node("run", run_node)
+    graph.add_node("check", check_node)
+    graph.set_entry_point("run")
+    graph.add_edge("run", "check")
+    graph.add_conditional_edges("check", _route)
+    return graph.compile()
+
+
+def _build_reference_graph():
+    graph = StateGraph(ReferenceState)
+
+    def run_node(state: ReferenceState) -> ReferenceState:
+        res = _run_reference_generator_impl(state["topic"])
+        return {**state, "result": res}
+
+    def check_node(state: ReferenceState) -> ReferenceState:
+        cleaned = _validate_reference_result(state.get("result") or {})
+        ok, err = _strict_validate(ReferenceResultSchema, cleaned)
+        retries = state.get("retries", 0)
+        if not ok:
+            retries += 1
+        return {**state, "result": cleaned, "validation_error": None if ok else err, "retries": retries}
+
+    def _route(state: ReferenceState) -> str:
+        if state.get("validation_error") and state.get("retries", 0) < 2:
+            return "run"
+        return END
+
+    graph.add_node("run", run_node)
+    graph.add_node("check", check_node)
+    graph.set_entry_point("run")
+    graph.add_edge("run", "check")
+    graph.add_conditional_edges("check", _route)
+    return graph.compile()
+
+
+_RESEARCH_GRAPH = _build_research_graph()
+_REVIEW_GRAPH = _build_review_graph()
+_QA_GRAPH = _build_qa_graph()
+_REFERENCE_GRAPH = _build_reference_graph()
+
+
+def run_research_explorer(topic: str, chat_history: str | None = None, focus_topic: str | None = None) -> Dict[str, Any]:
+    state: ResearchState = {
+        "topic": topic,
+        "chat_history": chat_history,
+        "focus_topic": focus_topic,
+        "result": None,
+        "retries": 0,
+        "validation_error": None,
+    }
+    out = _RESEARCH_GRAPH.invoke(state)
+    return out.get("result") or {}
+
+
+def run_paper_reviewer(paper_text: str) -> Dict[str, Any]:
+    state: ReviewState = {"paper_text": paper_text, "result": None, "retries": 0, "validation_error": None}
+    out = _REVIEW_GRAPH.invoke(state)
+    return out.get("result") or {}
+
+
+def run_paper_qa(question: str, paper_text: str) -> Dict[str, Any]:
+    state: QAState = {
+        "question": question,
+        "paper_text": paper_text,
+        "result": None,
+        "retries": 0,
+        "validation_error": None,
+    }
+    out = _QA_GRAPH.invoke(state)
+    return out.get("result") or {}
+
+
+def run_reference_generator(topic: str) -> Dict[str, Any]:
+    state: ReferenceState = {"topic": topic, "result": None, "retries": 0, "validation_error": None}
+    out = _REFERENCE_GRAPH.invoke(state)
+    return out.get("result") or {}

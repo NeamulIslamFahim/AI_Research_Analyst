@@ -1,4 +1,6 @@
-streamlit
+fastapi
+uvicorn
+python-multipart
 langchain
 langchain-community
 langchain-huggingface
@@ -6,6 +8,7 @@ langchain-groq
 langchain-openai
 langchain-classic
 langchain-text-splitters
+langgraph
 faiss-cpu
 sentence-transformers
 huggingface-hub
