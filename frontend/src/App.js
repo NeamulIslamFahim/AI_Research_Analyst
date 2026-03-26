@@ -171,13 +171,26 @@ export default function App() {
     const file = e.target.files?.[0];
     if (!file) return;
     setLoading(true);
+    updateMessages((m) => [...m, { role: "assistant", content: "Loading…", type: "loading" }]);
     try {
       const res = await uploadReviewPdf(file);
       setPaperTextBySession((m) => ({ ...m, [currentSessionId]: res.paper_text || "" }));
       const reviewText = res.review_text || formatReviewText(res.review);
-      updateMessages((m) => [...m, { role: "assistant", content: reviewText, type: "review" }]);
+      updateMessages((m) =>
+        replaceOrAppendAssistant(m, m.length - 1, {
+          role: "assistant",
+          content: reviewText,
+          type: "review",
+        })
+      );
     } catch (err) {
-      updateMessages((m) => [...m, { role: "assistant", content: String(err), type: "text" }]);
+      updateMessages((m) =>
+        replaceOrAppendAssistant(m, m.length - 1, {
+          role: "assistant",
+          content: String(err),
+          type: "text",
+        })
+      );
     } finally {
       setLoading(false);
     }
