@@ -774,6 +774,9 @@ def _run_research_explorer_impl(
                         title = row.get("paper_name", "")
                         if title in title_to_url:
                             row["paper_url"] = title_to_url[title]
+                        else:
+                            if title:
+                                row["paper_url"] = "https://scholar.google.com/scholar?q=" + requests.utils.quote(title)
                 if isinstance(row, dict) and not row.get("summary_full_paper"):
                     title = row.get("paper_name", "")
                     abstract = title_to_abstract.get(title, "")
