@@ -1,3 +1,4 @@
+
 """Backend orchestration for the AI Research Assistant."""
 
 from __future__ import annotations
@@ -15,6 +16,8 @@ import requests
 
 from chains import (
     paper_reviewer_chain,
+    paper_qa_chain,
+    paper_chunk_summarizer_chain,
     json_repair_chain,
     gap_idea_chain,
     gap_list_chain,
@@ -441,6 +444,7 @@ def run_research_explorer(
                     sem_rows + oa_rows + scholar_rows + rg_rows + web_rows + sd_rows + oa_rows2 + core_rows + doaj_rows + epmc_rows
                 )
             )
+
         all_docs.extend(fulltext_docs)
         # Build a lookup for full-text snippets by (title, url) and by title.
         fulltext_map: Dict[tuple[str, str], str] = {}
@@ -987,40 +991,57 @@ def run_research_explorer(
         return {"error": f"Research Explorer failed: {exc}"}
 
 
-def run_paper_reviewer(pdf_file: Any) -> Dict[str, Any]:
+def run_paper_reviewer(paper_text: str) -> Dict[str, Any]:
     """Run a structured reviewer chain on an uploaded PDF."""
-    if pdf_file is None:
-        return {"error": "PDF file is required."}
+    if not paper_text:
+        return {"error": "Paper text is required."}
     try:
-        # Persist uploaded file to a temp path for the loader.
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-            tmp.write(pdf_file.read())
-            tmp_path = tmp.name
-
-        try:
-            text = extract_text(tmp_path)
-            chunks = chunk_text(text)
-            combined = truncate_text("\n\n".join(chunks))
-
-            raw = _invoke_with_fallback(paper_reviewer_chain, {"paper": combined})
-            parsed = safe_json_loads(raw)
-            if isinstance(parsed, dict) and parsed.get("error"):
-                schema_hint = (
-                    "JSON object with keys: strengths, weaknesses, novelty, technical_correctness, "
-                    "reproducibility, recommendation, suggested_venue."
-                )
-                repaired = _invoke_with_fallback(
-                    json_repair_chain, {"bad_json": raw, "schema_hint": schema_hint}
-                )
-                parsed = safe_json_loads(repaired)
-            return parsed
-        finally:
-            try:
-                os.remove(tmp_path)
-            except OSError:
-                pass
+        chunks = chunk_text(paper_text)
+        
+        # Summarize each chunk
+        summaries = []
+        for chunk in chunks:
+            summary = _invoke_with_fallback(paper_chunk_summarizer_chain, {"chunk": chunk})
+            if hasattr(summary, "content"):
+                summaries.append(getattr(summary, "content"))
+            else:
+                summaries.append(str(summary))
+            
+        combined_summary = "\n\n".join([s for s in summaries if isinstance(s, str)])
+        
+        raw = _invoke_with_fallback(paper_reviewer_chain, {"paper": combined_summary})
+        parsed = safe_json_loads(raw)
+        if isinstance(parsed, dict) and parsed.get("error"):
+            schema_hint = (
+                "JSON object with keys: strengths, weaknesses, novelty, technical_correctness, "
+                "reproducibility, recommendation, suggested_venue."
+            )
+            repaired = _invoke_with_fallback(
+                json_repair_chain, {"bad_json": raw, "schema_hint": schema_hint}
+            )
+            parsed = safe_json_loads(repaired)
+        return parsed
     except Exception as exc:
         return {"error": f"Paper Reviewer failed: {exc}"}
+
+
+def run_paper_qa(question: str, paper_text: str) -> Dict[str, Any]:
+    """Run a QA chain on the text of an uploaded paper."""
+    if not question:
+        return {"error": "Question is required."}
+    if not paper_text:
+        return {"error": "Paper text is required."}
+    try:
+        answer = _invoke_with_fallback(
+            paper_qa_chain, {"paper_text": paper_text, "question": question}
+        )
+        if hasattr(answer, "content"):
+            answer_text = getattr(answer, "content")
+        else:
+            answer_text = str(answer)
+        return {"answer": answer_text}
+    except Exception as exc:
+        return {"error": f"Paper QA failed: {exc}"}
 
 
 def run_reference_generator(topic: str) -> Dict[str, Any]:

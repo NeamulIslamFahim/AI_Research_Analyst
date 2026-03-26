@@ -3,16 +3,45 @@
 from __future__ import annotations
 
 import time
+import os
+import tempfile
 from datetime import datetime, timezone
+import hashlib
 import streamlit as st
 
 from helpers import safe_get, strip_html, load_env_var
-from main import run_paper_reviewer, run_reference_generator, run_research_explorer, download_papers_for_topic
+from main import run_paper_reviewer, run_paper_qa, run_reference_generator, run_research_explorer, download_papers_for_topic
+from pdf_utils import extract_text
 
 
 st.set_page_config(page_title="AI Research Assistant", layout="wide", initial_sidebar_state="expanded")
 
 st.title("AI Research Assistant")
+
+
+def format_review_reply(review: dict) -> str:
+    """Render a paper review dict into a chat-style reply."""
+    if not isinstance(review, dict):
+        return str(review)
+    strengths = safe_get(review, "strengths", "")
+    weaknesses = safe_get(review, "weaknesses", "")
+    novelty = safe_get(review, "novelty", "")
+    technical = safe_get(review, "technical_correctness", "")
+    reproducibility = safe_get(review, "reproducibility", "")
+    recommendation = safe_get(review, "recommendation", "")
+    venue = safe_get(review, "suggested_venue", "")
+
+    parts = [
+        "Here is a structured peer review of the paper:",
+        f"Strengths: {strengths}",
+        f"Weaknesses: {weaknesses}",
+        f"Novelty: {novelty}",
+        f"Technical Correctness: {technical}",
+        f"Reproducibility: {reproducibility}",
+        f"Recommendation: {recommendation}",
+        f"Suggested Venue: {venue}",
+    ]
+    return "\n\n".join([p for p in parts if p and not p.endswith(": ")])
 
 # Initialize selected_mode if not present
 if "selected_mode" not in st.session_state:
@@ -21,6 +50,12 @@ if "selected_mode" not in st.session_state:
 # Initialize other session state variables
 if "uploaded_pdf" not in st.session_state:
     st.session_state.uploaded_pdf = None
+if "uploaded_paper_text" not in st.session_state:
+    st.session_state.uploaded_paper_text = None
+if "review_file_hash" not in st.session_state:
+    st.session_state.review_file_hash = None
+if "review_result" not in st.session_state:
+    st.session_state.review_result = None
 if "writer_step" not in st.session_state:
     st.session_state.writer_step = 0
 if "last_topic" not in st.session_state:
@@ -56,13 +91,40 @@ with mode_col2:
         st.session_state.last_topic = ""
         st.rerun()
 
-if st.session_state.selected_mode == "Research Paper Reviewer" and st.session_state.uploaded_pdf is None:
+if st.session_state.selected_mode == "Research Paper Reviewer":
     st.header("Upload PDF for Review")
     uploaded_file = st.file_uploader("Upload PDF for review", type=["pdf"], key="main_uploader")
-    if uploaded_file is not None:
+    if uploaded_file is None:
+        st.session_state.uploaded_pdf = None
+        st.session_state.uploaded_paper_text = None
+        st.session_state.review_file_hash = None
+        st.session_state.review_result = None
+    else:
         st.session_state.uploaded_pdf = uploaded_file
         st.success(f"Uploaded: {uploaded_file.name}")
-        st.rerun()
+        file_bytes = uploaded_file.getvalue()
+        file_hash = hashlib.md5(file_bytes).hexdigest()
+        if st.session_state.review_file_hash != file_hash:
+            st.session_state.review_file_hash = file_hash
+            st.session_state.review_result = None
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                tmp.write(file_bytes)
+                tmp_path = tmp.name
+            
+            try:
+                with st.spinner("Analyzing PDF..."):
+                    st.session_state.uploaded_paper_text = extract_text(tmp_path)
+                    result = run_paper_reviewer(st.session_state.uploaded_paper_text)
+                st.session_state.review_result = result
+                if "error" in result:
+                    st.error(result["error"])
+                    st.session_state.chat_history.append({"role": "assistant", "content": result["error"]})
+                else:
+                    reply_text = format_review_reply(result)
+                    st.session_state.chat_history.append({"role": "assistant", "content": reply_text})
+                    st.session_state.memory.append({"role": "assistant", "content": "Reviewed the uploaded paper."})
+            finally:
+                os.remove(tmp_path)
 
 st.markdown(
     """
@@ -492,35 +554,29 @@ def render_user_actions(idx: int) -> None:
         if st.button("Regen", key=f"regen_{idx}"):
             user_text = st.session_state.chat_history[idx].get("effective_query") or st.session_state.chat_history[idx]["content"]
             with st.spinner("Loading"):
-                history_text = _format_chat_history()
-                result = run_research_explorer(user_text, chat_history=history_text, focus_topic=st.session_state.last_topic or None)
-            if "error" in result:
-                st.error(result["error"])
-                st.session_state.chat_history.append({"role": "assistant", "content": result["error"]})
-            else:
-                st.session_state.chat_history.append({"role": "assistant", "content": result})
-                _rebuild_memory()
-            st.rerun()
-
-def render_user_actions(idx: int) -> None:
-    """Render edit/regenerate controls for a user message."""
-    cols = st.columns([8, 1, 1])
-    with cols[1]:
-        if st.button("Edit", key=f"edit_{idx}"):
-            st.session_state.edit_mode = True
-            st.session_state.edit_index = idx
-            st.rerun()
-    with cols[2]:
-        if st.button("Regen", key=f"regen_{idx}"):
-            user_text = st.session_state.chat_history[idx].get("effective_query") or st.session_state.chat_history[idx]["content"]
-            with st.spinner("Loading"):
-                history_text = _format_chat_history()
-                result = run_research_explorer(user_text, chat_history=history_text, focus_topic=st.session_state.last_topic or None)
+                if st.session_state.selected_mode == "Research Paper Reviewer":
+                    if st.session_state.uploaded_paper_text:
+                        result = run_paper_qa(
+                            question=user_text,
+                            paper_text=st.session_state.uploaded_paper_text,
+                        )
+                    else:
+                        result = {"error": "Please upload a PDF first."}
+                else:
+                    history_text = _format_chat_history()
+                    result = run_research_explorer(
+                        user_text,
+                        chat_history=history_text,
+                        focus_topic=st.session_state.last_topic or None,
+                    )
             if "error" in result:
                 st.error(result["error"])
                 new_msg = {"role": "assistant", "content": result["error"]}
             else:
-                new_msg = {"role": "assistant", "content": result}
+                if st.session_state.selected_mode == "Research Paper Reviewer":
+                    new_msg = {"role": "assistant", "content": result.get("answer", "No answer found.")}
+                else:
+                    new_msg = {"role": "assistant", "content": result}
             replaced = False
             for j in range(idx + 1, len(st.session_state.chat_history)):
                 if st.session_state.chat_history[j]["role"] == "assistant":
@@ -549,107 +605,136 @@ for idx, msg in enumerate(st.session_state.chat_history):
     with st.chat_message(msg["role"]):
         if msg["role"] == "assistant" and isinstance(msg.get("content"), dict):
             result = msg["content"]
-            assistant_reply = safe_get(result, "assistant_reply")
-            if assistant_reply:
-                st.write(strip_html(assistant_reply))
-            st.markdown("**Results Table**")
-            table_rows = safe_get(result, "table", [])
-            if isinstance(table_rows, list) and table_rows:
-                cleaned_rows = []
-                for row in table_rows:
-                    if isinstance(row, dict):
-                        cleaned_row = {
-                            k: (strip_html(v) if isinstance(v, str) else v) for k, v in row.items()
-                        }
-                        cleaned_rows.append(cleaned_row)
-                    else:
-                        cleaned_rows.append(row)
-                st.dataframe(cleaned_rows, width="stretch")
+            if "strengths" in result:
+                st.markdown("**Strengths**")
+                st.write(safe_get(result, "strengths"))
+                st.markdown("**Weaknesses**")
+                st.write(safe_get(result, "weaknesses"))
+                st.markdown("**Novelty**")
+                st.write(safe_get(result, "novelty"))
+                st.markdown("**Technical Correctness**")
+                st.write(safe_get(result, "technical_correctness"))
+                st.markdown("**Reproducibility**")
+                st.write(safe_get(result, "reproducibility"))
+                st.markdown("**Recommendation**")
+                st.write(safe_get(result, "recommendation"))
+                st.markdown("**Suggested Venue**")
+                st.write(safe_get(result, "suggested_venue"))
             else:
-                st.write("No table rows returned.")
+                assistant_reply = safe_get(result, "assistant_reply")
+                if assistant_reply:
+                    st.write(strip_html(assistant_reply))
+                st.markdown("**Results Table**")
+                table_rows = safe_get(result, "table", [])
+                if isinstance(table_rows, list) and table_rows:
+                    cleaned_rows = []
+                    for row in table_rows:
+                        if isinstance(row, dict):
+                            cleaned_row = {
+                                k: (strip_html(v) if isinstance(v, str) else v) for k, v in row.items()
+                            }
+                            cleaned_rows.append(cleaned_row)
+                        else:
+                            cleaned_rows.append(row)
+                    st.dataframe(cleaned_rows, width="stretch")
+                else:
+                    st.write("No table rows returned.")
 
-            warnings = safe_get(result, "warnings", [])
-            if isinstance(warnings, list) and warnings:
-                st.warning(" | ".join(warnings))
+                warnings = safe_get(result, "warnings", [])
+                if isinstance(warnings, list) and warnings:
+                    st.warning(" | ".join(warnings))
 
-            st.markdown("**Research Gaps (Per Paper)**")
-            gaps = safe_get(result, "research_gaps", [])
-            if isinstance(gaps, list) and gaps:
-                for g in gaps:
-                    clean_gap = strip_html(g).replace("Gap not explicitly stated; inferred from abstract:", "").strip()
-                    st.write(f"- {clean_gap}")
-            else:
-                st.write("Not provided.")
+                st.markdown("**Research Gaps (Per Paper)**")
+                gaps = safe_get(result, "research_gaps", [])
+                if isinstance(gaps, list) and gaps:
+                    for g in gaps:
+                        clean_gap = strip_html(g).replace("Gap not explicitly stated; inferred from abstract:", "").strip()
+                        st.write(f"- {clean_gap}")
+                else:
+                    st.write("Not provided.")
 
-            st.markdown("**Generated Idea to Solve the Gap**")
-            idea_text = safe_get(result, "generated_idea")
-            st.write(strip_html(idea_text) if idea_text else "Not provided.")
-            steps = safe_get(result, "generated_idea_steps", [])
-            if isinstance(steps, list) and steps:
-                st.markdown("**Implementation Steps**")
-                for step in steps:
-                    st.write(f"- {strip_html(step)}")
-            idea_cites = safe_get(result, "generated_idea_citations", [])
-            if isinstance(idea_cites, list) and idea_cites:
-                st.caption("Cited papers: " + "; ".join(idea_cites))
+                st.markdown("**Generated Idea to Solve the Gap**")
+                idea_text = safe_get(result, "generated_idea")
+                st.write(strip_html(idea_text) if idea_text else "Not provided.")
+                steps = safe_get(result, "generated_idea_steps", [])
+                if isinstance(steps, list) and steps:
+                    st.markdown("**Implementation Steps**")
+                    for step in steps:
+                        st.write(f"- {strip_html(step)}")
+                idea_cites = safe_get(result, "generated_idea_citations", [])
+                if isinstance(idea_cites, list) and idea_cites:
+                    st.caption("Cited papers: " + "; ".join(idea_cites))
 
-            st.markdown("**Citations**")
-            if isinstance(table_rows, list) and table_rows:
-                for row in table_rows:
-                    title = row.get("paper_name", "")
-                    url = row.get("paper_url", "")
-                    if url:
-                        st.markdown(f"[{strip_html(title)}]({url})")
-            else:
-                st.write("No citations available.")
-        else:
-            if msg["role"] == "user" and st.session_state.edit_mode and st.session_state.edit_index == idx:
-                edited = st.text_area(
-                    "Edit message",
-                    value=msg["content"],
-                    height=80,
-                    key=f"edit_textarea_{idx}",
-                    label_visibility="collapsed",
-                )
-                cols = st.columns([8, 1, 1])
-                with cols[1]:
-                    if st.button("Save", key=f"save_edit_{idx}"):
-                        # Replace this message and regenerate in-place (no new chat)
-                        st.session_state.edit_mode = False
-                        st.session_state.edit_index = None
-                        st.session_state.chat_history = st.session_state.chat_history[: idx + 1]
-                        _current_session()["chat_history"] = st.session_state.chat_history
-                        effective_query = edited
-                        if _is_followup_prompt(edited) and st.session_state.last_topic:
-                            effective_query = f"{st.session_state.last_topic} (continue with more detail)"
-                        st.session_state.chat_history[idx]["content"] = edited
-                        st.session_state.chat_history[idx]["effective_query"] = effective_query
-                        if idx == 0:
-                            title = edited.strip() or "New Chat"
-                            if len(title) > 40:
-                                title = title[:40] + "..."
-                            _current_session()["title"] = title
-                        with st.spinner(""):
+                st.markdown("**Citations**")
+                if isinstance(table_rows, list) and table_rows:
+                    for row in table_rows:
+                        title = row.get("paper_name", "")
+                        url = row.get("paper_url", "")
+                        if url:
+                            st.markdown(f"[{strip_html(title)}]({url})")
+                else:
+                    st.write("No citations available.")
+        elif msg["role"] == "user" and st.session_state.edit_mode and st.session_state.edit_index == idx:
+            edited = st.text_area(
+                "Edit message",
+                value=msg["content"],
+                height=80,
+                key=f"edit_textarea_{idx}",
+                label_visibility="collapsed",
+            )
+            cols = st.columns([8, 1, 1])
+            with cols[1]:
+                if st.button("Save", key=f"save_edit_{idx}"):
+                    # Replace this message and regenerate in-place (no new chat)
+                    st.session_state.edit_mode = False
+                    st.session_state.edit_index = None
+                    st.session_state.chat_history = st.session_state.chat_history[: idx + 1]
+                    _current_session()["chat_history"] = st.session_state.chat_history
+                    effective_query = edited
+                    if _is_followup_prompt(edited) and st.session_state.last_topic:
+                        effective_query = f"{st.session_state.last_topic} (continue with more detail)"
+                    st.session_state.chat_history[idx]["content"] = edited
+                    st.session_state.chat_history[idx]["effective_query"] = effective_query
+                    if idx == 0:
+                        title = edited.strip() or "New Chat"
+                        if len(title) > 40:
+                            title = title[:40] + "..."
+                        _current_session()["title"] = title
+                    with st.spinner(""):
+                        if st.session_state.selected_mode == "Research Paper Reviewer":
+                            if st.session_state.uploaded_paper_text:
+                                result = run_paper_qa(
+                                    question=effective_query,
+                                    paper_text=st.session_state.uploaded_paper_text,
+                                )
+                            else:
+                                result = {"error": "Please upload a PDF first."}
+                        else:
                             history_text = _format_chat_history()
                             result = run_research_explorer(
                                 effective_query,
                                 chat_history=history_text,
                                 focus_topic=st.session_state.last_topic or None,
                             )
-                        if "error" in result:
-                            st.error(result["error"])
-                            st.session_state.chat_history.append({"role": "assistant", "content": result["error"]})
+                    if "error" in result:
+                        st.error(result["error"])
+                        st.session_state.chat_history.append({"role": "assistant", "content": result["error"]})
+                    else:
+                        if st.session_state.selected_mode == "Research Paper Reviewer":
+                            st.session_state.chat_history.append(
+                                {"role": "assistant", "content": result.get("answer", "No answer found.")}
+                            )
                         else:
                             st.session_state.chat_history.append({"role": "assistant", "content": result})
                             _rebuild_memory()
-                with cols[2]:
-                    if st.button("Cancel", key=f"cancel_edit_{idx}"):
-                        st.session_state.edit_mode = False
-                        st.session_state.edit_index = None
-            else:
-                st.write(msg["content"])
-                if msg["role"] == "user":
-                    render_user_actions(idx)
+            with cols[2]:
+                if st.button("Cancel", key=f"cancel_edit_{idx}"):
+                    st.session_state.edit_mode = False
+                    st.session_state.edit_index = None
+        else:
+            st.write(msg["content"])
+            if msg["role"] == "user":
+                render_user_actions(idx)
 
 # Inline edit handled inside the chat loop (ChatGPT-like)
 
@@ -684,37 +769,26 @@ if prompt:
             )
             st.session_state.memory.append({"role": "assistant", "content": "Select mode from dropdown. For Reviewer, upload PDF first."})
         elif mode == "Research Paper Reviewer":
-            pdf_file = st.session_state.get("uploaded_pdf")
-            if pdf_file is None:
-                st.error("Please upload a PDF first.")
-                st.session_state.chat_history.append(
-                    {"role": "assistant", "content": "Please upload a PDF first."}
-                )
-            else:
-                with st.spinner("Analyzing PDF..."):
-                    result = run_paper_reviewer(pdf_file)
+            if st.session_state.uploaded_paper_text:
+                with st.spinner("Answering question..."):
+                    result = run_paper_qa(
+                        question=user_text, paper_text=st.session_state.uploaded_paper_text
+                    )
                 if "error" in result:
                     st.error(result["error"])
                     st.session_state.chat_history.append(
                         {"role": "assistant", "content": result["error"]}
                     )
                 else:
-                    st.markdown("**Strengths**")
-                    st.write(safe_get(result, "strengths"))
-                    st.markdown("**Weaknesses**")
-                    st.write(safe_get(result, "weaknesses"))
-                    st.markdown("**Novelty**")
-                    st.write(safe_get(result, "novelty"))
-                    st.markdown("**Technical Correctness**")
-                    st.write(safe_get(result, "technical_correctness"))
-                    st.markdown("**Reproducibility**")
-                    st.write(safe_get(result, "reproducibility"))
-                    st.markdown("**Recommendation**")
-                    st.write(safe_get(result, "recommendation"))
-                    st.markdown("**Suggested Venue**")
-                    st.write(safe_get(result, "suggested_venue"))
-                    st.session_state.chat_history.append({"role": "assistant", "content": result})
-                    st.session_state.memory.append({"role": "assistant", "content": "Reviewed the uploaded paper."})
+                    st.write(result.get("answer", "No answer found."))
+                    st.session_state.chat_history.append(
+                        {"role": "assistant", "content": result.get("answer", "No answer found.")}
+                    )
+            else:
+                st.error("Please upload a PDF first.")
+                st.session_state.chat_history.append(
+                    {"role": "assistant", "content": "Please upload a PDF first."}
+                )
         elif mode == "Research Paper Writer":
             if "writer_step" not in st.session_state:
                 st.session_state.writer_step = 0

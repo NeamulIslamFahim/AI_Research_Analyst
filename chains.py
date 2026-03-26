@@ -1,3 +1,4 @@
+
 """LangChain prompt templates and chains."""
 
 from __future__ import annotations
@@ -16,24 +17,24 @@ RESEARCH_PROMPT = PromptTemplate(
         "Do NOT include any extra text. Use double quotes for all strings and no trailing commas. "
         "Use the following schema:\n"
         "{{\n"
-        "  \"table\": [\n"
+        '  "table": [\n'
         "    {{\n"
-        "      \"paper_name\": \"...\",\n"
-        "      \"paper_url\": \"...\",\n"
-        "      \"authors_name\": \"...\",\n"
-        "      \"summary_full_paper\": \"...\",\n"
-        "      \"problem_solved\": \"...\",\n"
-        "      \"proposed_model_or_approach\": \"...\",\n"
-        "      \"source\": \"arxiv | semantic_scholar | google_scholar | researchgate | web | sciencedirect | openalex | core | doaj | europe_pmc\",\n"
-        "      \"score_relevance\": 0,\n"
-        "      \"score_quality\": 0\n"
+        '      "paper_name": "...",\n'
+        '      "paper_url": "...",\n'
+        '      "authors_name": "...",\n'
+        '      "summary_full_paper": "...",\n'
+        '      "problem_solved": "...",\n'
+        '      "proposed_model_or_approach": "...",\n'
+        '      "source": "arxiv | semantic_scholar | google_scholar | researchgate | web | sciencedirect | openalex | core | doaj | europe_pmc",\n'
+        '      "score_relevance": 0,\n'
+        '      "score_quality": 0\n'
         "    }}\n"
         "  ],\n"
-        "  \"research_gaps\": [\"Paper name: gap text\"],\n"
-        "  \"assistant_reply\": \"...\",\n"
-        "  \"generated_idea\": \"...\",\n"
-        "  \"generated_idea_steps\": [\"Step 1 ...\", \"Step 2 ...\"],\n"
-        "  \"generated_idea_citations\": [\"paper_name\"]\n"
+        '  "research_gaps": ["Paper name: gap text"],\n'
+        '  "assistant_reply": "...",\n'
+        '  "generated_idea": "...",\n'
+        '  "generated_idea_steps": ["Step 1 ...", "Step 2 ..."],\n'
+        '  "generated_idea_citations": ["paper_name"]\n'
         "}}\n\n"
         "Rules:\n"
         "- Choose up to 10-20 relevant papers from the papers list across different sources; if fewer are available, use all.\n"
@@ -50,14 +51,14 @@ RESEARCH_PROMPT = PromptTemplate(
         "- generated_idea MUST synthesize all gaps into one concrete solution.\n"
         "- generated_idea_steps MUST be 6-8 detailed steps, including tools/datasets where relevant.\n"
         "- NEVER leave any field blank. If information is missing, write \"Not specified in paper\".\n"
-        "- generated_idea_citations MUST list paper_name values used in the idea.\n\n"
+        '- generated_idea_citations MUST list paper_name values used in the idea.\n\n'
         "Example (format only, use real content):\n"
-        "{{\"table\":[{{\"paper_name\":\"...\",\"paper_url\":\"...\",\"authors_name\":\"...\","
-        "\"summary_full_paper\":\"...\",\"problem_solved\":\"...\","
-        "\"proposed_model_or_approach\":\"...\",\"source\":\"arxiv\",\"score_relevance\":8,\"score_quality\":7}}],"
-        "\"research_gaps\":[\"Paper A: ...\",\"Paper B: ...\"],\"generated_idea\":\"...\","
-        "\"generated_idea_steps\":[\"Step 1 ...\",\"Step 2 ...\"],"
-        "\"generated_idea_citations\":[\"Paper A\",\"Paper B\"]}}\n\n"
+        '{{"table":[{{"paper_name":"...","paper_url":"...","authors_name":"...",'
+        '"summary_full_paper":"...","problem_solved":"...",'
+        '"proposed_model_or_approach":"...","source":"arxiv","score_relevance":8,"score_quality":7}}],'
+        '"research_gaps":["Paper A: ...","Paper B: ..."],"generated_idea":"...",'
+        '"generated_idea_steps":["Step 1 ...","Step 2 ..."],'
+        '"generated_idea_citations":["Paper A","Paper B"]}}\n\n'
         "Papers list (JSON):\n{papers_json}\n\n"
         "Context:\n{context}\n\nQuestion: {question}"
     ),
@@ -67,16 +68,33 @@ REVIEW_PROMPT = PromptTemplate(
     input_variables=["paper"],
     template=(
         "You are a peer reviewer. Read the paper text and return ONLY valid JSON with fields:\n"
-        "{\n"
-        "  \"strengths\": \"...\",\n"
-        "  \"weaknesses\": \"...\",\n"
-        "  \"novelty\": \"...\",\n"
-        "  \"technical_correctness\": \"...\",\n"
-        "  \"reproducibility\": \"...\",\n"
-        "  \"recommendation\": \"Accept | Minor Revision | Major Revision | Reject\",\n"
-        "  \"suggested_venue\": \"Journal | Conference\"\n"
-        "}\n\n"
+        "{{\n"
+        '  "strengths": "...",\n'
+        '  "weaknesses": "...",\n'
+        '  "novelty": "...",\n'
+        '  "technical_correctness": "...",\n'
+        '  "reproducibility": "...",\n'
+        '  "recommendation": "Accept | Minor Revision | Major Revision | Reject",\n'
+        '  "suggested_venue": "Journal | Conference"\n'
+        "}}\n\n"
         "Paper text:\n{paper}"
+    ),
+)
+
+PAPER_QA_PROMPT = PromptTemplate(
+    input_variables=["paper_text", "question"],
+    template=(
+        "You are a research assistant. Answer the user's question based ONLY on the provided paper text.\n\n"
+        "Paper text:\n{paper_text}\n\n"
+        "Question: {question}"
+    ),
+)
+
+PAPER_CHUNK_SUMMARIZER_PROMPT = PromptTemplate(
+    input_variables=["chunk"],
+    template=(
+        "You are a research assistant. Summarize the following chunk of a research paper.\n\n"
+        "Chunk:\n{chunk}"
     ),
 )
 
@@ -118,10 +136,10 @@ GAP_LIST_PROMPT = PromptTemplate(
         "You are a research assistant. Use ONLY the provided context and papers list.\n"
         "Return ONLY valid JSON with this schema:\n"
         "{{\n"
-        "  \"research_gaps\": [\"Paper name: gap text\"],\n"
-        "  \"generated_idea\": \"...\",\n"
-        "  \"generated_idea_steps\": [\"Step 1 ...\", \"Step 2 ...\"],\n"
-        "  \"generated_idea_citations\": [\"paper_name\"]\n"
+        '  "research_gaps": ["Paper name: gap text"],\n'
+        '  "generated_idea": "...",\n'
+        '  "generated_idea_steps": ["Step 1 ...", "Step 2 ..."],\n'
+        '  "generated_idea_citations": ["paper_name"]\n'
         "}}\n\n"
         "Rules:\n"
         "- research_gaps MUST contain one gap per selected paper (list format).\n"
@@ -145,6 +163,22 @@ def paper_reviewer_chain(llm: BaseLLM) -> RunnableSequence:
         return REVIEW_PROMPT | llm
     except Exception as exc:
         raise RuntimeError(f"Failed to build paper reviewer chain: {exc}") from exc
+
+
+def paper_qa_chain(llm: BaseLLM) -> RunnableSequence:
+    """Build a chain that answers questions about a paper."""
+    try:
+        return PAPER_QA_PROMPT | llm
+    except Exception as exc:
+        raise RuntimeError(f"Failed to build paper QA chain: {exc}") from exc
+
+
+def paper_chunk_summarizer_chain(llm: BaseLLM) -> RunnableSequence:
+    """Build a chain that summarizes a chunk of a paper."""
+    try:
+        return PAPER_CHUNK_SUMMARIZER_PROMPT | llm
+    except Exception as exc:
+        raise RuntimeError(f"Failed to build paper chunk summarizer chain: {exc}") from exc
 
 
 def reference_generator_chain(llm: BaseLLM) -> RunnableSequence:
