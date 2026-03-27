@@ -16,13 +16,6 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .helpers import safe_get
-from .main import (
-    download_papers_for_topic,
-    run_paper_qa,
-    run_paper_reviewer,
-    run_research_explorer,
-    run_reference_generator,
-)
 from .pdf_utils import extract_text
 
 
@@ -35,6 +28,12 @@ if _FRONTEND_BUILD_DIR.exists():
     static_dir = _FRONTEND_BUILD_DIR / "static"
     if static_dir.exists():
         app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+
+def _backend_main():
+    # Lazy import to avoid heavy startup work during app boot.
+    from . import main as backend_main
+    return backend_main
 
 # Allow local CRA dev server by default.
 origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
@@ -239,7 +238,8 @@ async def review_upload(file: UploadFile = File(...)) -> Dict[str, Any]:
         tmp_path = tmp.name
     try:
         paper_text = extract_text(tmp_path)
-        result = run_paper_reviewer(paper_text)
+        backend_main = _backend_main()
+        result = backend_main.run_paper_reviewer(paper_text)
         if isinstance(result, dict) and result.get("error"):
             raise HTTPException(status_code=500, detail=result["error"])
         return {
@@ -256,7 +256,8 @@ async def review_upload(file: UploadFile = File(...)) -> Dict[str, Any]:
 
 @app.post("/api/review/qa")
 def review_qa(payload: ReviewQARequest) -> Dict[str, Any]:
-    result = run_paper_qa(question=payload.question, paper_text=payload.paper_text)
+    backend_main = _backend_main()
+    result = backend_main.run_paper_qa(question=payload.question, paper_text=payload.paper_text)
     if isinstance(result, dict) and result.get("error"):
         raise HTTPException(status_code=500, detail=result["error"])
     return {"answer": safe_get(result, "answer", "No answer found.")}
@@ -280,7 +281,8 @@ def research_explore(payload: ResearchExplorerRequest) -> Dict[str, Any]:
                 _RESPONSE_CACHE[key] = disk_entry
                 return data
 
-    result = run_research_explorer(
+    backend_main = _backend_main()
+    result = backend_main.run_research_explorer(
         topic=payload.topic,
         chat_history=payload.chat_history,
         focus_topic=payload.focus_topic,
@@ -300,7 +302,8 @@ def research_explore(payload: ResearchExplorerRequest) -> Dict[str, Any]:
 
 @app.post("/api/reference")
 def reference_generate(payload: ReferenceRequest) -> Dict[str, Any]:
-    result = run_reference_generator(payload.topic)
+    backend_main = _backend_main()
+    result = backend_main.run_reference_generator(payload.topic)
     if isinstance(result, dict) and result.get("error"):
         raise HTTPException(status_code=500, detail=result["error"])
     return result
@@ -308,7 +311,8 @@ def reference_generate(payload: ReferenceRequest) -> Dict[str, Any]:
 
 @app.post("/api/download")
 def download_papers(payload: DownloadRequest) -> Dict[str, Any]:
-    result = download_papers_for_topic(payload.topic)
+    backend_main = _backend_main()
+    result = backend_main.download_papers_for_topic(payload.topic)
     if isinstance(result, dict) and result.get("error"):
         raise HTTPException(status_code=500, detail=result["error"])
     return {"status": "ok"}
