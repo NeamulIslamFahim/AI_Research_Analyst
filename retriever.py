@@ -24,24 +24,29 @@ def arxiv_search(query: str, max_results: int = 5) -> List[Document]:
     if not query:
         return []
 
-    try:
-        retriever = ArxivRetriever(
-            load_max_docs=max_results,
-            get_full_documents=False,
-        )
-        # LangChain retriever API moved from get_relevant_documents -> invoke in newer versions.
-        if hasattr(retriever, "get_relevant_documents"):
-            docs = retriever.get_relevant_documents(query)
-        else:
-            docs = retriever.invoke(query)
-    except Exception as exc:
-        # Return an empty list but surface error in metadata for transparency.
-        return [
-            Document(
-                page_content="",
-                metadata={"error": f"arXiv retrieval failed: {exc}"},
+    for attempt in range(2):
+        try:
+            retriever = ArxivRetriever(
+                load_max_docs=max_results,
+                get_full_documents=False,
             )
-        ]
+            # LangChain retriever API moved from get_relevant_documents -> invoke in newer versions.
+            if hasattr(retriever, "get_relevant_documents"):
+                docs = retriever.get_relevant_documents(query)
+            else:
+                docs = retriever.invoke(query)
+            break
+        except Exception as exc:
+            if "429" in str(exc) and attempt == 0:
+                time.sleep(2)
+                continue
+            # Return an empty list but surface error in metadata for transparency.
+            return [
+                Document(
+                    page_content="",
+                    metadata={"error": f"arXiv retrieval failed: {exc}"},
+                )
+            ]
 
     # Normalize metadata for downstream use.
     normalized: List[Document] = []

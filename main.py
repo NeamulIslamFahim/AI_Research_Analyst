@@ -5,7 +5,8 @@ from __future__ import annotations
 
 import os
 import tempfile
-from typing import Any, Dict, List, Optional, TypedDict
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any, Dict, List, Optional, Tuple, TypedDict
 from pydantic import BaseModel, Field, ValidationError
 
 from dotenv import load_dotenv
@@ -65,6 +66,36 @@ DEFAULT_LLM_MODEL_PRIMARY = "llama-3.3-70b-versatile"
 DEFAULT_LLM_MODEL_SECONDARY = "llama-3.1-8b-instant"
 DEFAULT_GROQ_REASONING_EFFORT = "medium"
 DEFAULT_OSS_MODEL_ID = "gpt-oss-120b"
+
+_CACHED_VECTOR_STORE: Any | None = None
+_CACHED_EMBEDDINGS: Any | None = None
+_CACHED_DUMMY_EMBEDDINGS: Any | None = None
+
+
+def _get_embeddings() -> Any:
+    global _CACHED_EMBEDDINGS
+    if _CACHED_EMBEDDINGS is None:
+        _CACHED_EMBEDDINGS = create_embeddings()
+    return _CACHED_EMBEDDINGS
+
+
+def _get_dummy_embeddings() -> Any:
+    global _CACHED_DUMMY_EMBEDDINGS
+    if _CACHED_DUMMY_EMBEDDINGS is None:
+        _CACHED_DUMMY_EMBEDDINGS = create_dummy_embeddings()
+    return _CACHED_DUMMY_EMBEDDINGS
+
+
+def _get_vector_store() -> Any:
+    global _CACHED_VECTOR_STORE
+    if _CACHED_VECTOR_STORE is None:
+        _CACHED_VECTOR_STORE = load_vector_store()
+    return _CACHED_VECTOR_STORE
+
+
+def _set_vector_store(vs: Any) -> None:
+    global _CACHED_VECTOR_STORE
+    _CACHED_VECTOR_STORE = vs
 
 
 def init_llm(model_id: str) -> ChatGroq:
@@ -148,8 +179,8 @@ def _invoke_with_fallback(chain_builder, invoke_payload: dict) -> Any:
 
 def _ensure_vector_store_with_docs(docs: List[Document]) -> Any:
     """Load vector store if present, otherwise build; add docs if provided."""
-    vector_store = load_vector_store()
-    embeddings = create_embeddings()
+    vector_store = _get_vector_store()
+    embeddings = _get_embeddings()
     persist_dir = get_faiss_persist_dir()
 
     # Sanitize docs to ensure page_content is a string for embeddings.
@@ -166,7 +197,9 @@ def _ensure_vector_store_with_docs(docs: List[Document]) -> Any:
     if vector_store is None:
         if not safe_docs:
             return None
-        return build_vector_store(safe_docs)
+        vector_store = build_vector_store(safe_docs)
+        _set_vector_store(vector_store)
+        return vector_store
 
     # If vector store exists and we have new docs, add them and persist.
     if safe_docs:
@@ -190,12 +223,13 @@ def _ensure_vector_store_with_docs(docs: List[Document]) -> Any:
                 vector_store.add_texts(texts, metadatas=metadatas)
             except Exception as exc:
                 if "TextEncodeInput" in str(exc):
-                    vector_store.embedding_function = create_dummy_embeddings()
+                    vector_store.embedding_function = _get_dummy_embeddings()
                     vector_store.add_texts(texts, metadatas=metadatas)
                 else:
                     raise
         vector_store.save_local(persist_dir)
 
+    _set_vector_store(vector_store)
     return vector_store
 
 
@@ -203,7 +237,7 @@ def _is_paper_vectorized(title: str) -> bool:
     """Check if a paper with the given title is already in the vector store."""
     if not title:
         return False
-    vector_store = load_vector_store()
+    vector_store = _get_vector_store()
     if vector_store is None:
         return False
     try:
@@ -368,123 +402,215 @@ def download_papers_for_topic(topic: str) -> Dict[str, Any]:
             pass
     return {"downloaded_chunks": len(fulltext_docs)}
 def _run_research_explorer_impl(
-    topic: str, chat_history: str | None = None, focus_topic: str | None = None
+    topic: str,
+    chat_history: str | None = None,
+    focus_topic: str | None = None,
+    use_live_sources: bool | None = None,
 ) -> Dict[str, Any]:
     """Run arXiv retrieval + RAG generation for the given topic."""
     if not topic:
         return {"error": "Topic is required."}
     try:
         load_dotenv()
-        load_dotenv()
         local_only = (load_env_var("LOCAL_ONLY", "false") or "false").lower() == "true"
         fast_mode = (load_env_var("FAST_MODE", "false") or "false").lower() == "true"
         max_primary = int(load_env_var("FAST_MAX_PRIMARY", "5") or "5")
         max_secondary = int(load_env_var("FAST_MAX_SECONDARY", "4") or "4")
-        # Always download new papers to update the vector database
-        use_live_sources = True
+        warnings: List[str] = []
+        if use_live_sources is None:
+            use_live_sources = not local_only
+
+        if not use_live_sources:
+            vector_store = _get_vector_store()
+            if vector_store is None:
+                use_live_sources = True
+            else:
+                docs = vector_store.similarity_search(topic, k=8)
+                if not docs:
+                    use_live_sources = True
+                else:
+                    # Basic relevance check: ensure at least one keyword matches title/abstract.
+                    topic_tokens = [t for t in topic.lower().replace("-", " ").split() if len(t) > 2]
+                    def _match(doc: Document) -> bool:
+                        meta = doc.metadata or {}
+                        hay = " ".join(
+                            [
+                                str(meta.get("title", "")),
+                                str(meta.get("abstract", "")),
+                                str(doc.page_content or ""),
+                            ]
+                        ).lower()
+                        return any(tok in hay for tok in topic_tokens)
+                    if topic_tokens and not any(_match(d) for d in docs):
+                        use_live_sources = True
+                    else:
+                        rows = []
+                        for d in [d for d in docs if _match(d) or not topic_tokens]:
+                            meta = d.metadata or {}
+                            rows.append(
+                                {
+                                    "title": meta.get("title", ""),
+                                    "authors": authors_to_str(meta.get("authors", "")),
+                                    "year": meta.get("year", ""),
+                                    "url": meta.get("url", ""),
+                                    "pdf_url": meta.get("pdf_url", ""),
+                                    "doi": meta.get("doi", ""),
+                                    "abstract": meta.get("abstract", "") or d.page_content,
+                                    "source": meta.get("source", ""),
+                                }
+                            )
+                        all_docs = [d for d in docs if _match(d) or not topic_tokens]
+                        fulltext_docs = []
+                        if not rows:
+                            use_live_sources = True
+
+        def _topic_tokens(text: str) -> List[str]:
+            stop = {"the","and","for","with","from","that","this","into","in","on","of","to","a","an","is","are"}
+            tokens = [t for t in text.lower().replace("-", " ").split() if len(t) > 2 and t not in stop]
+            return list(dict.fromkeys(tokens))
+
+        def _row_matches(row: dict, tokens: List[str]) -> bool:
+            if not tokens:
+                return True
+            hay = " ".join([
+                str(row.get("title","")),
+                str(row.get("abstract","")),
+                str(row.get("authors","")),
+            ]).lower()
+            return any(tok in hay for tok in tokens)
+
+        tokens = _topic_tokens(topic)
+
         if use_live_sources:
             # Keep retrieval fast but still >10 papers total across sources.
             docs = arxiv_search(topic, max_results=(max_primary if fast_mode else 8))
             if docs and docs[0].metadata.get("error"):
-                return {"error": docs[0].metadata.get("error")}
+                arxiv_err = docs[0].metadata.get("error", "")
+                if "429" in str(arxiv_err):
+                    warnings.append(arxiv_err)
+                    docs = []
+                else:
+                    return {"error": arxiv_err}
 
             # Multi-source retrieval
             rows = docs_to_rows(docs, source="arxiv")
-        warnings: List[str] = []
+            # Filter arXiv rows by topic tokens to avoid unrelated results.
+            if tokens:
+                rows = [r for r in rows if _row_matches(r, tokens)]
 
-        sem_rows, sem_warn = semantic_scholar_search(
-            topic, max_results=(max_secondary if fast_mode else 6)
-        )
-        if sem_warn:
-            warnings.append(sem_warn)
-        rows.extend(sem_rows)
+            def _run_task(fn, max_results: int) -> Tuple[List[dict], str]:
+                try:
+                    return fn(topic, max_results=max_results)
+                except Exception as exc:
+                    return [], str(exc)
 
-        oa_rows, oa_warn = semantic_scholar_open_access_search(
-            topic, max_results=(max_secondary if fast_mode else 6)
-        )
-        if oa_warn:
-            warnings.append(oa_warn)
-        if not fast_mode:
-            rows.extend(oa_rows)
+            tasks = [
+                ("sem", semantic_scholar_search, max_secondary if fast_mode else 6, True),
+                ("oa", semantic_scholar_open_access_search, max_secondary if fast_mode else 6, False),
+                ("scholar", serpapi_scholar_search, max_secondary if fast_mode else 6, False),
+                ("rg", serpapi_researchgate_search, max_secondary if fast_mode else 6, False),
+                ("web", serpapi_web_search, max_secondary if fast_mode else 4, False),
+                ("sd", serpapi_sciencedirect_search, max_secondary if fast_mode else 4, False),
+                ("oa2", openalex_search, max_secondary if fast_mode else 6, False),
+                ("core", core_search, max_secondary if fast_mode else 6, False),
+                ("doaj", doaj_search, max_secondary if fast_mode else 6, False),
+                ("epmc", europe_pmc_search, max_secondary if fast_mode else 6, False),
+            ]
 
-        scholar_rows, scholar_warn = serpapi_scholar_search(
-            topic, max_results=(max_secondary if fast_mode else 6)
-        )
-        if scholar_warn:
-            warnings.append(scholar_warn)
-        if not fast_mode:
-            rows.extend(scholar_rows)
+            results: Dict[str, List[dict]] = {}
+            warns: Dict[str, str] = {}
+            run_tasks = [t for t in tasks if (t[3] or not fast_mode)]
+            with ThreadPoolExecutor(max_workers=min(8, len(run_tasks))) as ex:
+                future_map = {
+                    ex.submit(_run_task, fn, max_results): name for name, fn, max_results, _ in run_tasks
+                }
+                for fut in as_completed(future_map):
+                    name = future_map[fut]
+                    rows_out, warn_out = fut.result()
+                    results[name] = rows_out
+                    if warn_out:
+                        warns[name] = warn_out
 
-        rg_rows, rg_warn = serpapi_researchgate_search(
-            topic, max_results=(max_secondary if fast_mode else 6)
-        )
-        if rg_warn:
-            warnings.append(rg_warn)
-        if not fast_mode:
-            rows.extend(rg_rows)
+            sem_rows = results.get("sem", [])
+            if warns.get("sem"):
+                warnings.append(warns["sem"])
+            rows.extend(sem_rows)
 
-        web_rows, web_warn = serpapi_web_search(
-            topic, max_results=(max_secondary if fast_mode else 4)
-        )
-        if web_warn:
-            warnings.append(web_warn)
-        if not fast_mode:
-            rows.extend(web_rows)
+            oa_rows = results.get("oa", [])
+            if warns.get("oa"):
+                warnings.append(warns["oa"])
+            if not fast_mode:
+                rows.extend(oa_rows)
 
-        sd_rows, sd_warn = serpapi_sciencedirect_search(
-            topic, max_results=(max_secondary if fast_mode else 4)
-        )
-        if sd_warn:
-            warnings.append(sd_warn)
-        if not fast_mode:
-            rows.extend(sd_rows)
+            scholar_rows = results.get("scholar", [])
+            if warns.get("scholar"):
+                warnings.append(warns["scholar"])
+            if not fast_mode:
+                rows.extend(scholar_rows)
 
-        oa_rows2, oa2_warn = openalex_search(
-            topic, max_results=(max_secondary if fast_mode else 6)
-        )
-        if oa2_warn:
-            warnings.append(oa2_warn)
-        if not fast_mode:
-            rows.extend(oa_rows2)
+            rg_rows = results.get("rg", [])
+            if warns.get("rg"):
+                warnings.append(warns["rg"])
+            if not fast_mode:
+                rows.extend(rg_rows)
 
-        core_rows, core_warn = core_search(
-            topic, max_results=(max_secondary if fast_mode else 6)
-        )
-        if core_warn:
-            warnings.append(core_warn)
-        if not fast_mode:
-            rows.extend(core_rows)
+            web_rows = results.get("web", [])
+            if warns.get("web"):
+                warnings.append(warns["web"])
+            if not fast_mode:
+                rows.extend(web_rows)
 
-        doaj_rows, doaj_warn = doaj_search(
-            topic, max_results=(max_secondary if fast_mode else 6)
-        )
-        if doaj_warn:
-            warnings.append(doaj_warn)
-        if not fast_mode:
-            rows.extend(doaj_rows)
+            sd_rows = results.get("sd", [])
+            if warns.get("sd"):
+                warnings.append(warns["sd"])
+            if not fast_mode:
+                rows.extend(sd_rows)
 
-        epmc_rows, epmc_warn = europe_pmc_search(
-            topic, max_results=(max_secondary if fast_mode else 6)
-        )
-        if epmc_warn:
-            warnings.append(epmc_warn)
-        if not fast_mode:
-            rows.extend(epmc_rows)
+            oa_rows2 = results.get("oa2", [])
+            if warns.get("oa2"):
+                warnings.append(warns["oa2"])
+            if not fast_mode:
+                rows.extend(oa_rows2)
 
-        all_docs = docs + rows_to_docs(
-            sem_rows + oa_rows + scholar_rows + rg_rows + web_rows + sd_rows + oa_rows2 + core_rows + doaj_rows + epmc_rows
-        )
-        fulltext_docs: List[Document] = []
-        if not fast_mode and (load_env_var("DOWNLOAD_ARXIV_PDFS", "true") or "true").lower() == "true":
-            fulltext_docs.extend(_download_arxiv_fulltext(docs))
-        if not fast_mode and (load_env_var("DOWNLOAD_EXTERNAL_PDFS", "true") or "true").lower() == "true":
-            fulltext_docs.extend(
-                _download_external_fulltext(
-                    sem_rows + oa_rows + scholar_rows + rg_rows + web_rows + sd_rows + oa_rows2 + core_rows + doaj_rows + epmc_rows
+            core_rows = results.get("core", [])
+            if warns.get("core"):
+                warnings.append(warns["core"])
+            if not fast_mode:
+                rows.extend(core_rows)
+
+            doaj_rows = results.get("doaj", [])
+            if warns.get("doaj"):
+                warnings.append(warns["doaj"])
+            if not fast_mode:
+                rows.extend(doaj_rows)
+
+            epmc_rows = results.get("epmc", [])
+            if warns.get("epmc"):
+                warnings.append(warns["epmc"])
+            if not fast_mode:
+                rows.extend(epmc_rows)
+
+            all_rows = sem_rows + oa_rows + scholar_rows + rg_rows + web_rows + sd_rows + oa_rows2 + core_rows + doaj_rows + epmc_rows
+            # Filter rows by topic tokens to avoid unrelated results.
+            filtered_rows = [r for r in all_rows if _row_matches(r, tokens)]
+            # If filtering removes everything, fall back to unfiltered for coverage.
+            if filtered_rows:
+                all_rows = filtered_rows
+            rows.extend(all_rows)
+            if tokens and not rows:
+                return {"error": "No relevant papers found for the topic. Please refine your query."}
+            all_docs = docs + rows_to_docs(all_rows)
+            fulltext_docs: List[Document] = []
+            if not fast_mode and (load_env_var("DOWNLOAD_ARXIV_PDFS", "true") or "true").lower() == "true":
+                fulltext_docs.extend(_download_arxiv_fulltext(docs))
+            if not fast_mode and (load_env_var("DOWNLOAD_EXTERNAL_PDFS", "true") or "true").lower() == "true":
+                fulltext_docs.extend(
+                    _download_external_fulltext(
+                        all_rows
+                    )
                 )
-            )
 
-        all_docs.extend(fulltext_docs)
+            all_docs.extend(fulltext_docs)
         # Build a lookup for full-text snippets by (title, url) and by title.
         fulltext_map: Dict[tuple[str, str], str] = {}
         fulltext_by_title: Dict[str, str] = {}
@@ -500,31 +626,41 @@ def _run_research_explorer_impl(
                 title = key[0]
                 if title and title not in fulltext_by_title:
                     fulltext_by_title[title] = text
-        vector_store = _ensure_vector_store_with_docs(all_docs)
+        if use_live_sources:
+            vector_store = _ensure_vector_store_with_docs(all_docs)
+        else:
+            vector_store = _get_vector_store()
 
         if vector_store is None:
             return {"error": "No documents found or vector store unavailable."}
 
         # Build retrieval context explicitly for the prompt.
         retriever = vector_store.as_retriever(search_kwargs={"k": 6})
-        bm25 = BM25Retriever.from_documents(all_docs)
-        bm25.k = 6
-        # Manual hybrid: merge FAISS + BM25 results by URL/title key.
-        if hasattr(retriever, "invoke"):
-            faiss_docs = retriever.invoke(topic)
+        if use_live_sources:
+            bm25 = BM25Retriever.from_documents(all_docs)
+            bm25.k = 6
+            # Manual hybrid: merge FAISS + BM25 results by URL/title key.
+            if hasattr(retriever, "invoke"):
+                faiss_docs = retriever.invoke(topic)
+            else:
+                faiss_docs = retriever.get_relevant_documents(topic)
+            if hasattr(bm25, "invoke"):
+                bm25_docs = bm25.invoke(topic)
+            else:
+                bm25_docs = bm25.get_relevant_documents(topic)
+            merged = {}
+            for d in faiss_docs + bm25_docs:
+                meta = d.metadata or {}
+                key = (meta.get("title", ""), meta.get("url", ""))
+                if key not in merged:
+                    merged[key] = d
+            context_docs = list(merged.values())[:8]
         else:
-            faiss_docs = retriever.get_relevant_documents(topic)
-        if hasattr(bm25, "invoke"):
-            bm25_docs = bm25.invoke(topic)
-        else:
-            bm25_docs = bm25.get_relevant_documents(topic)
-        merged = {}
-        for d in faiss_docs + bm25_docs:
-            meta = d.metadata or {}
-            key = (meta.get("title", ""), meta.get("url", ""))
-            if key not in merged:
-                merged[key] = d
-        context_docs = list(merged.values())[:8]
+            if hasattr(retriever, "invoke"):
+                context_docs = retriever.invoke(topic)
+            else:
+                context_docs = retriever.get_relevant_documents(topic)
+            context_docs = list(context_docs)[:8]
         if fulltext_docs:
             context = truncate_text("\n\n".join([d.page_content for d in fulltext_docs[:8]]), max_chars=6000)
         else:
@@ -1170,6 +1306,7 @@ class ResearchState(TypedDict):
     topic: str
     chat_history: Optional[str]
     focus_topic: Optional[str]
+    use_live: Optional[bool]
     result: Optional[Dict[str, Any]]
     retries: int
     validation_error: Optional[str]
@@ -1236,11 +1373,24 @@ class ReferenceResultSchema(BaseModel):
     references: List[str]
 
 
-def _validate_research_result(result: Dict[str, Any]) -> Dict[str, Any]:
+def _validate_research_result(result: Dict[str, Any], topic: str = "") -> Dict[str, Any]:
     if not isinstance(result, dict):
         return {"error": "Invalid research result."}
     if result.get("error"):
         return result
+    # Enforce topic relevance: all rows must match topic tokens.
+    tokens = [t for t in (topic or "").lower().replace("-", " ").split() if len(t) > 2]
+    if tokens and isinstance(result.get("table"), list):
+        filtered = []
+        for row in result.get("table", []):
+            if not isinstance(row, dict):
+                continue
+            hay = f"{row.get('paper_name','')} {row.get('summary_full_paper','')}".lower()
+            if any(tok in hay for tok in tokens):
+                filtered.append(row)
+        result["table"] = filtered
+        if not filtered:
+            return {"error": "No relevant papers found for the topic."}
     result.setdefault("table", [])
     result.setdefault("research_gaps", [])
     result.setdefault("assistant_reply", "Research summary prepared.")
@@ -1385,7 +1535,10 @@ def _build_research_graph():
 
     def run_node(state: ResearchState) -> ResearchState:
         res = _run_research_explorer_impl(
-            state["topic"], chat_history=state.get("chat_history"), focus_topic=state.get("focus_topic")
+            state["topic"],
+            chat_history=state.get("chat_history"),
+            focus_topic=state.get("focus_topic"),
+            use_live_sources=True if (state.get("retries", 0) or 0) > 0 else state.get("use_live"),
         )
         return {**state, "result": res}
 
@@ -1394,7 +1547,9 @@ def _build_research_graph():
         return {**state, "result": res}
 
     def check_node(state: ResearchState) -> ResearchState:
-        cleaned = _validate_research_result(state.get("result") or {})
+        cleaned = _validate_research_result(state.get("result") or {}, state.get("topic") or "")
+        if isinstance(cleaned, dict) and cleaned.get("error"):
+            return {**state, "result": cleaned, "validation_error": cleaned.get("error"), "retries": state.get("retries", 0) + 1}
         ok, err = _strict_validate(ResearchResultSchema, cleaned)
         retries = state.get("retries", 0)
         if not ok:
@@ -1506,11 +1661,17 @@ _QA_GRAPH = _build_qa_graph()
 _REFERENCE_GRAPH = _build_reference_graph()
 
 
-def run_research_explorer(topic: str, chat_history: str | None = None, focus_topic: str | None = None) -> Dict[str, Any]:
+def run_research_explorer(
+    topic: str,
+    chat_history: str | None = None,
+    focus_topic: str | None = None,
+    use_live: bool | None = None,
+) -> Dict[str, Any]:
     state: ResearchState = {
         "topic": topic,
         "chat_history": chat_history,
         "focus_topic": focus_topic,
+        "use_live": use_live,
         "result": None,
         "retries": 0,
         "validation_error": None,

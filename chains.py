@@ -12,9 +12,11 @@ RESEARCH_PROMPT = PromptTemplate(
     input_variables=["context", "question", "papers_json"],
     template=(
         "You are a research assistant. Use ONLY the provided context and papers list. "
+        "Do NOT invent papers, titles, authors, venues, metrics, datasets, or claims. "
+        "Every row MUST correspond to a paper from the papers list. "
         "Do NOT mention missing full text in any field. "
-        "Return ONLY valid JSON. Do NOT wrap in markdown or code fences. "
-        "Do NOT include any extra text. Use double quotes for all strings and no trailing commas. "
+        "Return ONLY valid JSON (no markdown, no code fences, no extra text). "
+        "Use double quotes for all strings and no trailing commas. "
         "Use the following schema:\n"
         "{{\n"
         '  "table": [\n'
@@ -37,6 +39,7 @@ RESEARCH_PROMPT = PromptTemplate(
         '  "generated_idea_citations": ["paper_name"]\n'
         "}}\n\n"
         "Rules:\n"
+        "- Choose only relevant papers to the user's question; if none are relevant, return an empty table and explain in assistant_reply.\n"
         "- Choose up to 10-20 relevant papers from the papers list across different sources; if fewer are available, use all.\n"
         "- The output table MUST have the same number of rows as the papers list you select.\n"
         "- For each row, copy paper_name, paper_url, authors_name, and source from the papers list.\n"
@@ -45,7 +48,7 @@ RESEARCH_PROMPT = PromptTemplate(
         "- score_relevance and score_quality MUST be integers from 0 to 10.\n"
         "- If fulltext_available is true, summary_full_paper MUST reflect the full paper content.\n"
         "- If fulltext_available is false, summary_full_paper MUST be an abstract-based summary without stating that full text was missing.\n"
-        "- proposed_model_or_approach MUST come from the selected paper's content and include datasets/models if present.\n"
+        "- proposed_model_or_approach MUST describe what the paper explicitly proposes (method/model/approach/algorithm). If the paper does not propose a new method, write \"Not specified in paper\".\n"
         "- research_gaps MUST contain one gap per selected paper (list format).\n"
         "- assistant_reply MUST be a concise researcher-style response (neutral, evidence-based, no fluff).\n"
         "- generated_idea MUST synthesize all gaps into one concrete solution.\n"
@@ -67,7 +70,9 @@ RESEARCH_PROMPT = PromptTemplate(
 REVIEW_PROMPT = PromptTemplate(
     input_variables=["paper"],
     template=(
-        "You are a peer reviewer. Read the paper text and return ONLY valid JSON with fields:\n"
+        "You are a peer reviewer. Use ONLY the provided paper text. "
+        "Do NOT invent details not stated in the text. "
+        "Return ONLY valid JSON with fields:\n"
         "{{\n"
         '  "strengths": "...",\n'
         '  "weaknesses": "...",\n'
@@ -84,7 +89,8 @@ REVIEW_PROMPT = PromptTemplate(
 PAPER_QA_PROMPT = PromptTemplate(
     input_variables=["paper_text", "question"],
     template=(
-        "You are a research assistant. Answer the user's question based ONLY on the provided paper text.\n\n"
+        "You are a research assistant. Answer the user's question based ONLY on the provided paper text. "
+        "If the answer is not in the text, say \"Not specified in the paper.\" Do not guess.\n\n"
         "Paper text:\n{paper_text}\n\n"
         "Question: {question}"
     ),
@@ -93,7 +99,8 @@ PAPER_QA_PROMPT = PromptTemplate(
 PAPER_CHUNK_SUMMARIZER_PROMPT = PromptTemplate(
     input_variables=["chunk"],
     template=(
-        "You are a research assistant. Summarize the following chunk of a research paper.\n\n"
+        "You are a research assistant. Summarize the following chunk of a research paper. "
+        "Be factual and concise. Do not add external information.\n\n"
         "Chunk:\n{chunk}"
     ),
 )
@@ -121,7 +128,8 @@ JSON_REPAIR_PROMPT = PromptTemplate(
 GAP_IDEA_PROMPT = PromptTemplate(
     input_variables=["context", "papers_json", "question"],
     template=(
-        "You are a research assistant. Use ONLY the provided context and papers list.\n"
+        "You are a research assistant. Use ONLY the provided context and papers list. "
+        "Do NOT invent papers or claims.\n"
         "Return exactly two lines (no JSON, no bullets):\n"
         "Research Gap: <one concise paragraph>\n"
         "Generated Idea: <concrete solution + brief procedure>\n\n"
@@ -133,7 +141,8 @@ GAP_IDEA_PROMPT = PromptTemplate(
 GAP_LIST_PROMPT = PromptTemplate(
     input_variables=["context", "papers_json", "question"],
     template=(
-        "You are a research assistant. Use ONLY the provided context and papers list.\n"
+        "You are a research assistant. Use ONLY the provided context and papers list. "
+        "Do NOT invent papers or claims.\n"
         "Return ONLY valid JSON with this schema:\n"
         "{{\n"
         '  "research_gaps": ["Paper name: gap text"],\n'

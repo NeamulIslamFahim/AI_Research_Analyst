@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import "./App.css";
 import { uploadReviewPdf, reviewQA, researchExplore, writerStep, downloadPapers } from "./api";
 
@@ -31,8 +31,29 @@ function isFollowupPrompt(text) {
   return false;
 }
 
-function formatChatHistory(messages) {
-  return messages
+function formatChatHistory(messages, maxMessages = 8) {
+  const trimmed = messages.slice(-maxMessages);
+  return trimmed
+    .map((m) => {
+      const label = m.role === "user" ? "User" : "Assistant";
+      const content =
+        m.role === "user"
+          ? typeof m.effectiveQuery === "string"
+            ? m.effectiveQuery
+            : typeof m.content === "string"
+            ? m.content
+            : ""
+          : typeof m.content === "string"
+          ? m.content
+          : "";
+      return `${label}: ${content}`;
+    })
+    .join("\n");
+}
+
+function formatChatHistoryUpTo(messages, idx, maxMessages = 8) {
+  const trimmed = messages.filter((_, i) => i <= idx).slice(-maxMessages);
+  return trimmed
     .map((m) => {
       const label = m.role === "user" ? "User" : "Assistant";
       const content =
@@ -152,7 +173,8 @@ export default function App() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [paperTextBySession, setPaperTextBySession] = useState({});
-  const [writerStepBySession, setWriterStepBySession] = useState({});
+  const [writerStateBySession, setWriterStateBySession] = useState({});
+  const [writerIntroShownBySession, setWriterIntroShownBySession] = useState({});
   const [editIndex, setEditIndex] = useState(null);
   const [editText, setEditText] = useState("");
 
@@ -160,12 +182,45 @@ export default function App() {
   const mode = currentSession.mode;
   const messages = currentSession.messages;
   const paperText = paperTextBySession[currentSessionId] || "";
-  const writerStep = writerStepBySession[currentSessionId] || 0;
+  const writerState = writerStateBySession[currentSessionId] || { phase: "start" };
+  const writerIntroShown = writerIntroShownBySession[currentSessionId] || false;
 
   const lastTopic = useMemo(() => {
     const lastUser = [...messages].reverse().find((m) => m.role === "user");
     return lastUser ? lastUser.effectiveQuery || lastUser.content : "";
   }, [messages]);
+
+  async function ensureWriterIntro() {
+    if (loading) return;
+    if (mode !== "Research Paper Writer") return;
+    if (messages.length > 0) return;
+    if (writerIntroShown) return;
+    setLoading(true);
+    try {
+      const res = await writerStep("", writerState);
+      const replies = Array.isArray(res.messages) ? res.messages : [];
+      updateMessages((m) => [
+        ...m,
+        ...replies.map((r) => ({ role: "assistant", content: r, type: "text" })),
+      ]);
+      setWriterStateBySession((m) => ({
+        ...m,
+        [currentSessionId]: res.next_state || { phase: "start" },
+      }));
+      setWriterIntroShownBySession((m) => ({ ...m, [currentSessionId]: true }));
+    } catch (err) {
+      updateMessages((m) => [
+        ...m,
+        { role: "assistant", content: String(err), type: "text" },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    ensureWriterIntro();
+  }, [mode, currentSessionId, loading, messages.length, writerIntroShown, writerState]);
 
   async function handleUpload(e) {
     const file = e.target.files?.[0];
@@ -225,16 +280,16 @@ export default function App() {
     if (mode === "Research Paper Writer") {
       setLoading(true);
       try {
-        const res = await writerStep(writerStep, trimmed);
+        const res = await writerStep(trimmed, writerState);
         const replies = Array.isArray(res.messages) ? res.messages : [];
         updateMessages((m) => [
           ...m,
           userMessage,
           ...replies.map((r) => ({ role: "assistant", content: r, type: "text" })),
         ]);
-        setWriterStepBySession((m) => ({
+        setWriterStateBySession((m) => ({
           ...m,
-          [currentSessionId]: typeof res.next_step === "number" ? res.next_step : 0,
+          [currentSessionId]: res.next_state || { phase: "start" },
         }));
       } catch (err) {
         updateMessages((m) => [...m, { role: "assistant", content: String(err), type: "text" }]);
@@ -255,10 +310,18 @@ export default function App() {
           updateMessages((m) => replaceOrAppendAssistant(m, m.length - 1, { role: "assistant", content: res.answer || "No answer found.", type: "text" }));
         }
       } else {
-        const history = formatChatHistory(messages);
-        const res = await researchExplore(effectiveQuery, history, followup ? lastTopic || null : null);
-        updateMessages((m) => replaceOrAppendAssistant(m, m.length - 1, { role: "assistant", content: res, type: "research" }));
-        // Fire-and-forget: download PDFs to update vector DB for faster future responses.
+        const history = formatChatHistory(messages, 100);
+        const res = await researchExplore(
+          effectiveQuery,
+          history,
+          followup ? lastTopic || null : null,
+          true,
+          followup
+        );
+        updateMessages((m) =>
+          replaceOrAppendAssistant(m, m.length - 1, { role: "assistant", content: res, type: "research" })
+        );
+        // Always download after responding to keep vector DB updated.
         downloadPapers(effectiveQuery).catch(() => {});
       }
     } catch (err) {
@@ -284,10 +347,19 @@ export default function App() {
           newAssistant = { role: "assistant", content: res.answer || "No answer found.", type: "text" };
         }
       } else {
-        const history = formatChatHistory(messages);
-        const res = await researchExplore(userText, history, lastTopic || null);
+        const history = formatChatHistoryUpTo(messages, idx, 100);
+        const regenFollowup = isFollowupPrompt(msg.content || "");
+        const res = await researchExplore(
+          userText,
+          history,
+          regenFollowup ? lastTopic || null : null,
+          true,
+          true
+        );
         newAssistant = { role: "assistant", content: res, type: "research" };
-        downloadPapers(userText).catch(() => {});
+        if (regenFollowup) {
+          downloadPapers(userText).catch(() => {});
+        }
       }
       updateMessages((m) => replaceOrAppendAssistant(m, idx, newAssistant));
     } catch (err) {
@@ -347,7 +419,7 @@ export default function App() {
               setSessions((s) => [newSession, ...s]);
               setCurrentSessionId(id);
               setPaperTextBySession((m) => ({ ...m, [id]: "" }));
-              setWriterStepBySession((m) => ({ ...m, [id]: 0 }));
+              setWriterStateBySession((m) => ({ ...m, [id]: { phase: "start" } }));
             }}
           >
             New Chat
@@ -358,7 +430,10 @@ export default function App() {
               const nextMode = e.target.value;
               if (messages.length === 0) {
                 updateSession({ mode: nextMode });
-                setWriterStepBySession((m) => ({ ...m, [currentSessionId]: 0 }));
+                setWriterStateBySession((m) => ({
+                  ...m,
+                  [currentSessionId]: { phase: "start" },
+                }));
                 setPaperTextBySession((m) => ({ ...m, [currentSessionId]: "" }));
               } else {
                 const id = `chat-${sessions.length + 1}`;
@@ -371,7 +446,7 @@ export default function App() {
                 };
                 setSessions((s) => [newSession, ...s]);
                 setCurrentSessionId(id);
-                setWriterStepBySession((m) => ({ ...m, [id]: 0 }));
+                setWriterStateBySession((m) => ({ ...m, [id]: { phase: "start" } }));
                 setPaperTextBySession((m) => ({ ...m, [id]: "" }));
               }
             }}

@@ -27,7 +27,7 @@ export async function reviewQA(question, paperText) {
   return handleResponse(res);
 }
 
-export async function researchExplore(topic, chatHistory, focusTopic) {
+export async function researchExplore(topic, chatHistory, focusTopic, useLive, forceRefresh) {
   const res = await fetch(`${API_BASE}/api/research/explore`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -35,19 +35,13 @@ export async function researchExplore(topic, chatHistory, focusTopic) {
       topic,
       chat_history: chatHistory || null,
       focus_topic: focusTopic || null,
+      use_live: useLive ?? null,
+      force_refresh: forceRefresh ?? null,
     }),
   });
   return handleResponse(res);
 }
 
-export async function downloadPapers(topic) {
-  const res = await fetch(`${API_BASE}/api/download`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ topic }),
-  });
-  return handleResponse(res);
-}
 
 export async function generateReferences(topic) {
   const res = await fetch(`${API_BASE}/api/reference`, {
@@ -58,11 +52,20 @@ export async function generateReferences(topic) {
   return handleResponse(res);
 }
 
-export async function writerStep(step, userText) {
+export async function writerStep(userText, state) {
   const res = await fetch(`${API_BASE}/api/writer/step`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ step, user_text: userText }),
+    body: JSON.stringify({ user_text: userText, state: state || {} }),
+  });
+  return handleResponse(res);
+}
+
+export async function downloadPapers(topic) {
+  const res = await fetch(`${API_BASE}/api/download`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ topic }),
   });
   return handleResponse(res);
 }
