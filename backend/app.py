@@ -34,6 +34,15 @@ def _backend_main():
     from . import main as backend_main
     return backend_main
 
+
+@app.on_event("startup")
+def _ensure_model_cache_dirs() -> None:
+    # Ensure model cache directories exist to avoid repeated downloads on Render.
+    for var in ("SENTENCE_TRANSFORMERS_HOME", "HF_HOME", "TRANSFORMERS_CACHE"):
+        path = os.getenv(var)
+        if path:
+            os.makedirs(path, exist_ok=True)
+
 # Allow local CRA dev server by default.
 origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
 app.add_middleware(

@@ -15,3 +15,9 @@ services:
         value: "3.11.8"
       - key: NODE_VERSION
         value: "20.11.1"
+      - key: SENTENCE_TRANSFORMERS_HOME
+        value: "/opt/render/project/.cache/sentence-transformers"
+      - key: HF_HOME
+        value: "/opt/render/project/.cache/huggingface"
+      - key: TRANSFORMERS_CACHE
+        value: "/opt/render/project/.cache/huggingface/transformers"
