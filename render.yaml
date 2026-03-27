@@ -21,3 +21,17 @@ services:
         value: "/opt/render/project/.cache/huggingface"
       - key: TRANSFORMERS_CACHE
         value: "/opt/render/project/.cache/huggingface/transformers"
+      - key: PAPER_DB_DIR
+        value: "data/paper_db"
+      - key: FAISS_PERSIST_DIR
+        value: "data/vectorstore"
+      - key: ASSISTANT_MODEL_DIR
+        value: "data/trained_assistant"
+      - key: ASSISTANT_TRAIN_ON_STARTUP
+        value: "true"
+      - key: ASSISTANT_MODEL_ONLY
+        value: "true"
+      - key: USE_GPT_OSS
+        value: "false"
+      - key: REACT_APP_ASSISTANT_ONLY
+        value: "true"

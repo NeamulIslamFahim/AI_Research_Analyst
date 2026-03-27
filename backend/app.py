@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from .assistant_model import assistant_chat, get_assistant_status, train_assistant_model
 from .helpers import safe_get
 
 
@@ -42,6 +43,12 @@ def _ensure_model_cache_dirs() -> None:
         path = os.getenv(var)
         if path:
             os.makedirs(path, exist_ok=True)
+    if (os.getenv("ASSISTANT_TRAIN_ON_STARTUP", "true") or "true").lower() == "true":
+        try:
+            train_assistant_model(force=False)
+        except Exception:
+            # Keep API boot resilient even if corpus training cannot complete at startup.
+            pass
 
 # Allow local CRA dev server by default.
 origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
@@ -168,6 +175,15 @@ class WriterStepRequest(BaseModel):
 class WriterStepResponse(BaseModel):
     next_state: Dict[str, Any]
     messages: list[str]
+
+
+class AssistantTrainRequest(BaseModel):
+    force: Optional[bool] = None
+
+
+class AssistantChatRequest(BaseModel):
+    prompt: str
+    chat_history: Optional[str] = None
 
 
 def _format_review_reply(review: Dict[str, Any]) -> str:
@@ -324,7 +340,33 @@ def download_papers(payload: DownloadRequest) -> Dict[str, Any]:
     result = backend_main.download_papers_for_topic(payload.topic)
     if isinstance(result, dict) and result.get("error"):
         raise HTTPException(status_code=500, detail=result["error"])
-    return {"status": "ok"}
+    train_meta = None
+    try:
+        train_meta = train_assistant_model(force=True)
+    except Exception:
+        train_meta = None
+    return {"status": "ok", "assistant_model": train_meta}
+
+
+@app.get("/api/assistant/status")
+def assistant_status() -> Dict[str, Any]:
+    return get_assistant_status()
+
+
+@app.post("/api/assistant/train")
+def assistant_train(payload: AssistantTrainRequest) -> Dict[str, Any]:
+    try:
+        return train_assistant_model(force=bool(payload.force))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.post("/api/assistant/chat")
+def assistant_chat_route(payload: AssistantChatRequest) -> Dict[str, Any]:
+    try:
+        return assistant_chat(prompt=payload.prompt, chat_history=payload.chat_history)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.post("/api/writer/step", response_model=WriterStepResponse)

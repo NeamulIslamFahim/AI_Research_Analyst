@@ -97,7 +97,7 @@ def create_embeddings() -> Embeddings:
     try:
         base = HuggingFaceEmbeddings(
             model_name=EMBEDDING_MODEL,
-            model_kwargs={"device": "cpu"},
+            model_kwargs={"device": "cpu", "local_files_only": True},
             encode_kwargs={"normalize_embeddings": True},
         )
         return _SafeEmbeddings(base)

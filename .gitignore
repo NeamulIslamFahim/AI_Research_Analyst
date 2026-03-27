@@ -33,4 +33,5 @@ logs/
 *.db
 *.parquet
 *.csv
+data/trained_assistant/
 node_modules/

@@ -158,6 +158,21 @@ GAP_LIST_PROMPT = PromptTemplate(
         "Context:\n{context}\n\nQuestion: {question}"
     ),
 )
+
+ASSISTANT_QA_PROMPT = PromptTemplate(
+    input_variables=["prompt", "chat_history", "context"],
+    template=(
+        "You are the default assistant for a research system trained on the user's local corpus. "
+        "Answer the user's exact prompt using ONLY the supplied context. "
+        "If the context is insufficient, say what is missing instead of guessing. "
+        "Be direct, accurate, and grounded in the retrieved material.\n\n"
+        "Chat history:\n{chat_history}\n\n"
+        "Retrieved context:\n{context}\n\n"
+        "User prompt: {prompt}"
+    ),
+)
+
+
 def research_explainer_chain(llm: BaseLLM) -> RunnableSequence:
     """Build a chain that outputs a strict JSON table and narrative."""
     try:
@@ -220,3 +235,11 @@ def gap_list_chain(llm: BaseLLM) -> RunnableSequence:
         return GAP_LIST_PROMPT | llm
     except Exception as exc:
         raise RuntimeError(f"Failed to build gap list chain: {exc}") from exc
+
+
+def assistant_answer_chain(llm: BaseLLM) -> RunnableSequence:
+    """Build a grounded assistant chain for the trained local corpus."""
+    try:
+        return ASSISTANT_QA_PROMPT | llm
+    except Exception as exc:
+        raise RuntimeError(f"Failed to build assistant answer chain: {exc}") from exc

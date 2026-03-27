@@ -10,6 +10,11 @@ import os
 import re
 from typing import Any, Dict, List
 
+from dotenv import load_dotenv
+
+
+load_dotenv()
+
 
 def _sanitize_json_like(text: str) -> str:
     """Best-effort cleanup for JSON-like model outputs."""

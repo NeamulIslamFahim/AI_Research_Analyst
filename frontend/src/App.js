@@ -1,8 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import "./App.css";
-import { uploadReviewPdf, reviewQA, researchExplore, writerStep, downloadPapers } from "./api";
+import { uploadReviewPdf, reviewQA, assistantChat, writerStep, downloadPapers } from "./api";
 
-const MODES = ["Research Explorer", "Research Paper Reviewer", "Research Paper Writer"];
+const ASSISTANT_ONLY = process.env.REACT_APP_ASSISTANT_ONLY === "true";
+const MODES = ASSISTANT_ONLY
+  ? ["Research Explorer"]
+  : ["Research Explorer", "Research Paper Reviewer", "Research Paper Writer"];
 
 function isFollowupPrompt(text) {
   const t = (text || "").trim().toLowerCase();
@@ -151,6 +154,38 @@ function ResearchResult({ result }) {
           <ul>
             {steps.map((s, i) => (
               <li key={i}>{s}</li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function AssistantResult({ result }) {
+  if (!result || typeof result !== "object") return null;
+  const sources = Array.isArray(result.sources) ? result.sources : [];
+  return (
+    <div className="research-result">
+      <p>{result.answer || "No answer found."}</p>
+      {sources.length ? (
+        <>
+          <h4>Sources</h4>
+          <ul>
+            {sources.map((source, idx) => (
+              <li key={`${source.title || "source"}-${idx}`}>
+                <strong>{source.title || "Untitled"}</strong>
+                {source.source ? ` (${source.source})` : ""}
+                {source.url ? (
+                  <>
+                    {" - "}
+                    <a href={source.url} target="_blank" rel="noreferrer">
+                      Open source
+                    </a>
+                  </>
+                ) : null}
+                {source.snippet ? `: ${source.snippet}` : ""}
+              </li>
             ))}
           </ul>
         </>
@@ -312,17 +347,10 @@ export default function App() {
         }
       } else {
         const history = formatChatHistory(messages, 100);
-        const res = await researchExplore(
-          effectiveQuery,
-          history,
-          followup ? lastTopic || null : null,
-          true,
-          followup
-        );
+        const res = await assistantChat(effectiveQuery, history);
         updateMessages((m) =>
-          replaceOrAppendAssistant(m, m.length - 1, { role: "assistant", content: res, type: "research" })
+          replaceOrAppendAssistant(m, m.length - 1, { role: "assistant", content: res, type: "assistant" })
         );
-        // Always download after responding to keep vector DB updated.
         downloadPapers(effectiveQuery).catch(() => {});
       }
     } catch (err) {
@@ -349,18 +377,9 @@ export default function App() {
         }
       } else {
         const history = formatChatHistoryUpTo(messages, idx, 100);
-        const regenFollowup = isFollowupPrompt(msg.content || "");
-        const res = await researchExplore(
-          userText,
-          history,
-          regenFollowup ? lastTopic || null : null,
-          true,
-          true
-        );
-        newAssistant = { role: "assistant", content: res, type: "research" };
-        if (regenFollowup) {
-          downloadPapers(userText).catch(() => {});
-        }
+        const res = await assistantChat(userText, history);
+        newAssistant = { role: "assistant", content: res, type: "assistant" };
+        downloadPapers(userText).catch(() => {});
       }
       updateMessages((m) => replaceOrAppendAssistant(m, idx, newAssistant));
     } catch (err) {
@@ -508,6 +527,8 @@ export default function App() {
             <div className="bubble">
               {msg.role === "assistant" && msg.type === "loading" ? (
                 <div className="loading">Loading…</div>
+              ) : msg.role === "assistant" && msg.type === "assistant" ? (
+                <AssistantResult result={msg.content} />
               ) : msg.role === "assistant" && msg.type === "research" ? (
                 <ResearchResult result={msg.content} />
               ) : (

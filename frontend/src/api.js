@@ -43,6 +43,29 @@ export async function researchExplore(topic, chatHistory, focusTopic, useLive, f
 }
 
 
+export async function assistantChat(prompt, chatHistory) {
+  const res = await fetch(`${API_BASE}/api/assistant/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      prompt,
+      chat_history: chatHistory || null,
+    }),
+  });
+  return handleResponse(res);
+}
+
+
+export async function trainAssistant(force = false) {
+  const res = await fetch(`${API_BASE}/api/assistant/train`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ force }),
+  });
+  return handleResponse(res);
+}
+
+
 export async function generateReferences(topic) {
   const res = await fetch(`${API_BASE}/api/reference`, {
     method: "POST",
