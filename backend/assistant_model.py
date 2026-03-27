@@ -41,6 +41,18 @@ def _tokenize(text: str) -> list[str]:
     return re.findall(r"[a-z0-9]+", (text or "").lower())
 
 
+def _query_tokens(text: str) -> list[str]:
+    stopwords = {
+        "the", "and", "for", "with", "from", "that", "this", "into", "have", "has",
+        "had", "are", "was", "were", "what", "when", "where", "which", "who", "whom",
+        "will", "would", "could", "should", "can", "about", "main", "than", "then",
+        "them", "they", "their", "there", "your", "user", "prompt", "please", "give",
+        "tell", "show", "explain", "describe", "summarize", "summary", "research",
+    }
+    tokens = [token for token in _tokenize(text) if len(token) > 2 and token not in stopwords]
+    return list(dict.fromkeys(tokens))
+
+
 def _doc_id(text: str, metadata: dict[str, Any]) -> str:
     payload = json.dumps(
         {
@@ -126,6 +138,16 @@ def _build_corpus() -> list[dict[str, Any]]:
     return list(deduped.values())
 
 
+def _corpus_availability() -> dict[str, int]:
+    pdf_docs = _pdf_docs()
+    vector_docs = _vectorstore_docs()
+    return {
+        "pdf_chunk_count": len(pdf_docs),
+        "vector_chunk_count": len(vector_docs),
+        "total_chunk_count": len(pdf_docs) + len(vector_docs),
+    }
+
+
 def _save_json(path: str, payload: dict[str, Any]) -> None:
     with open(path, "w", encoding="utf-8") as handle:
         json.dump(payload, handle, ensure_ascii=True, indent=2)
@@ -156,7 +178,13 @@ def train_assistant_model(force: bool = False) -> dict[str, Any]:
 
     corpus = _build_corpus()
     if not corpus:
-        raise RuntimeError("No cached PDF or vectorstore content found for training.")
+        stats = _corpus_availability()
+        return {
+            "status": "not_trained",
+            "model": DEFAULT_ASSISTANT_MODEL,
+            "message": "No cached PDF or vectorstore content found for training.",
+            **stats,
+        }
 
     source_counts: dict[str, int] = {}
     doc_titles: set[str] = set()
@@ -198,7 +226,12 @@ def get_assistant_status() -> dict[str, Any]:
         if payload:
             _MODEL_CACHE = _load_runtime(payload)
     if _MODEL_CACHE is None:
-        return {"status": "not_trained", "model": DEFAULT_ASSISTANT_MODEL}
+        return {
+            "status": "not_trained",
+            "model": DEFAULT_ASSISTANT_MODEL,
+            "message": "Assistant model has not been trained yet.",
+            **_corpus_availability(),
+        }
     meta = dict(_MODEL_CACHE.get("meta", {}) or {})
     meta["status"] = meta.get("status", "ready")
     return meta
@@ -211,7 +244,9 @@ def _ensure_model_loaded() -> dict[str, Any]:
         if payload:
             _MODEL_CACHE = _load_runtime(payload)
     if _MODEL_CACHE is None:
-        train_assistant_model(force=True)
+        meta = train_assistant_model(force=True)
+        if meta.get("status") != "ready":
+            raise RuntimeError(meta.get("message", "Assistant model is not available."))
     if _MODEL_CACHE is None:
         raise RuntimeError("Assistant model is not available.")
     return _MODEL_CACHE
@@ -275,6 +310,7 @@ def _vector_hits(prompt: str, limit: int) -> list[dict[str, Any]]:
 
 def _hybrid_retrieve(prompt: str, limit: int = 6) -> list[dict[str, Any]]:
     model = _ensure_model_loaded()
+    query_terms = _query_tokens(prompt)
     combined: dict[str, dict[str, Any]] = {}
     for hit in _bm25_hits(model, prompt, limit * 2):
         existing = combined.get(hit["id"])
@@ -287,8 +323,164 @@ def _hybrid_retrieve(prompt: str, limit: int = 6) -> list[dict[str, Any]]:
         else:
             existing["score"] = float(existing.get("score", 0.0)) + float(hit["score"])
             existing["retriever"] = "hybrid"
-    ranked = sorted(combined.values(), key=lambda item: item.get("score", 0.0), reverse=True)
-    return ranked[:limit]
+    reranked: list[dict[str, Any]] = []
+    for item in combined.values():
+        metadata = item.get("metadata", {}) or {}
+        title = _normalize_whitespace(metadata.get("title", ""))
+        text = _normalize_whitespace(item.get("text", ""))
+        title_tokens = set(_query_tokens(title))
+        text_tokens = set(_query_tokens(text[:2000]))
+        overlap = len(set(query_terms).intersection(title_tokens | text_tokens))
+        title_overlap = len(set(query_terms).intersection(title_tokens))
+
+        # Strongly favor chunks that match the user's real terms, especially in titles.
+        adjusted_score = float(item.get("score", 0.0))
+        adjusted_score += overlap * 6.0
+        adjusted_score += title_overlap * 10.0
+
+        if query_terms and overlap == 0:
+            adjusted_score -= 50.0
+
+        reranked.append(
+            {
+                **item,
+                "score": adjusted_score,
+                "overlap": overlap,
+                "title_overlap": title_overlap,
+            }
+        )
+
+    ranked = sorted(
+        [
+            item
+            for item in reranked
+            if not query_terms or item.get("overlap", 0) > 0 or item.get("title_overlap", 0) > 0
+        ],
+        key=lambda item: item.get("score", 0.0),
+        reverse=True,
+    )
+
+    if not ranked:
+        ranked = sorted(reranked, key=lambda item: item.get("score", 0.0), reverse=True)
+
+    diversified: list[dict[str, Any]] = []
+    per_title_counts: dict[str, int] = {}
+    max_per_title = 2
+
+    for item in ranked:
+        metadata = item.get("metadata", {}) or {}
+        title = _normalize_whitespace(metadata.get("title", "") or "Untitled")
+        count = per_title_counts.get(title, 0)
+        if count >= max_per_title:
+            continue
+        per_title_counts[title] = count + 1
+        diversified.append(item)
+        if len(diversified) >= limit:
+            break
+
+    if len(diversified) < limit:
+        for item in ranked:
+            if item in diversified:
+                continue
+            diversified.append(item)
+            if len(diversified) >= limit:
+                break
+
+    return diversified[:limit]
+
+
+def _diverse_hits_for_answer(hits: list[dict[str, Any]], limit: int = 4) -> list[dict[str, Any]]:
+    selected: list[dict[str, Any]] = []
+    seen_titles: set[str] = set()
+
+    for hit in hits:
+        metadata = hit.get("metadata", {}) or {}
+        title = _normalize_whitespace(metadata.get("title", "") or "Untitled")
+        if title in seen_titles:
+            continue
+        seen_titles.add(title)
+        selected.append(hit)
+        if len(selected) >= limit:
+            return selected
+
+    for hit in hits:
+        if hit in selected:
+            continue
+        selected.append(hit)
+        if len(selected) >= limit:
+            break
+
+    return selected
+
+
+def _best_sentences_from_hit(hit: dict[str, Any], prompt_tokens: set[str], limit: int = 2) -> list[str]:
+    text = _normalize_whitespace(hit.get("text", ""))
+    title = (hit.get("metadata", {}) or {}).get("title", "Untitled")
+    if not text:
+        return []
+
+    scored: list[tuple[int, str]] = []
+    seen: set[str] = set()
+    for sentence in re.split(r"(?<=[.!?])\s+", text):
+        clean = _normalize_whitespace(sentence)
+        if len(clean) < 40:
+            continue
+        alpha_count = sum(1 for ch in clean if ch.isalpha())
+        word_count = len(clean.split())
+        if alpha_count < 25 or word_count < 8:
+            continue
+        if clean.lower() == title.lower():
+            continue
+        if clean.count("|") >= 1 and word_count < 14:
+            continue
+        if clean.isupper():
+            continue
+        overlap = len(prompt_tokens.intersection(_query_tokens(clean)))
+        if prompt_tokens and overlap <= 0:
+            continue
+        key = clean[:220]
+        if key in seen:
+            continue
+        seen.add(key)
+        scored.append((overlap, f"{clean} (Source: {title})"))
+
+    scored.sort(key=lambda item: item[0], reverse=True)
+    return [sentence for _, sentence in scored[:limit]]
+
+
+def _extractive_grounded_answer(prompt: str, hits: list[dict[str, Any]]) -> str:
+    if not hits:
+        return "I could not find relevant trained corpus content for that prompt."
+
+    prompt_tokens = set(_query_tokens(prompt))
+    passages: list[str] = []
+    used: set[str] = set()
+
+    for hit in _diverse_hits_for_answer(hits, limit=4):
+        for sentence in _best_sentences_from_hit(hit, prompt_tokens, limit=2):
+            key = sentence[:220]
+            if key in used:
+                continue
+            used.add(key)
+            passages.append(sentence)
+            if len(passages) >= 5:
+                break
+        if len(passages) >= 5:
+            break
+
+    if not passages:
+        lead = hits[0]
+        title = (lead.get("metadata", {}) or {}).get("title", "the local corpus")
+        snippet = lead.get("text", "")[:900].strip()
+        return (
+            f"Based on the trained assistant knowledge base, the closest relevant material comes from {title}.\n\n"
+            f"{snippet}"
+        )
+
+    return (
+        "Based on the trained assistant knowledge base, here is the most relevant grounded answer:\n\n"
+        + "\n\n".join(passages)
+    )
 
 
 def _build_context(hits: list[dict[str, Any]]) -> str:
@@ -309,15 +501,7 @@ def _build_context(hits: list[dict[str, Any]]) -> str:
 
 
 def _fallback_answer(prompt: str, hits: list[dict[str, Any]]) -> str:
-    if not hits:
-        return "I could not find relevant trained corpus content for that prompt."
-    lead = hits[0]
-    title = (lead.get("metadata", {}) or {}).get("title", "the local corpus")
-    snippet = lead.get("text", "")[:900].strip()
-    return (
-        f"I found relevant material in {title}, but a generative model was not available. "
-        f"Closest grounded passage for your prompt '{prompt}':\n\n{snippet}"
-    )
+    return _extractive_grounded_answer(prompt, hits)
 
 
 def assistant_chat(prompt: str, chat_history: str | None = None) -> dict[str, Any]:
@@ -325,7 +509,22 @@ def assistant_chat(prompt: str, chat_history: str | None = None) -> dict[str, An
     if not prompt or not prompt.strip():
         raise RuntimeError("Prompt is required.")
 
-    hits = _hybrid_retrieve(prompt.strip())
+    try:
+        hits = _hybrid_retrieve(prompt.strip())
+    except Exception as exc:
+        status = get_assistant_status()
+        return {
+            "model": status.get("model", DEFAULT_ASSISTANT_MODEL),
+            "assistant_only": (load_env_var("ASSISTANT_MODEL_ONLY", "false") or "false").lower() == "true",
+            "trained_at": status.get("trained_at"),
+            "answer": (
+                "The assistant knowledge base is not trained yet. "
+                "Please add papers or vector data first, then train the assistant."
+            ),
+            "sources": [],
+            "status": status.get("status", "not_trained"),
+            "message": str(exc),
+        }
     context = _build_context(hits)
     answer = ""
 
@@ -350,8 +549,16 @@ def assistant_chat(prompt: str, chat_history: str | None = None) -> dict[str, An
         answer = _fallback_answer(prompt.strip(), hits)
 
     sources = []
-    for hit in hits:
+    seen_source_keys: set[tuple[str, str]] = set()
+    for hit in _diverse_hits_for_answer(hits, limit=6):
         metadata = hit.get("metadata", {}) or {}
+        source_key = (
+            metadata.get("title", "Untitled"),
+            metadata.get("url", "") or metadata.get("pdf_url", ""),
+        )
+        if source_key in seen_source_keys:
+            continue
+        seen_source_keys.add(source_key)
         sources.append(
             {
                 "title": metadata.get("title", "Untitled"),

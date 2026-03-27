@@ -30,8 +30,8 @@ services:
       - key: ASSISTANT_TRAIN_ON_STARTUP
         value: "false"
       - key: ASSISTANT_MODEL_ONLY
-        value: "true"
+        value: "false"
       - key: USE_GPT_OSS
         value: "false"
       - key: REACT_APP_ASSISTANT_ONLY
-        value: "true"
+        value: "false"

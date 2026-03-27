@@ -359,10 +359,10 @@ def assistant_status() -> Dict[str, Any]:
 
 @app.post("/api/assistant/train")
 def assistant_train(payload: AssistantTrainRequest) -> Dict[str, Any]:
-    try:
-        return train_assistant_model(force=bool(payload.force))
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    result = train_assistant_model(force=bool(payload.force))
+    if result.get("status") == "not_trained":
+        return result
+    return result
 
 
 @app.post("/api/assistant/chat")
