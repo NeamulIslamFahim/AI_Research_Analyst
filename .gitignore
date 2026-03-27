@@ -1,13 +1,10 @@
-
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
 *.sqlite
-data/
 paper_db/
-.streamlit/
 .vscode/
 venv/
 .venv/
