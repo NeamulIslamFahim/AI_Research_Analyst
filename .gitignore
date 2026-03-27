@@ -35,3 +35,9 @@ logs/
 *.csv
 data/trained_assistant/
 node_modules/
+!data/vectorstore/
+!data/vectorstore/index.faiss
+!data/vectorstore/index.pkl
+!data/trained_assistant/
+!data/trained_assistant/assistant_index.json
+!data/trained_assistant/assistant_config.json
