@@ -28,7 +28,7 @@ services:
       - key: ASSISTANT_MODEL_DIR
         value: "data/trained_assistant"
       - key: ASSISTANT_TRAIN_ON_STARTUP
-        value: "true"
+        value: "false"
       - key: ASSISTANT_MODEL_ONLY
         value: "true"
       - key: USE_GPT_OSS

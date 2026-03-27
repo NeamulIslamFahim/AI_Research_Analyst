@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import tempfile
 import json
+import threading
 import time
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -44,11 +45,14 @@ def _ensure_model_cache_dirs() -> None:
         if path:
             os.makedirs(path, exist_ok=True)
     if (os.getenv("ASSISTANT_TRAIN_ON_STARTUP", "true") or "true").lower() == "true":
-        try:
-            train_assistant_model(force=False)
-        except Exception:
-            # Keep API boot resilient even if corpus training cannot complete at startup.
-            pass
+        def _background_train() -> None:
+            try:
+                train_assistant_model(force=False)
+            except Exception:
+                # Keep API boot resilient even if corpus training cannot complete at startup.
+                pass
+
+        threading.Thread(target=_background_train, daemon=True).start()
 
 # Allow local CRA dev server by default.
 origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
