@@ -177,6 +177,7 @@ export default function App() {
   const [writerIntroShownBySession, setWriterIntroShownBySession] = useState({});
   const [editIndex, setEditIndex] = useState(null);
   const [editText, setEditText] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const currentSession = sessions.find((s) => s.id === currentSessionId) || sessions[0];
   const mode = currentSession.mode;
@@ -403,7 +404,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <aside className="sidebar">
+      <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="sidebar-header">
           <button
             className="new-chat"
@@ -420,6 +421,7 @@ export default function App() {
               setCurrentSessionId(id);
               setPaperTextBySession((m) => ({ ...m, [id]: "" }));
               setWriterStateBySession((m) => ({ ...m, [id]: { phase: "start" } }));
+              setSidebarOpen(false);
             }}
           >
             New Chat
@@ -435,6 +437,7 @@ export default function App() {
                   [currentSessionId]: { phase: "start" },
                 }));
                 setPaperTextBySession((m) => ({ ...m, [currentSessionId]: "" }));
+                setSidebarOpen(false);
               } else {
                 const id = `chat-${sessions.length + 1}`;
                 const newSession = {
@@ -448,6 +451,7 @@ export default function App() {
                 setCurrentSessionId(id);
                 setWriterStateBySession((m) => ({ ...m, [id]: { phase: "start" } }));
                 setPaperTextBySession((m) => ({ ...m, [id]: "" }));
+                setSidebarOpen(false);
               }
             }}
           >
@@ -465,6 +469,7 @@ export default function App() {
               className={`session-item ${s.id === currentSessionId ? "active" : ""}`}
               onClick={() => {
                 setCurrentSessionId(s.id);
+                setSidebarOpen(false);
               }}
             >
               <div className="session-title">{s.title}</div>
@@ -472,11 +477,18 @@ export default function App() {
             </button>
           ))}
         </div>
+        <div className="sidebar-footer">All rights reserved by Neamul Islam Fahim</div>
       </aside>
+      {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
 
       <div className="main">
         <header>
-          <h1>AI Research Assistant</h1>
+          <div className="header-left">
+            <button className="sidebar-toggle" onClick={() => setSidebarOpen(true)} aria-label="Open menu">
+              ☰
+            </button>
+            <h1>AI Research Assistant</h1>
+          </div>
           <div className="mode-pill">{mode}</div>
         </header>
 
