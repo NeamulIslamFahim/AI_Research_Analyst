@@ -1,6 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import "./App.css";
-import { uploadReviewPdf, reviewQA, assistantChat, writerStep, downloadPapers } from "./api";
+import {
+  uploadReviewPdf,
+  reviewQA,
+  researchExplore,
+  assistantChat,
+  writerStep,
+  downloadPapers,
+} from "./api";
 
 const ASSISTANT_ONLY = process.env.REACT_APP_ASSISTANT_ONLY === "true";
 const MODES = ASSISTANT_ONLY
@@ -347,11 +354,26 @@ export default function App() {
         }
       } else {
         const history = formatChatHistory(messages, 100);
-        const res = await assistantChat(effectiveQuery, history);
-        updateMessages((m) =>
-          replaceOrAppendAssistant(m, m.length - 1, { role: "assistant", content: res, type: "assistant" })
-        );
-        downloadPapers(effectiveQuery).catch(() => {});
+        if (mode === "Research Explorer") {
+          const res = await researchExplore(effectiveQuery, history);
+          updateMessages((m) =>
+            replaceOrAppendAssistant(m, m.length - 1, {
+              role: "assistant",
+              content: res,
+              type: "research",
+            })
+          );
+          downloadPapers(effectiveQuery).catch(() => {});
+        } else {
+          const res = await assistantChat(effectiveQuery, history);
+          updateMessages((m) =>
+            replaceOrAppendAssistant(m, m.length - 1, {
+              role: "assistant",
+              content: res,
+              type: "assistant",
+            })
+          );
+        }
       }
     } catch (err) {
       updateMessages((m) => replaceOrAppendAssistant(m, m.length - 1, { role: "assistant", content: String(err), type: "text" }));
@@ -377,9 +399,14 @@ export default function App() {
         }
       } else {
         const history = formatChatHistoryUpTo(messages, idx, 100);
-        const res = await assistantChat(userText, history);
-        newAssistant = { role: "assistant", content: res, type: "assistant" };
-        downloadPapers(userText).catch(() => {});
+        if (mode === "Research Explorer") {
+          const res = await researchExplore(userText, history);
+          newAssistant = { role: "assistant", content: res, type: "research" };
+          downloadPapers(userText).catch(() => {});
+        } else {
+          const res = await assistantChat(userText, history);
+          newAssistant = { role: "assistant", content: res, type: "assistant" };
+        }
       }
       updateMessages((m) => replaceOrAppendAssistant(m, idx, newAssistant));
     } catch (err) {

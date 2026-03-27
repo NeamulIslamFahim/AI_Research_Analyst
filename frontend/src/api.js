@@ -3,7 +3,11 @@ const API_BASE = process.env.REACT_APP_API_BASE || "";
 async function handleResponse(res) {
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || "Request failed");
+    const isHtml = typeof text === "string" && /<html[\s>]/i.test(text);
+    const message = isHtml
+      ? `Request failed with status ${res.status}. The server returned an upstream HTML error page.`
+      : text || `Request failed with status ${res.status}`;
+    throw new Error(message);
   }
   return res.json();
 }
