@@ -6,10 +6,13 @@ import os
 import tempfile
 import json
 import time
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .helpers import safe_get
@@ -24,6 +27,14 @@ from .pdf_utils import extract_text
 
 
 app = FastAPI(title="AI Research Assistant API", version="1.0.0")
+
+_BASE_DIR = Path(__file__).resolve().parent.parent
+_FRONTEND_BUILD_DIR = _BASE_DIR / "frontend" / "build"
+
+if _FRONTEND_BUILD_DIR.exists():
+    static_dir = _FRONTEND_BUILD_DIR / "static"
+    if static_dir.exists():
+        app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 # Allow local CRA dev server by default.
 origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
@@ -837,3 +848,16 @@ def writer_step(payload: WriterStepRequest) -> WriterStepResponse:
         next_state={"phase": "start"},
         messages=["Let's restart. Please provide Paper Title and Mode (Conference / Journal)."],
     )
+
+
+if _FRONTEND_BUILD_DIR.exists():
+    @app.get("/")
+    def serve_root() -> FileResponse:
+        return FileResponse(_FRONTEND_BUILD_DIR / "index.html")
+
+    @app.get("/{full_path:path}")
+    def serve_spa(full_path: str) -> FileResponse:
+        file_path = _FRONTEND_BUILD_DIR / full_path
+        if file_path.is_file():
+            return FileResponse(file_path)
+        return FileResponse(_FRONTEND_BUILD_DIR / "index.html")
