@@ -16,7 +16,6 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .helpers import safe_get
-from .pdf_utils import extract_text
 
 
 app = FastAPI(title="AI Research Assistant API", version="1.0.0")
@@ -232,6 +231,7 @@ def health() -> Dict[str, str]:
 async def review_upload(file: UploadFile = File(...)) -> Dict[str, Any]:
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported.")
+    from .pdf_utils import extract_text
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         content = await file.read()
         tmp.write(content)
