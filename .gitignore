@@ -5,6 +5,7 @@ __pycache__/
 *.pyd
 .Python
 *.sqlite
+data/
 paper_db/
 .streamlit/
 .vscode/

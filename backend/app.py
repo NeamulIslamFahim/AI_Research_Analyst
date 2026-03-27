@@ -12,15 +12,15 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from helpers import safe_get
-from main import (
+from .helpers import safe_get
+from .main import (
     download_papers_for_topic,
     run_paper_qa,
     run_paper_reviewer,
     run_research_explorer,
     run_reference_generator,
 )
-from pdf_utils import extract_text
+from .pdf_utils import extract_text
 
 
 app = FastAPI(title="AI Research Assistant API", version="1.0.0")
