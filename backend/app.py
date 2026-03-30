@@ -1,35 +1,40 @@
-"""FastAPI backend for the AI Research Assistant (React frontend)."""
+"""FastAPI backend for the AI Research Assistant."""
 
 from __future__ import annotations
 
 import os
 import tempfile
-import json
 import threading
 import time
-from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
 
 from .assistant_model import assistant_chat, get_assistant_status, train_assistant_model
+from .explorer_cache import ExplorerCache
+from .explorer_utils import (
+    fallback_broader_result,
+    fallback_error_result,
+    filter_result_by_topic,
+    fix_explorer_links,
+    format_review_reply,
+    relevant_to_topic,
+)
 from .helpers import safe_get
+from .schemas import (
+    AssistantChatRequest,
+    AssistantTrainRequest,
+    DownloadRequest,
+    ReferenceRequest,
+    ResearchExplorerRequest,
+    ReviewQARequest,
+    WriterStepRequest,
+    WriterStepResponse,
+)
 
 
 app = FastAPI(title="AI Research Assistant API", version="1.0.0")
-
-_BASE_DIR = Path(__file__).resolve().parent.parent
-_FRONTEND_BUILD_DIR = _BASE_DIR / "frontend" / "build"
-
-if _FRONTEND_BUILD_DIR.exists():
-    static_dir = _FRONTEND_BUILD_DIR / "static"
-    if static_dir.exists():
-        app.mount("/static", StaticFiles(directory=static_dir), name="static")
-
 
 def _backend_main():
     # Lazy import to avoid heavy startup work during app boot.
@@ -39,7 +44,7 @@ def _backend_main():
 
 @app.on_event("startup")
 def _ensure_model_cache_dirs() -> None:
-    # Ensure model cache directories exist to avoid repeated downloads on Render.
+    # Ensure model cache directories exist before model initialization.
     for var in ("SENTENCE_TRANSFORMERS_HOME", "HF_HOME", "TRANSFORMERS_CACHE"):
         path = os.getenv(var)
         if path:
@@ -54,8 +59,8 @@ def _ensure_model_cache_dirs() -> None:
 
         threading.Thread(target=_background_train, daemon=True).start()
 
-# Allow local CRA dev server by default.
-origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+# Allow local Streamlit app by default.
+origins = os.getenv("CORS_ORIGINS", "http://localhost:8501").split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in origins if o.strip()],
@@ -64,191 +69,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-_RESPONSE_CACHE: Dict[str, Dict[str, Any]] = {}
 _CACHE_TTL_SECONDS = int(os.getenv("RESPONSE_CACHE_TTL", "900") or "900")
-_CACHE_FILE = os.path.join(os.getenv("PAPER_DB_DIR", "paper_db"), "api_cache.json")
-
-
-def _cache_key(topic: str, focus: Optional[str], use_live: Optional[bool]) -> str:
-    return f"{topic.strip().lower()}|{(focus or '').strip().lower()}|{use_live}"
-
-
-def _relevant_to_topic(result: Dict[str, Any], topic: str) -> bool:
-    tokens = [t for t in topic.lower().replace("-", " ").split() if len(t) > 2]
-    if not tokens:
-        return True
-    table = result.get("table") if isinstance(result, dict) else None
-    if not isinstance(table, list):
-        return True
-    matched = 0
-    total = 0
-    for row in table:
-        if not isinstance(row, dict):
-            continue
-        total += 1
-        hay = " ".join([
-            str(row.get("paper_name","")),
-            str(row.get("summary_full_paper","")),
-            str(row.get("authors_name","")),
-        ]).lower()
-        if any(tok in hay for tok in tokens):
-            matched += 1
-    if total == 0:
-        return True
-    # Require at least half the rows to match to treat cache as relevant.
-    return matched / total >= 0.5
-
-
-def _filter_result_by_topic(result: Dict[str, Any], topic: str) -> Dict[str, Any]:
-    if not isinstance(result, dict):
-        return result
-    tokens = [t for t in topic.lower().replace("-", " ").split() if len(t) > 2]
-    if not tokens:
-        return result
-    table = result.get("table")
-    if not isinstance(table, list):
-        return result
-    filtered = []
-    keep_names = set()
-    for row in table:
-        if not isinstance(row, dict):
-            continue
-        hay = " ".join([
-            str(row.get("paper_name", "")),
-            str(row.get("summary_full_paper", "")),
-            str(row.get("authors_name", "")),
-        ]).lower()
-        if any(tok in hay for tok in tokens):
-            filtered.append(row)
-            name = row.get("paper_name")
-            if name:
-                keep_names.add(name)
-    result["table"] = filtered
-    if isinstance(result.get("research_gaps"), list):
-        result["research_gaps"] = [g for g in result["research_gaps"] if any(k in g for k in keep_names)] or result["research_gaps"]
-    if isinstance(result.get("generated_idea_citations"), list):
-        result["generated_idea_citations"] = [c for c in result["generated_idea_citations"] if c in keep_names] or result["generated_idea_citations"]
-    return result
-
-
-def _load_disk_cache() -> Dict[str, Any]:
-    try:
-        if os.path.exists(_CACHE_FILE):
-            with open(_CACHE_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-    except Exception:
-        pass
-    return {}
-
-
-def _save_disk_cache(cache: Dict[str, Any]) -> None:
-    try:
-        os.makedirs(os.path.dirname(_CACHE_FILE), exist_ok=True)
-        with open(_CACHE_FILE, "w", encoding="utf-8") as f:
-            json.dump(cache, f)
-    except Exception:
-        pass
-
-
-class ResearchExplorerRequest(BaseModel):
-    topic: str
-    chat_history: Optional[str] = None
-    focus_topic: Optional[str] = None
-    use_live: Optional[bool] = None
-    force_refresh: Optional[bool] = None
-
-
-class ReviewQARequest(BaseModel):
-    question: str
-    paper_text: str
-
-
-class ReferenceRequest(BaseModel):
-    topic: str
-
-
-class DownloadRequest(BaseModel):
-    topic: str
-
-
-class WriterStepRequest(BaseModel):
-    user_text: str
-    state: Optional[Dict[str, Any]] = None
-
-
-class WriterStepResponse(BaseModel):
-    next_state: Dict[str, Any]
-    messages: list[str]
-
-
-class AssistantTrainRequest(BaseModel):
-    force: Optional[bool] = None
-
-
-class AssistantChatRequest(BaseModel):
-    prompt: str
-    chat_history: Optional[str] = None
-
-
-def _format_review_reply(review: Dict[str, Any]) -> str:
-    if not isinstance(review, dict):
-        return str(review)
-    parts = [
-        "Here is a structured peer review of the paper:",
-        f"Strengths: {safe_get(review, 'strengths', '')}",
-        f"Weaknesses: {safe_get(review, 'weaknesses', '')}",
-        f"Novelty: {safe_get(review, 'novelty', '')}",
-        f"Technical Correctness: {safe_get(review, 'technical_correctness', '')}",
-        f"Reproducibility: {safe_get(review, 'reproducibility', '')}",
-        f"Recommendation: {safe_get(review, 'recommendation', '')}",
-        f"Suggested Venue: {safe_get(review, 'suggested_venue', '')}",
-    ]
-    return "\n\n".join([p for p in parts if p and not p.endswith(": ")])
-
-
-def _normalize_url(url: str) -> str:
-    if not url:
-        return ""
-    trimmed = url.strip()
-    trimmed = trimmed.replace("https://doi.org/https://doi.org/", "https://doi.org/")
-    if trimmed.startswith("http://") or trimmed.startswith("https://"):
-        return trimmed
-    if trimmed.startswith("doi.org/"):
-        return f"https://{trimmed}"
-    if trimmed.startswith("doi:"):
-        doi = trimmed.replace("doi:", "").strip()
-        return f"https://doi.org/{doi}"
-    if trimmed.startswith("10."):
-        return f"https://doi.org/{trimmed}"
-    if trimmed.startswith("arxiv.org/"):
-        return f"https://{trimmed}"
-    return f"https://{trimmed}"
-
-
-def _fix_paper_url(url: str) -> str:
-    if not url:
-        return ""
-    trimmed = _normalize_url(url)
-    trimmed = trimmed.replace("https://arxiv.org/abs/https://arxiv.org/abs/", "https://arxiv.org/abs/")
-    trimmed = trimmed.replace("http://arxiv.org/abs/http://arxiv.org/abs/", "http://arxiv.org/abs/")
-    if "doi.org/" in trimmed:
-        suffix = trimmed.split("doi.org/", 1)[1]
-        if suffix.count(".") == 1 and suffix.replace("v", "").replace(".", "").isdigit():
-            return f"https://arxiv.org/abs/{suffix}"
-        if "/" in suffix and any(suffix.startswith(prefix) for prefix in ["hep-", "astro-", "cs.", "math.", "physics.", "stat."]):
-            return f"https://arxiv.org/abs/{suffix}"
-    return trimmed
-
-
-def _fix_explorer_links(result: Dict[str, Any]) -> Dict[str, Any]:
-    if not isinstance(result, dict):
-        return result
-    table = result.get("table")
-    if isinstance(table, list):
-        for row in table:
-            if isinstance(row, dict):
-                row["paper_url"] = _fix_paper_url(row.get("paper_url", ""))
-    return result
+_CACHE_FILE = os.path.join(os.getenv("PAPER_DB_DIR", "data/paper_db"), "api_cache.json")
+_explorer_cache = ExplorerCache(cache_file=_CACHE_FILE, ttl_seconds=_CACHE_TTL_SECONDS)
 
 
 @app.get("/api/health")
@@ -274,7 +97,7 @@ async def review_upload(file: UploadFile = File(...)) -> Dict[str, Any]:
         return {
             "paper_text": paper_text,
             "review": result,
-            "review_text": _format_review_reply(result if isinstance(result, dict) else {}),
+            "review_text": format_review_reply(result if isinstance(result, dict) else {}),
         }
     finally:
         try:
@@ -294,20 +117,20 @@ def review_qa(payload: ReviewQARequest) -> Dict[str, Any]:
 
 @app.post("/api/research/explore")
 def research_explore(payload: ResearchExplorerRequest) -> Dict[str, Any]:
-    key = _cache_key(payload.topic, payload.focus_topic, payload.use_live)
+    key = _explorer_cache.make_key(payload.topic, payload.focus_topic, payload.use_live)
     now = time.time()
-    disk_cache = _load_disk_cache()
+    disk_cache = _explorer_cache.load_disk_cache()
     if not payload.force_refresh:
-        cached = _RESPONSE_CACHE.get(key)
+        cached = _explorer_cache.memory_cache.get(key)
         if cached and now - cached.get("ts", 0) <= _CACHE_TTL_SECONDS:
             data = cached.get("data", {})
-            if _relevant_to_topic(data, payload.topic):
+            if relevant_to_topic(data, payload.topic):
                 return data
         disk_entry = disk_cache.get(key)
         if disk_entry and now - disk_entry.get("ts", 0) <= _CACHE_TTL_SECONDS:
             data = disk_entry.get("data", {})
-            if _relevant_to_topic(data, payload.topic):
-                _RESPONSE_CACHE[key] = disk_entry
+            if relevant_to_topic(data, payload.topic):
+                _explorer_cache.memory_cache[key] = disk_entry
                 return data
 
     backend_main = _backend_main()
@@ -318,14 +141,15 @@ def research_explore(payload: ResearchExplorerRequest) -> Dict[str, Any]:
         use_live=payload.use_live,
     )
     if isinstance(result, dict) and result.get("error"):
-        raise HTTPException(status_code=500, detail=result["error"])
-    cleaned = _filter_result_by_topic(_fix_explorer_links(result), payload.topic)
+        return fallback_error_result(payload.topic, str(result.get("error", "")))
+    fixed = fix_explorer_links(result)
+    cleaned = filter_result_by_topic(fixed, payload.topic)
     if isinstance(cleaned, dict) and isinstance(cleaned.get("table"), list) and len(cleaned.get("table")) == 0:
-        raise HTTPException(status_code=404, detail="No relevant papers found for the topic. Please refine your query.")
+        cleaned = fallback_broader_result(fixed, payload.topic)
     entry = {"ts": now, "data": cleaned}
-    _RESPONSE_CACHE[key] = entry
+    _explorer_cache.memory_cache[key] = entry
     disk_cache[key] = entry
-    _save_disk_cache(disk_cache)
+    _explorer_cache.save_disk_cache(disk_cache)
     return cleaned
 
 
@@ -907,16 +731,3 @@ def writer_step(payload: WriterStepRequest) -> WriterStepResponse:
         next_state={"phase": "start"},
         messages=["Let's restart. Please provide Paper Title and Mode (Conference / Journal)."],
     )
-
-
-if _FRONTEND_BUILD_DIR.exists():
-    @app.get("/")
-    def serve_root() -> FileResponse:
-        return FileResponse(_FRONTEND_BUILD_DIR / "index.html")
-
-    @app.get("/{full_path:path}")
-    def serve_spa(full_path: str) -> FileResponse:
-        file_path = _FRONTEND_BUILD_DIR / full_path
-        if file_path.is_file():
-            return FileResponse(file_path)
-        return FileResponse(_FRONTEND_BUILD_DIR / "index.html")

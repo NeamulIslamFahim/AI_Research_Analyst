@@ -4,9 +4,11 @@
 from __future__ import annotations
 
 import os
+import re
 import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional, Tuple, TypedDict
+from urllib.parse import urlparse
 from pydantic import BaseModel, Field, ValidationError
 
 from dotenv import load_dotenv
@@ -154,6 +156,23 @@ def get_model_ids() -> tuple[str, str]:
 def _is_rate_limit_error(exc: Exception) -> bool:
     message = str(exc).lower()
     return "rate limit" in message or "rate_limit_exceeded" in message or "tpd" in message
+
+
+def _normalize_search_rows_output(output: Any) -> tuple[List[dict], str | None]:
+    """Normalize source-search outputs to (rows, warning)."""
+    if output is None:
+        return [], None
+    if isinstance(output, tuple):
+        if len(output) >= 2:
+            rows = output[0] if isinstance(output[0], list) else []
+            warn = output[1] if len(output) > 1 else None
+            return rows, warn
+        if len(output) == 1:
+            return output[0] if isinstance(output[0], list) else [], None
+        return [], None
+    if isinstance(output, list):
+        return output, None
+    return [], None
 
 
 def _invoke_with_fallback(chain_builder, invoke_payload: dict) -> Any:
@@ -374,16 +393,16 @@ def download_papers_for_topic(topic: str) -> Dict[str, Any]:
     if not topic:
         return {"error": "Topic is required."}
     docs = arxiv_search(topic, max_results=12)
-    sem_rows, _ = semantic_scholar_search(topic, max_results=10)
-    oa_rows, _ = semantic_scholar_open_access_search(topic, max_results=8)
-    scholar_rows, _ = serpapi_scholar_search(topic, max_results=10)
-    rg_rows, _ = serpapi_researchgate_search(topic, max_results=10)
-    web_rows, _ = serpapi_web_search(topic, max_results=6)
-    sd_rows, _ = serpapi_sciencedirect_search(topic, max_results=6)
-    oa_rows2, _ = openalex_search(topic, max_results=6)
-    core_rows, _ = core_search(topic, max_results=6)
-    doaj_rows, _ = doaj_search(topic, max_results=6)
-    epmc_rows, _ = europe_pmc_search(topic, max_results=6)
+    sem_rows, _ = _normalize_search_rows_output(semantic_scholar_search(topic, max_results=10))
+    oa_rows, _ = _normalize_search_rows_output(semantic_scholar_open_access_search(topic, max_results=8))
+    scholar_rows, _ = _normalize_search_rows_output(serpapi_scholar_search(topic, max_results=10))
+    rg_rows, _ = _normalize_search_rows_output(serpapi_researchgate_search(topic, max_results=10))
+    web_rows, _ = _normalize_search_rows_output(serpapi_web_search(topic, max_results=6))
+    sd_rows, _ = _normalize_search_rows_output(serpapi_sciencedirect_search(topic, max_results=6))
+    oa_rows2, _ = _normalize_search_rows_output(openalex_search(topic, max_results=6))
+    core_rows, _ = _normalize_search_rows_output(core_search(topic, max_results=6))
+    doaj_rows, _ = _normalize_search_rows_output(doaj_search(topic, max_results=6))
+    epmc_rows, _ = _normalize_search_rows_output(europe_pmc_search(topic, max_results=6))
 
     fulltext_docs: List[Document] = []
     if (load_env_var("DOWNLOAD_ARXIV_PDFS", "true") or "true").lower() == "true":
@@ -410,6 +429,93 @@ def _run_research_explorer_impl(
     """Run arXiv retrieval + RAG generation for the given topic."""
     if not topic:
         return {"error": "Topic is required."}
+    rows: List[dict] = []
+    rows_sorted: List[dict] = []
+    fulltext_docs: List[Document] = []
+    fulltext_map: Dict[tuple[str, str], str] = {}
+    fulltext_by_title: Dict[str, str] = {}
+
+    def _simple_fallback_source_rows(query: str) -> List[dict]:
+        """Try a smaller set of safer retrieval sources for recovery paths."""
+        recovered_rows: List[dict] = []
+        try:
+            docs = arxiv_search(query, max_results=6)
+            if docs and not docs[0].metadata.get("error"):
+                recovered_rows.extend(docs_to_rows(docs, source="arxiv"))
+        except Exception:
+            pass
+
+        fallback_fns = [
+            semantic_scholar_search,
+            semantic_scholar_open_access_search,
+            openalex_search,
+            core_search,
+            doaj_search,
+            europe_pmc_search,
+        ]
+        for fn in fallback_fns:
+            try:
+                rows_out, _ = _normalize_search_rows_output(fn(query, max_results=6))
+                recovered_rows.extend(rows_out)
+            except Exception:
+                continue
+        return recovered_rows
+
+    def _deterministic_fallback_response(source_rows: List[dict], reason: str = "") -> Dict[str, Any]:
+        fallback_rows: List[dict] = []
+        chosen_rows = source_rows[:12] if source_rows else []
+        for r in chosen_rows:
+            key = (r.get("title", "") or "", r.get("url", "") or "")
+            fulltext_snippet = fulltext_map.get(key) or fulltext_by_title.get(r.get("title", "") or "")
+            abstract = _clean_row_text(r.get("abstract", ""))
+            summary_text = truncate_text(fulltext_snippet, max_chars=1200) if fulltext_snippet else abstract
+            problem_text = ""
+            if fulltext_snippet:
+                problem_text = fulltext_snippet.split(".")[0].strip()
+            if not problem_text and abstract:
+                problem_text = abstract.split(".")[0].strip()
+            proposed = extract_proposed_approach(fulltext_snippet or abstract)
+            fallback_rows.append(
+                {
+                    "paper_name": r.get("title", ""),
+                    "paper_url": _fix_paper_url((r.get("url", "") or r.get("pdf_url", "") or r.get("doi", "") or "")),
+                    "authors_name": r.get("authors", ""),
+                    "summary_full_paper": summary_text or "Not specified in paper",
+                    "problem_solved": problem_text or "Not specified in paper",
+                    "proposed_model_or_approach": proposed or "Not specified in paper",
+                    "source": r.get("source", ""),
+                    "score_relevance": 0,
+                    "score_quality": 0,
+                }
+            )
+        heuristics = []
+        for r in chosen_rows[: min(12, len(chosen_rows))]:
+            title = r.get("title", "") or "Paper"
+            abstract = _clean_row_text(r.get("abstract", ""))
+            snippet = abstract.split(".")[0] if abstract else "No abstract available"
+            heuristics.append(f"{title}: {snippet}.")
+        message = (
+            "Research summary prepared from broader source results."
+            if not reason
+            else f"Research summary prepared from broader source results after a recovery path was used: {reason}"
+        )
+        return {
+            "table": fallback_rows,
+            "research_gaps": heuristics,
+            "assistant_reply": message,
+            "generated_idea": (
+                "Synthesize the gaps across these papers into a clearer focused research direction and evaluate on shared benchmarks."
+            ),
+            "generated_idea_steps": [
+                "Compare the selected papers and identify their shared limitations.",
+                "Define a narrower research question grounded in those limitations.",
+                "Collect papers with full-text access for the focused direction.",
+                "Design an approach that addresses the recurring gaps.",
+                "Evaluate against the strongest baselines from the retrieved papers.",
+            ],
+            "generated_idea_citations": [row["paper_name"] for row in fallback_rows[:5]],
+            "used_broader_fallback": True,
+        }
     try:
         load_dotenv()
         local_only = (load_env_var("LOCAL_ONLY", "false") or "false").lower() == "true"
@@ -436,8 +542,8 @@ def _run_research_explorer_impl(
                         hay = " ".join(
                             [
                                 str(meta.get("title", "")),
-                                str(meta.get("abstract", "")),
-                                str(doc.page_content or ""),
+                                _clean_row_text(meta.get("abstract", "")),
+                                _clean_row_text(doc.page_content or ""),
                             ]
                         ).lower()
                         return any(tok in hay for tok in topic_tokens)
@@ -469,15 +575,50 @@ def _run_research_explorer_impl(
             tokens = [t for t in text.lower().replace("-", " ").split() if len(t) > 2 and t not in stop]
             return list(dict.fromkeys(tokens))
 
+        def _clean_row_text(value: Any) -> str:
+            return strip_html(value or "").replace("\n", " ").strip()
+
+        def _needs_ml_context(text: str) -> bool:
+            normalized = f" {text.lower().replace('-', ' ')} "
+            ml_phrases = {
+                " decision tree ",
+                " random forest ",
+                " gradient boosting ",
+                " xgboost ",
+                " lightgbm ",
+                " catboost ",
+                " classification tree ",
+                " regression tree ",
+            }
+            return any(phrase in normalized for phrase in ml_phrases)
+
         def _row_matches(row: dict, tokens: List[str]) -> bool:
             if not tokens:
                 return True
             hay = " ".join([
                 str(row.get("title","")),
-                str(row.get("abstract","")),
+                _clean_row_text(row.get("abstract","")),
                 str(row.get("authors","")),
             ]).lower()
-            return any(tok in hay for tok in tokens)
+            if not any(tok in hay for tok in tokens):
+                return False
+            if _needs_ml_context(topic):
+                ml_keywords = [
+                    "machine learning",
+                    "classification",
+                    "regression",
+                    "tree-based",
+                    "boosting",
+                    "ensemble",
+                    "algorithm",
+                    "forest",
+                    "xgboost",
+                    "lightgbm",
+                    "catboost",
+                    "supervised learning",
+                ]
+                return any(keyword in hay for keyword in ml_keywords)
+            return True
 
         tokens = _topic_tokens(topic)
 
@@ -500,7 +641,7 @@ def _run_research_explorer_impl(
 
             def _run_task(fn, max_results: int) -> Tuple[List[dict], str]:
                 try:
-                    return fn(topic, max_results=max_results)
+                    return _normalize_search_rows_output(fn(topic, max_results=max_results))
                 except Exception as exc:
                     return [], str(exc)
 
@@ -526,7 +667,10 @@ def _run_research_explorer_impl(
                 }
                 for fut in as_completed(future_map):
                     name = future_map[fut]
-                    rows_out, warn_out = fut.result()
+                    try:
+                        rows_out, warn_out = _normalize_search_rows_output(fut.result())
+                    except Exception as exc:
+                        rows_out, warn_out = [], f"{name} retrieval failed: {exc}"
                     results[name] = rows_out
                     if warn_out:
                         warns[name] = warn_out
@@ -597,10 +741,7 @@ def _run_research_explorer_impl(
             if filtered_rows:
                 all_rows = filtered_rows
             rows.extend(all_rows)
-            if tokens and not rows:
-                return {"error": "No relevant papers found for the topic. Please refine your query."}
             all_docs = docs + rows_to_docs(all_rows)
-            fulltext_docs: List[Document] = []
             if not fast_mode and (load_env_var("DOWNLOAD_ARXIV_PDFS", "true") or "true").lower() == "true":
                 fulltext_docs.extend(_download_arxiv_fulltext(docs))
             if not fast_mode and (load_env_var("DOWNLOAD_EXTERNAL_PDFS", "true") or "true").lower() == "true":
@@ -612,8 +753,6 @@ def _run_research_explorer_impl(
 
             all_docs.extend(fulltext_docs)
         # Build a lookup for full-text snippets by (title, url) and by title.
-        fulltext_map: Dict[tuple[str, str], str] = {}
-        fulltext_by_title: Dict[str, str] = {}
         if fulltext_docs:
             tmp_map: Dict[tuple[str, str], List[str]] = {}
             for d in fulltext_docs:
@@ -710,7 +849,7 @@ def _run_research_explorer_impl(
         def _has_content(r: dict) -> bool:
             if _is_fulltext(r):
                 return True
-            abstract = (r.get("abstract", "") or "").strip()
+            abstract = _clean_row_text(r.get("abstract", ""))
             return bool(abstract)
         content_rows = [r for r in rows_sorted if _has_content(r)]
         if len(content_rows) >= 3:
@@ -754,7 +893,7 @@ def _run_research_explorer_impl(
         papers_payload = []
         for r in rows_sorted:
             paper_url = _resolve_url(r)
-            abstract = (r.get("abstract", "") or "").strip()
+            abstract = _clean_row_text(r.get("abstract", ""))
             if len(abstract) > 800:
                 abstract = abstract[:800] + "..."
             papers_payload.append(
@@ -778,7 +917,7 @@ def _run_research_explorer_impl(
                         "paper_name": r.get("title", ""),
                         "paper_url": _resolve_url(r),
                         "authors_name": r.get("authors", ""),
-                        "abstract": (r.get("abstract", "") or "").strip(),
+                        "abstract": _clean_row_text(r.get("abstract", "")),
                         "source": r.get("source", ""),
                         "fulltext_available": _is_fulltext(r),
                     }
@@ -788,7 +927,7 @@ def _run_research_explorer_impl(
             gaps_list: List[str] = []
             for r in rows_sorted[: min(12, len(rows_sorted))]:
                 title = r.get("title", "") or "Paper"
-                abstract = (r.get("abstract", "") or "").strip()
+                abstract = _clean_row_text(r.get("abstract", ""))
                 snippet = abstract.split(".")[0] if abstract else "No abstract available"
                 gaps_list.append(f"{title}: {snippet}.")
             return gaps_list
@@ -831,32 +970,32 @@ def _run_research_explorer_impl(
             if isinstance(parsed, dict) and parsed.get("error"):
                 fallback_rows = []
                 for r in rows_sorted[:15]:
-                    abstract = r.get("abstract", "") or ""
+                    abstract = _clean_row_text(r.get("abstract", ""))
                     datasets = extract_datasets(abstract)
                     models = extract_models(abstract)
                     proposed = extract_proposed_approach(abstract)
-                key = (r.get("title", "") or "", r.get("url", "") or "")
-                fulltext_snippet = fulltext_map.get(key) or fulltext_by_title.get(r.get("title", "") or "")
-                summary_text = truncate_text(fulltext_snippet, max_chars=1200) if fulltext_snippet else abstract
-                problem_text = ""
-                if fulltext_snippet:
-                    problem_text = fulltext_snippet.split(".")[0].strip()
-                if not problem_text and abstract:
-                    problem_text = abstract.split(".")[0].strip()
-                proposed_full = extract_proposed_approach(fulltext_snippet) if fulltext_snippet else ""
-                fallback_rows.append(
-                    {
-                        "paper_name": r.get("title", ""),
-                        "paper_url": _resolve_url(r),
-                        "authors_name": r.get("authors", ""),
-                        "summary_full_paper": summary_text or "Not specified in paper",
-                        "problem_solved": problem_text or "Not specified in paper",
-                        "proposed_model_or_approach": proposed_full or proposed or "Not specified in paper",
-                        "source": r.get("source", ""),
-                        "score_relevance": 0,
-                        "score_quality": 0,
-                    }
-                )
+                    key = (r.get("title", "") or "", r.get("url", "") or "")
+                    fulltext_snippet = fulltext_map.get(key) or fulltext_by_title.get(r.get("title", "") or "")
+                    summary_text = truncate_text(fulltext_snippet, max_chars=1200) if fulltext_snippet else abstract
+                    problem_text = ""
+                    if fulltext_snippet:
+                        problem_text = fulltext_snippet.split(".")[0].strip()
+                    if not problem_text and abstract:
+                        problem_text = abstract.split(".")[0].strip()
+                    proposed_full = extract_proposed_approach(fulltext_snippet) if fulltext_snippet else ""
+                    fallback_rows.append(
+                        {
+                            "paper_name": r.get("title", ""),
+                            "paper_url": _resolve_url(r),
+                            "authors_name": r.get("authors", ""),
+                            "summary_full_paper": summary_text or "Not specified in paper",
+                            "problem_solved": problem_text or "Not specified in paper",
+                            "proposed_model_or_approach": proposed_full or proposed or "Not specified in paper",
+                            "source": r.get("source", ""),
+                            "score_relevance": 0,
+                            "score_quality": 0,
+                        }
+                    )
                 gap_idea_text = _invoke_with_fallback(
                     gap_idea_chain,
                     {
@@ -899,7 +1038,7 @@ def _run_research_explorer_impl(
         # Post-process: ensure table rows have paper_url filled
         if isinstance(parsed, dict) and isinstance(parsed.get("table"), list):
             title_to_url = {r.get("title", ""): _resolve_url(r) for r in rows_sorted}
-            title_to_abstract = {r.get("title", ""): (r.get("abstract", "") or "") for r in rows_sorted}
+            title_to_abstract = {r.get("title", ""): _clean_row_text(r.get("abstract", "")) for r in rows_sorted}
             deduped = []
             seen = set()
             for row in parsed["table"]:
@@ -1014,7 +1153,7 @@ def _run_research_explorer_impl(
                 for r in rows_sorted[: min(12, len(rows_sorted))]:
                     key = (r.get("title", "") or "", r.get("url", "") or "")
                     fulltext_snippet = fulltext_map.get(key) or fulltext_by_title.get(r.get("title", "") or "")
-                    abstract = (r.get("abstract", "") or "").strip()
+                    abstract = _clean_row_text(r.get("abstract", ""))
                     summary_text = truncate_text(fulltext_snippet, max_chars=1200) if fulltext_snippet else abstract
                     problem_text = ""
                     if fulltext_snippet:
@@ -1132,7 +1271,7 @@ def _run_research_explorer_impl(
 
         # Replace placeholder "gap text" with inferred gaps from abstracts.
         if isinstance(parsed, dict) and isinstance(parsed.get("research_gaps"), list):
-            title_to_abstract = {r.get("title", ""): (r.get("abstract", "") or "") for r in rows_sorted}
+            title_to_abstract = {r.get("title", ""): _clean_row_text(r.get("abstract", "")) for r in rows_sorted}
             cleaned_gaps = []
             for g in parsed["research_gaps"]:
                 if not isinstance(g, str):
@@ -1191,7 +1330,7 @@ def _run_research_explorer_impl(
                         "paper_name": r.get("title", ""),
                         "paper_url": _fix_paper_url(paper_url),
                         "authors_name": r.get("authors", ""),
-                        "summary_full_paper": r.get("abstract", ""),
+                        "summary_full_paper": _clean_row_text(r.get("abstract", "")),
                         "datasets_used": [],
                         "models_used": [],
                         "proposed_model_or_approach": "",
@@ -1205,6 +1344,11 @@ def _run_research_explorer_impl(
 
         return parsed
     except Exception as exc:
+        fallback_source_rows = rows_sorted or rows
+        if not fallback_source_rows:
+            fallback_source_rows = _simple_fallback_source_rows(topic)
+        if fallback_source_rows:
+            return _deterministic_fallback_response(fallback_source_rows, str(exc))
         return {"error": f"Research Explorer failed: {exc}"}
 
 
@@ -1378,6 +1522,7 @@ def _validate_research_result(result: Dict[str, Any], topic: str = "") -> Dict[s
         return {"error": "Invalid research result."}
     if result.get("error"):
         return result
+    original_table = result.get("table") if isinstance(result.get("table"), list) else None
     # Enforce topic relevance: all rows must match topic tokens.
     tokens = [t for t in (topic or "").lower().replace("-", " ").split() if len(t) > 2]
     if tokens and isinstance(result.get("table"), list):
@@ -1390,6 +1535,9 @@ def _validate_research_result(result: Dict[str, Any], topic: str = "") -> Dict[s
                 filtered.append(row)
         result["table"] = filtered
         if not filtered:
+            if original_table:
+                result["table"] = original_table
+                return _broaden_research_result(result, topic)
             return {"error": "No relevant papers found for the topic."}
     result.setdefault("table", [])
     result.setdefault("research_gaps", [])
@@ -1397,6 +1545,26 @@ def _validate_research_result(result: Dict[str, Any], topic: str = "") -> Dict[s
     result.setdefault("generated_idea", "Not provided.")
     result.setdefault("generated_idea_steps", [])
     return result
+
+
+def _broaden_research_result(result: Dict[str, Any], topic: str = "") -> Dict[str, Any]:
+    if not isinstance(result, dict):
+        return {"table": [], "research_gaps": [], "assistant_reply": "Research summary prepared.", "generated_idea": "Not provided.", "generated_idea_steps": []}
+    broadened = dict(result)
+    table = broadened.get("table")
+    if isinstance(table, list):
+        broadened["table"] = table[:12]
+    prefix = (
+        f"No strongly matched papers were found for '{topic}'. "
+        "Showing broader results from multiple sources instead."
+    ).strip()
+    reply = (broadened.get("assistant_reply") or "").strip()
+    broadened["assistant_reply"] = f"{prefix}\n\n{reply}" if reply else prefix
+    broadened.setdefault("research_gaps", [])
+    broadened.setdefault("generated_idea", "Not provided.")
+    broadened.setdefault("generated_idea_steps", [])
+    broadened["used_broader_fallback"] = True
+    return broadened
 
 
 def _score_research_result(result: Dict[str, Any], topic: str) -> Dict[str, Any]:
@@ -1441,8 +1609,9 @@ def _strict_validate(schema, result: Dict[str, Any]) -> tuple[bool, Optional[str
 def _normalize_url(url: str) -> str:
     if not url:
         return ""
-    trimmed = str(url).strip()
+    trimmed = str(url).strip().replace(" ", "")
     trimmed = trimmed.replace("https://doi.org/https://doi.org/", "https://doi.org/")
+    trimmed = trimmed.replace("http://doi.org/", "https://doi.org/")
     if trimmed.startswith("http://") or trimmed.startswith("https://"):
         return trimmed
     if trimmed.startswith("doi.org/"):
@@ -1462,10 +1631,22 @@ def _fix_paper_url(url: str) -> str:
     if not url:
         return ""
     trimmed = _normalize_url(url)
-    trimmed = trimmed.replace("https://arxiv.org/abs/https://arxiv.org/abs/", "https://arxiv.org/abs/")
-    trimmed = trimmed.replace("http://arxiv.org/abs/http://arxiv.org/abs/", "http://arxiv.org/abs/")
+    trimmed = re.sub(
+        r"^https?://arxiv\.org/abs/https?://arxiv\.org/abs/",
+        "https://arxiv.org/abs/",
+        trimmed,
+        flags=re.IGNORECASE,
+    )
+    trimmed = re.sub(
+        r"^https?://arxiv\.org/pdf/https?://arxiv\.org/pdf/",
+        "https://arxiv.org/pdf/",
+        trimmed,
+        flags=re.IGNORECASE,
+    )
     if "doi.org/" in trimmed:
         suffix = trimmed.split("doi.org/", 1)[1]
+        if not suffix or "/" not in suffix:
+            return ""
         if _looks_like_arxiv_id(suffix):
             return f"https://arxiv.org/abs/{suffix}"
         # If DOI is actually a legacy arXiv id (contains slash with category), map to arXiv.
@@ -1474,6 +1655,9 @@ def _fix_paper_url(url: str) -> str:
     # If it's a bare arXiv ID, map to arXiv abs page.
     if _looks_like_arxiv_id(trimmed):
         return f"https://arxiv.org/abs/{trimmed}"
+    parsed = urlparse(trimmed)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return ""
     return trimmed
 
 

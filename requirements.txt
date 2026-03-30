@@ -1,5 +1,6 @@
 fastapi
 uvicorn
+streamlit
 python-multipart
 langchain
 langchain-community

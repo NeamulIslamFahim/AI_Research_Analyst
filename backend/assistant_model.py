@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import re
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -504,13 +505,108 @@ def _fallback_answer(prompt: str, hits: list[dict[str, Any]]) -> str:
     return _extractive_grounded_answer(prompt, hits)
 
 
+def _has_relevant_local_answer(hits: list[dict[str, Any]], prompt: str) -> bool:
+    if not hits:
+        return False
+
+    query_terms = set(_query_tokens(prompt))
+    if not query_terms:
+        return bool(hits)
+
+    strong_hits = 0
+    for hit in hits[:4]:
+        overlap = int(hit.get("overlap", 0) or 0)
+        title_overlap = int(hit.get("title_overlap", 0) or 0)
+        text = _normalize_whitespace(hit.get("text", ""))
+        text_tokens = set(_query_tokens(text[:1200]))
+        extra_overlap = len(query_terms.intersection(text_tokens))
+        if title_overlap >= 1 or overlap >= 2 or extra_overlap >= 2:
+            strong_hits += 1
+
+    return strong_hits >= 1
+
+
+def _external_sources(result: dict[str, Any]) -> list[dict[str, Any]]:
+    sources: list[dict[str, Any]] = []
+    table = result.get("table")
+    if not isinstance(table, list):
+        return sources
+
+    seen: set[tuple[str, str]] = set()
+    for row in table[:6]:
+        if not isinstance(row, dict):
+            continue
+        title = row.get("paper_name", "Untitled")
+        url = row.get("paper_url", "")
+        key = (title, url)
+        if key in seen:
+            continue
+        seen.add(key)
+        sources.append(
+            {
+                "title": title,
+                "source": row.get("source", "external"),
+                "url": url,
+                "chunk": "",
+                "snippet": (row.get("summary_full_paper", "") or "")[:280].strip(),
+            }
+        )
+    return sources
+
+
+def _external_answer(result: dict[str, Any]) -> str:
+    if not isinstance(result, dict):
+        return "I could not generate an external research answer."
+
+    parts: list[str] = []
+    assistant_reply = (result.get("assistant_reply") or "").strip()
+    if assistant_reply:
+        parts.append(assistant_reply)
+
+    idea = (result.get("generated_idea") or "").strip()
+    if idea:
+        parts.append(f"Suggested direction: {idea}")
+
+    gaps = result.get("research_gaps")
+    if isinstance(gaps, list) and gaps:
+        selected = [str(g).strip() for g in gaps[:3] if str(g).strip()]
+        if selected:
+            parts.append("Key gaps:\n- " + "\n- ".join(selected))
+
+    if parts:
+        return "\n\n".join(parts)
+
+    return "I found relevant external research results, but the response body was empty."
+
+
+def _background_incremental_learning(topic: str) -> None:
+    try:
+        from .main import download_papers_for_topic
+
+        download_papers_for_topic(topic)
+        train_assistant_model(force=True)
+    except Exception:
+        # Keep user-facing answer fast and resilient even if background learning fails.
+        pass
+
+
+def _start_incremental_learning(topic: str) -> None:
+    threading.Thread(
+        target=_background_incremental_learning,
+        args=(topic,),
+        daemon=True,
+    ).start()
+
+
 def assistant_chat(prompt: str, chat_history: str | None = None) -> dict[str, Any]:
     """Answer the user's prompt using the trained local corpus as the default model."""
     if not prompt or not prompt.strip():
         raise RuntimeError("Prompt is required.")
 
+    clean_prompt = prompt.strip()
+
     try:
-        hits = _hybrid_retrieve(prompt.strip())
+        hits = _hybrid_retrieve(clean_prompt)
     except Exception as exc:
         status = get_assistant_status()
         return {
@@ -525,55 +621,96 @@ def assistant_chat(prompt: str, chat_history: str | None = None) -> dict[str, An
             "status": status.get("status", "not_trained"),
             "message": str(exc),
         }
+    local_relevant = _has_relevant_local_answer(hits, clean_prompt)
     context = _build_context(hits)
     answer = ""
 
     assistant_only = (load_env_var("ASSISTANT_MODEL_ONLY", "false") or "false").lower() == "true"
 
+    if local_relevant:
+        try:
+            if assistant_only:
+                raise RuntimeError("Assistant model only mode is enabled.")
+
+            from .main import _invoke_with_fallback
+
+            raw = _invoke_with_fallback(
+                assistant_answer_chain,
+                {
+                    "prompt": clean_prompt,
+                    "chat_history": (chat_history or "").strip() or "No prior chat history.",
+                    "context": context or "No relevant context found.",
+                },
+            )
+            answer = getattr(raw, "content", str(raw)).strip()
+        except Exception:
+            answer = _fallback_answer(clean_prompt, hits)
+
+        sources = []
+        seen_source_keys: set[tuple[str, str]] = set()
+        for hit in _diverse_hits_for_answer(hits, limit=6):
+            metadata = hit.get("metadata", {}) or {}
+            source_key = (
+                metadata.get("title", "Untitled"),
+                metadata.get("url", "") or metadata.get("pdf_url", ""),
+            )
+            if source_key in seen_source_keys:
+                continue
+            seen_source_keys.add(source_key)
+            sources.append(
+                {
+                    "title": metadata.get("title", "Untitled"),
+                    "source": metadata.get("source", "unknown"),
+                    "url": metadata.get("url", "") or metadata.get("pdf_url", ""),
+                    "chunk": metadata.get("chunk", ""),
+                    "snippet": hit.get("text", "")[:280].strip(),
+                }
+            )
+
+        status = get_assistant_status()
+        return {
+            "model": status.get("model", DEFAULT_ASSISTANT_MODEL),
+            "assistant_only": assistant_only,
+            "trained_at": status.get("trained_at"),
+            "answer": answer,
+            "sources": sources,
+            "answer_source": "vectordb",
+            "incremental_learning_started": False,
+        }
+
     try:
-        if assistant_only:
-            raise RuntimeError("Assistant model only mode is enabled.")
+        from .main import run_research_explorer
 
-        from .main import _invoke_with_fallback
-
-        raw = _invoke_with_fallback(
-            assistant_answer_chain,
-            {
-                "prompt": prompt.strip(),
-                "chat_history": (chat_history or "").strip() or "No prior chat history.",
-                "context": context or "No relevant context found.",
-            },
+        external = run_research_explorer(
+            topic=clean_prompt,
+            chat_history=chat_history,
+            focus_topic=None,
+            use_live=True,
         )
-        answer = getattr(raw, "content", str(raw)).strip()
-    except Exception:
-        answer = _fallback_answer(prompt.strip(), hits)
+    except Exception as exc:
+        external = {"error": f"External fallback failed: {exc}"}
 
-    sources = []
-    seen_source_keys: set[tuple[str, str]] = set()
-    for hit in _diverse_hits_for_answer(hits, limit=6):
-        metadata = hit.get("metadata", {}) or {}
-        source_key = (
-            metadata.get("title", "Untitled"),
-            metadata.get("url", "") or metadata.get("pdf_url", ""),
-        )
-        if source_key in seen_source_keys:
-            continue
-        seen_source_keys.add(source_key)
-        sources.append(
-            {
-                "title": metadata.get("title", "Untitled"),
-                "source": metadata.get("source", "unknown"),
-                "url": metadata.get("url", "") or metadata.get("pdf_url", ""),
-                "chunk": metadata.get("chunk", ""),
-                "snippet": hit.get("text", "")[:280].strip(),
-            }
-        )
+    if not isinstance(external, dict) or external.get("error"):
+        status = get_assistant_status()
+        return {
+            "model": status.get("model", DEFAULT_ASSISTANT_MODEL),
+            "assistant_only": assistant_only,
+            "trained_at": status.get("trained_at"),
+            "answer": _fallback_answer(clean_prompt, hits),
+            "sources": [],
+            "answer_source": "vectordb_fallback",
+            "incremental_learning_started": False,
+            "message": external.get("error") if isinstance(external, dict) else None,
+        }
 
+    _start_incremental_learning(clean_prompt)
     status = get_assistant_status()
     return {
         "model": status.get("model", DEFAULT_ASSISTANT_MODEL),
         "assistant_only": assistant_only,
         "trained_at": status.get("trained_at"),
-        "answer": answer,
-        "sources": sources,
+        "answer": _external_answer(external),
+        "sources": _external_sources(external),
+        "answer_source": "external_search",
+        "incremental_learning_started": True,
     }

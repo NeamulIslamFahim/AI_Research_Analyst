@@ -12,7 +12,7 @@ from .helpers import ensure_directory, load_env_var
 
 
 def _get_paths() -> tuple[str, str]:
-    base_dir = load_env_var("PAPER_DB_DIR", "paper_db") or "paper_db"
+    base_dir = load_env_var("PAPER_DB_DIR", "data/paper_db") or "data/paper_db"
     pdf_dir = os.path.join(base_dir, "pdfs")
     ensure_directory(base_dir)
     ensure_directory(pdf_dir)
@@ -129,4 +129,3 @@ def list_paper_records() -> list[dict]:
         return [dict(row) for row in rows]
     finally:
         conn.close()
-

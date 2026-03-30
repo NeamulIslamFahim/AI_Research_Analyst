@@ -1,0 +1,203 @@
+"""Rendering helpers for the Streamlit frontend."""
+
+from __future__ import annotations
+
+import html
+from typing import Any
+
+import pandas as pd
+import streamlit as st
+
+from .config import MODE_META, MODES
+from .helpers import safe_paper_url
+from .state import current_session, new_chat, update_current_session
+
+
+def render_header(session: dict[str, Any]) -> None:
+    """Render the large page header for the active workspace."""
+    meta = MODE_META[session["mode"]]
+    st.markdown(
+        f"""
+        <div class="hero-card">
+          <div class="eyebrow">AI Research Assistant Workspace</div>
+          <div class="hero-title">{html.escape(meta["title"])}</div>
+          <p class="hero-copy">{html.escape(meta["subtitle"])}</p>
+          <span class="mode-chip">{html.escape(session["mode"])}</span>
+          <span class="mode-chip">{html.escape(meta["status"])}</span>
+          <span class="mode-chip">{html.escape(session["title"])}</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_research_result(result: dict[str, Any]) -> None:
+    """Render a Research Explorer response."""
+    if result.get("assistant_reply"):
+        st.markdown(
+            f"""
+            <div class="result-card">
+              <div class="section-title">Research Summary</div>
+              <div class="muted-copy">{html.escape(result["assistant_reply"])}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    table = result.get("table") or []
+    if table:
+        st.markdown("#### Results Table")
+        display_rows = []
+        for row in table:
+            title = row.get("paper_name", "Untitled")
+            display_rows.append(
+                {
+                    "Paper Name": title,
+                    "Paper URL": safe_paper_url(row.get("paper_url", ""), title),
+                    "Authors": row.get("authors_name", ""),
+                    "Summary": row.get("summary_full_paper", ""),
+                    "Approach": row.get("proposed_model_or_approach", ""),
+                    "Source": row.get("source", ""),
+                }
+            )
+        st.dataframe(
+            pd.DataFrame(display_rows),
+            use_container_width=True,
+            hide_index=True,
+            column_config={"Paper URL": st.column_config.LinkColumn("Paper URL", display_text="Open paper")},
+        )
+
+    gaps = result.get("research_gaps") or []
+    if gaps:
+        st.markdown("#### Research Gaps")
+        for gap in gaps:
+            st.markdown(f"- {gap}")
+
+    idea = result.get("generated_idea")
+    if idea:
+        st.markdown(
+            f"""
+            <div class="result-card">
+              <div class="section-title">Generated Idea</div>
+              <div class="muted-copy">{html.escape(idea)}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    steps = result.get("generated_idea_steps") or []
+    if steps:
+        st.markdown("#### Implementation Steps")
+        for idx, step in enumerate(steps, start=1):
+            st.markdown(f"{idx}. {step}")
+
+
+def render_assistant_result(result: dict[str, Any]) -> None:
+    """Render a generic assistant answer with optional sources."""
+    source = result.get("answer_source")
+    if source == "vectordb":
+        st.caption("Source: Local VectorDB")
+    elif source == "external_search":
+        label = "Source: External search"
+        if result.get("incremental_learning_started"):
+            label += " | incremental learning started in background"
+        st.caption(label)
+
+    st.write(result.get("answer") or "No answer found.")
+    sources = result.get("sources") or []
+    if sources:
+        st.markdown("**Sources**")
+        for item in sources:
+            title = item.get("title", "Untitled")
+            url = safe_paper_url(item.get("url", ""), title)
+            snippet = item.get("snippet", "")
+            if url:
+                st.markdown(f"- [{title}]({url})")
+            else:
+                st.write(f"- {title}")
+            if snippet:
+                st.caption(snippet)
+
+
+def render_message(msg: dict[str, Any]) -> None:
+    """Render one chat message."""
+    if msg.get("role") == "user":
+        render_user_message(msg)
+        return
+
+    st.markdown('<div class="assistant-panel">', unsafe_allow_html=True)
+    st.markdown('<div class="assistant-label">Assistant</div>', unsafe_allow_html=True)
+    if msg.get("type") == "loading":
+        st.write(msg.get("display_text") or "Loading...")
+    elif msg.get("type") == "assistant":
+        render_assistant_result(msg["content"])
+    elif msg.get("type") == "research":
+        render_research_result(msg["content"])
+    else:
+        st.write(msg.get("display_text") or msg.get("content") or "")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def render_user_message(msg: dict[str, Any]) -> None:
+    """Render the user chat bubble."""
+    text = html.escape(msg.get("display_text") or msg.get("content") or "")
+    st.markdown(
+        f"""
+        <div class="user-message-wrap">
+          <div class="user-message-card">{text}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_sidebar() -> None:
+    """Render the left sidebar and handle workspace switching."""
+    with st.sidebar:
+        st.markdown("### AI Research Assistant")
+        st.caption("Small modules, reusable helpers, and a simpler beginner-friendly layout.")
+
+        if st.button("New Workspace", use_container_width=True):
+            new_chat(MODES[0])
+            st.rerun()
+
+        session = current_session()
+        mode = st.selectbox("Mode", MODES, index=MODES.index(session["mode"]))
+        if mode != session["mode"]:
+            if session["messages"]:
+                new_chat(mode)
+            else:
+                update_current_session(mode=mode, paper_text="", writer_state={"phase": "start"}, writer_intro_shown=False)
+            st.rerun()
+
+        st.markdown("#### Workspaces")
+        for session_item in st.session_state.sessions:
+            button_type = "primary" if session_item["id"] == st.session_state.current_session_id else "secondary"
+            if st.button(session_item["title"], key=f"session-{session_item['id']}", use_container_width=True, type=button_type):
+                st.session_state.current_session_id = session_item["id"]
+                st.rerun()
+            st.caption(session_item["mode"])
+
+
+def render_reviewer_panel(session: dict[str, Any], on_process_upload) -> None:
+    """Render the PDF uploader panel for reviewer mode."""
+    st.markdown(
+        """
+        <div class="panel-card">
+          <div class="section-title">Reviewer Tools</div>
+          <div class="muted-copy">Upload a PDF once, generate a structured review, then use the conversation below for follow-up questions.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    uploaded_file = st.file_uploader("Upload PDF for review", type=["pdf"], key=f"upload-{session['id']}")
+    col1, col2 = st.columns([1.2, 2])
+    with col1:
+        if uploaded_file is not None and st.button("Process PDF", use_container_width=True):
+            on_process_upload(uploaded_file)
+            st.rerun()
+    with col2:
+        if session.get("paper_text"):
+            st.success("PDF loaded and ready for questions.")
+        else:
+            st.info("No PDF loaded yet.")

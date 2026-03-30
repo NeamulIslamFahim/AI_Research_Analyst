@@ -6,8 +6,8 @@
 AI Research Assistant
 
 ### Project type
-Full-stack academic assistant application with:
-- A React frontend
+Academic assistant application with:
+- A Streamlit app
 - A FastAPI backend
 - LLM-powered research workflows
 - Local vector search and cached PDF storage
@@ -32,15 +32,15 @@ The intention is not just to answer generic questions. The system tries to becom
 ## 2. High-Level Architecture
 
 ### Frontend
-The frontend is a React application in `frontend/`. It provides a chat-style interface with session management and supports three modes:
-- Research Explorer
-- Research Paper Reviewer
-- Research Paper Writer
-
-In assistant-only mode, the UI can be reduced to the research assistant experience.
+The primary user interface is a Streamlit application. The entrypoint is `streamlit_app.py`, and most of the UI logic now lives in a small `ui/` package so beginners can follow the code more easily. It mirrors the original chat-style product flow with:
+- sidebar chat sessions
+- a role-based mode dropdown
+- chat-style message rendering
+- reviewer PDF upload flow
+- explorer, reviewer, and writer modes
 
 ### Backend
-The backend is a FastAPI application in `backend/`. It exposes API endpoints for all research workflows and also serves the built React frontend when a production build exists.
+The backend is a FastAPI application in `backend/`. It exposes API endpoints for all research workflows, while the Streamlit app calls the same workflows directly for deployment simplicity.
 
 ### Data layer
 The application stores data in two main local forms:
@@ -57,14 +57,13 @@ The project uses:
 ## 3. Request Flow Summary
 
 ### A. Research assistant chat
-1. User sends a prompt from the frontend.
-2. Frontend calls `/api/assistant/chat`.
+1. User sends a prompt from the chat-style Streamlit interface or an API client.
+2. The app calls the assistant workflow.
 3. Backend retrieves relevant local chunks using BM25 + FAISS.
-4. Backend builds a grounded context block.
-5. It tries to generate an answer with an LLM.
-6. If generation fails or assistant-only mode is enabled, it falls back to extractive grounded answering.
-7. The frontend renders the answer and cited sources.
-8. In parallel, the frontend also triggers `/api/download` to expand the local corpus for future use.
+4. If the local corpus looks relevant, the assistant answers from the VectorDB-backed corpus first.
+5. If the local corpus is not relevant enough, the backend falls back to external search.
+6. External results are returned to the user and incremental learning starts in the background by downloading PDFs and retraining the local assistant index.
+7. The UI renders the answer and cited sources.
 
 ### B. Research exploration
 1. User submits a research topic.
@@ -78,10 +77,10 @@ The project uses:
 2. Backend extracts text from the PDF.
 3. The text is chunked and summarized chunk by chunk.
 4. A reviewer chain produces structured review JSON.
-5. A readable review summary is returned to the frontend.
+5. A readable review summary is returned to the UI.
 
 ### D. Writer workflow
-1. The frontend starts a guided conversational flow.
+1. The UI starts a guided conversational flow.
 2. The backend keeps a lightweight state machine in the request payload.
 3. The user is walked through title, mode, section choice, and drafting steps.
 
@@ -113,7 +112,8 @@ AI-Research-Assistant/
 ├─ paper_db/
 ├─ vectorstore/
 ├─ requirements.txt
-└─ render.yaml
+├─ streamlit_app.py
+└─ .env
 ```
 
 ## 5. Backend Explanation
@@ -124,7 +124,6 @@ This is the main FastAPI entry point.
 Its responsibilities are:
 - create the API app
 - configure CORS
-- optionally serve the React build
 - manage response caching
 - define all HTTP routes
 - trigger background assistant training on startup
@@ -132,6 +131,9 @@ Its responsibilities are:
 Important implementation ideas:
 - Heavy backend logic is lazily imported through `_backend_main()` so startup stays lighter.
 - Research explorer results are cached in memory and on disk using `api_cache.json`.
+- Request and response models live in `backend/schemas.py`.
+- Explorer caching is isolated in `backend/explorer_cache.py`.
+- Explorer URL cleanup, relevance filtering, and fallback shaping live in `backend/explorer_utils.py`.
 - Startup optionally launches assistant training in a background thread.
 - The file also contains the server-driven writer workflow endpoint.
 
@@ -272,41 +274,20 @@ Its intention is to keep the rest of the code cleaner and more fault tolerant.
 
 ## 6. Frontend Explanation
 
-### `frontend/src/App.js`
-This is the main UI component and the center of frontend behavior.
+### `streamlit_app.py`
+This is the main Streamlit interface.
 
 Its responsibilities are:
-- maintain sessions and current mode
-- render the chat interface
-- handle PDF uploads
-- send user prompts to backend APIs
-- manage writer-state per chat session
-- support editing and regenerating prompts
-- render assistant results and structured research results
+- provide a chat-style UI similar to the original frontend
+- manage chat sessions in the sidebar
+- let the user switch roles with a dropdown
+- call the existing backend workflows directly
+- handle reviewer PDF upload and writer-state progression
 
 Notable design decisions:
-- each chat session stores its own mode and messages
-- writer workflow state is session-specific
-- a short follow-up such as "more" is expanded into the last topic automatically
-- the UI can create a new session when the user changes mode mid-conversation
-
-### `frontend/src/api.js`
-This file is a thin API wrapper around `fetch`.
-
-It isolates frontend/backend communication for:
-- review upload
-- review QA
-- research exploration
-- assistant chat
-- assistant training
-- reference generation
-- writer steps
-- paper downloading
-
-### Styling and bootstrap files
-- `frontend/src/index.js` boots the React app
-- `frontend/src/App.css` and `frontend/src/index.css` define presentation
-- `frontend/public/index.html` is the base HTML shell
+- the Streamlit app keeps the original role-based chat flow instead of a tabbed workspace
+- assistant and writer flows use session state to preserve context between interactions
+- deployment stays simple because the UI reuses existing Python workflows directly
 
 ## 7. Data and Persistence
 
@@ -431,8 +412,7 @@ The project depends on several environment variables. Important ones include:
 
 ### Frontend and runtime behavior
 - `CORS_ORIGINS`
-- `REACT_APP_API_BASE`
-- `REACT_APP_ASSISTANT_ONLY`
+- `ASSISTANT_ONLY`
 - `ASSISTANT_TRAIN_ON_STARTUP`
 - `ASSISTANT_MODEL_ONLY`
 - `LOCAL_ONLY`
@@ -440,7 +420,7 @@ The project depends on several environment variables. Important ones include:
 - `FAST_MAX_PRIMARY`
 - `FAST_MAX_SECONDARY`
 
-### Render deployment cache paths
+### Model cache paths
 - `SENTENCE_TRANSFORMERS_HOME`
 - `HF_HOME`
 - `TRANSFORMERS_CACHE`
@@ -448,24 +428,20 @@ The project depends on several environment variables. Important ones include:
 ## 11. Deployment
 
 ### Local development
-Backend:
+Python app:
 - install Python dependencies from `requirements.txt`
+- run Streamlit with `streamlit run streamlit_app.py`
+
+Optional API server:
 - run FastAPI with Uvicorn
 
-Frontend:
-- install dependencies from `frontend/package.json`
-- start the React development server
+### Streamlit deployment
+The project now uses `streamlit_app.py` as the primary deployment entrypoint.
 
-### Render deployment
-The project includes `render.yaml`.
-
-Its deployment flow is:
-1. install Python dependencies
-2. install frontend dependencies
-3. build the React app
-4. start Uvicorn with `backend.app:app`
-
-This means production is served as one deployable web service where FastAPI can also serve the frontend build.
+Typical deployment flow is:
+1. install Python dependencies from `requirements.txt`
+2. provide the required environment variables
+3. start the app with `streamlit run streamlit_app.py`
 
 ## 12. Code Intentions by Feature
 
@@ -501,13 +477,16 @@ Create a grounded assistant that becomes more useful as the local paper corpus g
 3. Search quality depends on external API availability and keys.
 4. Dummy embedding fallback preserves uptime but can reduce retrieval quality significantly.
 5. The writer workflow is currently template-driven rather than fully generative in all branches.
-6. The frontend is mostly concentrated in a single large `App.js`, which can become harder to maintain as features grow.
+6. `backend/main.py` is still the largest and most advanced file in the project, so it is the next place where deeper modularization would help beginners.
 7. Caching and indexing behavior exist, but observability and admin tooling are limited.
 
 ## 15. File-by-File Intent Summary
 
 ### Backend
-- `backend/app.py`: HTTP interface, caching, startup tasks, writer endpoint, static serving
+- `backend/app.py`: HTTP interface, caching, startup tasks, and writer endpoint
+- `backend/schemas.py`: shared request and response models
+- `backend/explorer_cache.py`: small cache helper for explorer responses
+- `backend/explorer_utils.py`: explorer URL fixing, filtering, and fallback helpers
 - `backend/main.py`: research workflow orchestration and validation
 - `backend/chains.py`: prompts and chain builders
 - `backend/retriever.py`: source retrieval and FAISS management
@@ -517,27 +496,27 @@ Create a grounded assistant that becomes more useful as the local paper corpus g
 - `backend/pdf_utils.py`: PDF extraction and chunking
 - `backend/helpers.py`: shared defensive utilities
 
-### Frontend
-- `frontend/src/App.js`: chat application logic and UI state
-- `frontend/src/api.js`: fetch wrappers
-- `frontend/src/App.css`: component styling
-- `frontend/src/index.css`: global styling
-- `frontend/src/index.js`: app bootstrap
-
 ### Root
 - `requirements.txt`: Python dependency list
-- `render.yaml`: Render deployment configuration
+- `streamlit_app.py`: small Streamlit entrypoint
+
+### UI
+- `ui/config.py`: page config, modes, and CSS
+- `ui/state.py`: Streamlit session state helpers
+- `ui/helpers.py`: UI utility helpers such as chat history and URL fixing
+- `ui/services.py`: UI-to-backend workflow actions
+- `ui/rendering.py`: reusable rendering functions
 
 ## 16. How to Explain This Project in a Viva, Demo, or Report
 
 A strong short explanation would be:
 
-"This project is a full-stack AI Research Assistant that helps users discover research papers, review PDFs, ask questions about papers, generate references, and build research drafts. The backend uses FastAPI, LangChain, LangGraph, external scholarly APIs, and a local FAISS-based retrieval system. The frontend uses React and presents everything through a multi-session chat interface. One of the key ideas of the project is that it gradually builds a reusable local knowledge base from downloaded PDFs, so the assistant becomes grounded in the user's own research corpus over time."
+"This project is an AI Research Assistant that helps users discover research papers, review PDFs, ask questions about papers, generate references, and build research drafts. The backend uses FastAPI, LangChain, LangGraph, external scholarly APIs, and a local FAISS-based retrieval system. The main user interface now runs in Streamlit, which gives the project a simpler integrated workspace for the core research flows. One of the key ideas of the project is that it gradually builds a reusable local knowledge base from downloaded PDFs, so the assistant becomes grounded in the user's own research corpus over time."
 
 ## 17. Suggested Future Improvements
 
 1. Add automated tests for API routes, retrieval normalization, and JSON validation.
-2. Split `frontend/src/App.js` into smaller components and hooks.
+2. Continue the same modularization style inside `backend/main.py`, especially around research explorer orchestration.
 3. Add authentication if the app is intended for multiple users.
 4. Add structured logging and monitoring around retrieval failures and model errors.
 5. Add a document management screen for cached papers and training status.
@@ -546,7 +525,7 @@ A strong short explanation would be:
 
 ## 18. Final Summary
 
-This project is more than a simple chatbot. It is a research workflow system that combines discovery, analysis, review, retrieval, caching, and guided writing into one application. The backend is designed around modular responsibilities, the frontend provides a practical chat-based user experience, and the local corpus pipeline gives the system a long-term memory built from real research materials.
+This project is more than a simple chatbot. It is a research workflow system that combines discovery, analysis, review, retrieval, caching, and guided writing into one application. The backend is designed around modular responsibilities, the Streamlit interface provides a practical chat-based user experience, and the local corpus pipeline gives the system a long-term memory built from real research materials.
 
 If this document is used for submission or presentation, it already covers:
 - project overview
@@ -559,4 +538,3 @@ If this document is used for submission or presentation, it already covers:
 - strengths
 - limitations
 - future work
-

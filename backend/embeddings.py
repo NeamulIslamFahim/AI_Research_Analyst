@@ -114,10 +114,10 @@ def create_dummy_embeddings(dim: int = 384) -> Embeddings:
 def get_faiss_persist_dir() -> str:
     """Resolve FAISS persistence directory from env, with default."""
     try:
-        persist_dir = load_env_var("FAISS_PERSIST_DIR", "vectorstore")
+        persist_dir = load_env_var("FAISS_PERSIST_DIR", "data/vectorstore")
     except Exception as exc:
         raise RuntimeError(f"Failed to read FAISS_PERSIST_DIR: {exc}") from exc
     if not persist_dir:
-        persist_dir = "vectorstore"
+        persist_dir = "data/vectorstore"
     ensure_directory(persist_dir)
     return persist_dir
