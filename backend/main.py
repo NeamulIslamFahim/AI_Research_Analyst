@@ -596,14 +596,10 @@ def _run_research_explorer_impl_legacy(topic: str, chat_history: str | None = No
             snippet = abstract.split(".")[0] if abstract else "No abstract available"
             heuristics.append(f"{title}: {snippet}.")
         
-        if "Groq Authentication Failed" in reason:
-            message = "Groq Authentication Failed: Please check your GROQ_API_KEY in .env. The research summary could not be generated due to this error. Displaying broader source results as a fallback."
+        if reason:
+            message = "Research summary prepared from broader source results after a recovery path was used."
         else:
-            message = (
-                "Research summary prepared from broader source results."
-                if not reason
-                else f"Research summary prepared from broader source results after a recovery path was used: {reason}"
-            )
+            message = "Research summary prepared from broader source results."
         return {
             "table": fallback_rows,
             "research_gaps": heuristics,
