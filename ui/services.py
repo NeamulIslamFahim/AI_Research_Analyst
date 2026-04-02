@@ -14,12 +14,13 @@ from backend.app import writer_step
 from backend.assistant_model import schedule_assistant_retrain
 from backend.main import (
     download_papers_for_topic,
-    paper_qa,
-    paper_reviewer,
-    research_explorer,
+    run_paper_reviewer_followup,
+    run_paper_reviewer,
+    run_research_explorer,
 )
 from backend.pdf_utils import extract_text
 from backend.schemas import ResearchExplorerRequest, WriterStepRequest
+from backend.services.response_templates import build_research_error_response
 
 from .helpers import format_chat_history, format_chat_history_up_to, save_uploaded_pdf
 from .state import (
@@ -32,6 +33,7 @@ from .state import (
 
 def start_background_download(topic: str) -> None:
     """Download and index papers without blocking the UI."""
+
     def _worker() -> None:
         try:
             download_papers_for_topic(topic)
@@ -41,27 +43,23 @@ def start_background_download(topic: str) -> None:
     threading.Thread(target=_worker, daemon=True).start()
 
 
+def _extract_previously_returned_titles(session: dict[str, Any]) -> list[str]:
+    """Collect titles from the last research response to avoid duplicates in refresh/regeneration."""
+    for msg in reversed(session.get("messages", [])):
+        if msg.get("role") == "assistant" and msg.get("type") == "research":
+            content = msg.get("content") or {}
+            if isinstance(content, dict):
+                return [
+                    str(row.get("paper_name", "")).strip()
+                    for row in content.get("table", [])
+                    if isinstance(row, dict) and row.get("paper_name")
+                ]
+    return []
+
+
 def research_error_result(detail: str) -> dict[str, Any]:
     """Return a safe response shape when explorer generation fails."""
-    return {
-        "table": [],
-        "research_gaps": [],
-        "assistant_reply": (
-            "Research Explorer reached a recovery path, so this response is a safe fallback instead of a hard failure.\n\n"
-            f"Detail: {detail}"
-        ),
-        "generated_idea": (
-            "Retry with a broader version of the topic first, inspect the returned sources, then narrow to one precise research angle."
-        ),
-        "generated_idea_steps": [
-            "Broaden the topic phrasing slightly.",
-            "Inspect the strongest returned papers and sources.",
-            "Retry with one concrete subproblem or dataset.",
-            "Use regenerate once the wording is more specific.",
-        ],
-        "generated_idea_citations": [],
-        "error_recovered": True,
-    }
+    return build_research_error_response(detail)
 
 
 def assistant_response_for_prompt(
@@ -70,6 +68,7 @@ def assistant_response_for_prompt(
     session: dict[str, Any],
     history: str | None,
     force_refresh: bool = False,
+    previously_returned_titles: list[str] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any] | None]:
     """Build one assistant reply for reviewer or explorer modes."""
     if mode == "Research Paper Writer":
@@ -84,7 +83,7 @@ def assistant_response_for_prompt(
                 None,
             )
 
-        result = paper_qa.run(prompt, paper_text)
+        result = run_paper_reviewer_followup(prompt, paper_text)
         answer = result.get("answer") or "No answer found."
         return (
             {"role": "assistant", "content": answer, "type": "text", "display_text": answer},
@@ -92,13 +91,22 @@ def assistant_response_for_prompt(
         )
 
     if mode == "Research Explorer":
+        focus_topic = prompt if len(prompt.split()) > 8 else None
+        previously_returned_titles = previously_returned_titles or []
         try:
-            result = research_explorer.run(
-                topic=prompt, chat_history=history, use_live=None
+            result = run_research_explorer(
+                topic=prompt,
+                chat_history=history,
+                use_live=None,
+                focus_topic=focus_topic,
+                previously_returned_titles=previously_returned_titles,
+                force_refresh=force_refresh,
             )
         except HTTPException as exc:
             detail = exc.detail if hasattr(exc, "detail") else str(exc)
             result = research_error_result(str(detail))
+        if isinstance(result, dict) and result.get("error"):
+            result = research_error_result(str(result.get("error", "")))
 
         return (
             {
@@ -133,6 +141,8 @@ def regenerate_from_user_message(user_idx: int) -> None:
     if session["mode"] == "Research Explorer":
         spinner_text = "Regenerating research response from external sources..."
 
+    previously_returned_titles = _extract_previously_returned_titles(session)
+
     with st.spinner(spinner_text):
         assistant_msg, meta = assistant_response_for_prompt(
             session["mode"],
@@ -140,6 +150,7 @@ def regenerate_from_user_message(user_idx: int) -> None:
             session,
             history,
             force_refresh=True,
+            previously_returned_titles=previously_returned_titles,
         )
         updated_messages = replace_or_insert_assistant_after_user(messages, user_idx, assistant_msg)
         update_current_session(messages=updated_messages)
@@ -216,7 +227,7 @@ def handle_upload(uploaded_file: Any) -> bool:
     tmp_path = save_uploaded_pdf(uploaded_file)
     try:
         paper_text = extract_text(tmp_path)
-        result = paper_reviewer.run(paper_text)
+        result = run_paper_reviewer(paper_text)
     finally:
         try:
             os.remove(tmp_path)
@@ -227,7 +238,7 @@ def handle_upload(uploaded_file: Any) -> bool:
         final_msg = {"role": "assistant", "content": result["error"], "type": "text", "display_text": result["error"]}
         update_current_session(messages=replace_or_append_assistant(current_session()["messages"], final_msg))
         schedule_assistant_retrain()
-        return
+        return False
 
     review_text = "\n\n".join(
         [
@@ -313,7 +324,7 @@ def handle_send(prompt: str) -> None:
                 if not paper_text:
                     final_msg = {"role": "assistant", "content": "Please upload a PDF first.", "type": "text", "display_text": "Please upload a PDF first."}
                 else:
-                    result = paper_qa.run(trimmed, paper_text)
+                    result = run_paper_reviewer_followup(trimmed, paper_text)
                     answer = result.get("answer") or "No answer found."
                     final_msg = {"role": "assistant", "content": answer, "type": "text", "display_text": answer}
                 update_current_session(messages=replace_or_append_assistant(session["messages"], final_msg))
@@ -321,13 +332,21 @@ def handle_send(prompt: str) -> None:
                 return
 
             if mode == "Research Explorer":
+                previously_returned_titles = _extract_previously_returned_titles(session)
+                focus_topic = trimmed if len(trimmed.split()) > 8 else None
                 try:
-                    result = research_explorer.run(
-                        topic=trimmed, chat_history=history, use_live=None
+                    result = run_research_explorer(
+                        topic=trimmed,
+                        chat_history=history,
+                        use_live=None,
+                        focus_topic=focus_topic,
+                        previously_returned_titles=previously_returned_titles,
                     )
                 except HTTPException as exc:
                     detail = exc.detail if hasattr(exc, "detail") else str(exc)
                     result = research_error_result(str(detail))
+                if isinstance(result, dict) and result.get("error"):
+                    result = research_error_result(str(result.get("error", "")))
                 final_msg = {"role": "assistant", "content": result, "type": "research", "display_text": result.get("assistant_reply", "Research result")}
                 update_current_session(messages=replace_or_append_assistant(session["messages"], final_msg))
                 start_background_download(trimmed)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -13,6 +13,7 @@ class ResearchExplorerRequest(BaseModel):
     focus_topic: Optional[str] = None
     use_live: Optional[bool] = None
     force_refresh: Optional[bool] = None
+    previously_returned_titles: Optional[List[str]] = None
 
 
 class ReviewQARequest(BaseModel):

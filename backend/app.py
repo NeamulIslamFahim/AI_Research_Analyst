@@ -21,7 +21,7 @@ from .explorer_utils import (
     format_review_reply, 
     relevant_to_topic,
 )
-from .main import _is_generic_explorer_prompt
+from .services.research_service import ResearchService
 from .helpers import safe_get
 from .schemas import (
     DownloadRequest,
@@ -108,7 +108,7 @@ async def review_upload(file: UploadFile = File(...)) -> Dict[str, Any]:
 @app.post("/api/review/qa")
 def review_qa(payload: ReviewQARequest) -> Dict[str, Any]:
     backend_main = _backend_main()
-    result = backend_main.run_paper_qa(question=payload.question, paper_text=payload.paper_text)
+    result = backend_main.run_paper_reviewer_followup(question=payload.question, paper_text=payload.paper_text)
     if isinstance(result, dict) and result.get("error"):
         raise HTTPException(status_code=500, detail=result["error"])
     return {"answer": safe_get(result, "answer", "No answer found.")}
@@ -119,7 +119,7 @@ def research_explore(payload: ResearchExplorerRequest) -> Dict[str, Any]:
     key = _explorer_cache.make_key(payload.topic, payload.focus_topic, payload.use_live)
     # Force refresh if the user is asking for "more" or other generic follow-ups
     # to ensure they don't just get the same cached results.
-    is_follow_up = _is_generic_explorer_prompt(payload.topic)
+    is_follow_up = ResearchService.is_generic_explorer_prompt(payload.topic)
     force_refresh = payload.force_refresh or is_follow_up
 
     if not force_refresh:
@@ -148,6 +148,7 @@ def research_explore(payload: ResearchExplorerRequest) -> Dict[str, Any]:
         chat_history=history,
         focus_topic=payload.focus_topic,
         use_live=payload.use_live,
+        force_refresh=payload.force_refresh or False,
         previously_returned_titles=payload.previously_returned_titles,
     )
     if isinstance(result, dict) and result.get("error"):

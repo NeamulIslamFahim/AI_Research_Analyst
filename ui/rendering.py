@@ -3,40 +3,13 @@
 from __future__ import annotations
 
 import html
-import re
 from typing import Any
 
-import pandas as pd
 import streamlit as st
 
+from .components import BulletListRenderer, IdeaCardRenderer, NumberedStepsRenderer, PaperTableRenderer, TextPreviewer
 from .config import MODE_META, MODES
-from .helpers import safe_paper_url
 from .state import current_session, new_chat, update_current_session
-
-
-def _preview_text(value: Any, max_chars: int = 260) -> str:
-    """Return a compact, display-friendly text preview."""
-    if value is None:
-        return ""
-    text = value.get("answer") if isinstance(value, dict) else value
-    if isinstance(text, dict):
-        text = text.get("assistant_reply") or text.get("answer") or ""
-    text = str(text)
-    replacements = {
-        "â€”": "-",
-        "â€“": "-",
-        "â€˜": "'",
-        "â€™": "'",
-        "â€œ": '"',
-        "â€": '"',
-        "â€¦": "...",
-    }
-    for bad, good in replacements.items():
-        text = text.replace(bad, good)
-    text = re.sub(r"\s+", " ", text).strip()
-    if len(text) > max_chars:
-        text = text[: max_chars - 3].rstrip() + "..."
-    return text
 
 
 def render_header(session: dict[str, Any]) -> None:
@@ -64,63 +37,27 @@ def render_header(session: dict[str, Any]) -> None:
 
 def render_research_result(result: dict[str, Any]) -> None:
     """Render a Research Explorer response."""
-    if result.get("assistant_reply"):
-        st.markdown(
-            f"""
-            <div class="result-card">
-              <div class="section-title">Research Summary</div>
-              <div class="muted-copy">{html.escape(result["assistant_reply"])}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
     table = result.get("table") or []
     if table:
-        st.markdown("#### Results Table")
-        display_rows = []
-        for row in table:
-            title = row.get("paper_name", "Untitled")
-            display_rows.append(
-                {
-                    "Paper Name": title,
-                    "Paper URL": safe_paper_url(row.get("paper_url", ""), title),
-                    "Authors": _preview_text(row.get("authors_name", ""), max_chars=120),
-                    "Summary": _preview_text(row.get("summary_full_paper", ""), max_chars=220),
-                    "Approach": _preview_text(row.get("proposed_model_or_approach", ""), max_chars=180),
-                    "Source": row.get("source", ""),
-                }
-            )
-        st.dataframe(
-            pd.DataFrame(display_rows),
-            width="stretch",
-            hide_index=True,
-            column_config={"Paper URL": st.column_config.LinkColumn("Paper URL", display_text="Open paper")},
-        )
+        st.markdown("#### Result Table")
+        PaperTableRenderer.render(table)
 
     gaps = result.get("research_gaps") or []
     if gaps:
         st.markdown("#### Research Gaps")
-        for gap in gaps:
-            st.markdown(f"- {_preview_text(gap, max_chars=260)}")
+        BulletListRenderer.render(gaps, max_chars=360)
 
     idea = result.get("generated_idea")
     if idea:
-        st.markdown(
-            f"""
-            <div class="result-card">
-              <div class="section-title">Generated Idea</div>
-              <div class="muted-copy">{html.escape(_preview_text(idea, max_chars=600))}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        IdeaCardRenderer.render(idea)
 
     steps = result.get("generated_idea_steps") or []
     if steps:
         st.markdown("#### Implementation Steps")
-        for idx, step in enumerate(steps, start=1):
-            st.markdown(f"{idx}. {_preview_text(step, max_chars=220)}")
+        NumberedStepsRenderer.render(steps, max_chars=320)
+
+    if result.get("assistant_reply"):
+        st.caption(TextPreviewer.preview(result["assistant_reply"], max_chars=420))
 
 
 def render_assistant_result(result: dict[str, Any]) -> None:
@@ -140,7 +77,7 @@ def render_assistant_result(result: dict[str, Any]) -> None:
         st.markdown("**Sources**")
         for item in sources:
             title = item.get("title", "Untitled")
-            url = safe_paper_url(item.get("url", ""), title)
+            url = item.get("url", "")
             snippet = item.get("snippet", "")
             if url:
                 st.markdown(f"- [{title}]({url})")

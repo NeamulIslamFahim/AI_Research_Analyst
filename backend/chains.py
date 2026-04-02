@@ -44,18 +44,19 @@ RESEARCH_PROMPT = PromptTemplate(
         "- Choose only relevant papers to the user's question; if none are relevant, return an empty table and explain in assistant_reply.\n"
         "- From the papers list, select exactly 5 of the most relevant papers for the user's question.\n"
         "- The output table MUST have exactly 5 rows, each corresponding to one of the selected papers.\n"
+        "- Present the output in this order: table, research_gaps, generated_idea, generated_idea_steps.\n"
         "- For each row, copy paper_name, paper_url, authors_name, and source from the papers list.\n"
         "- If a DOI is present in the papers list, prefer https://doi.org/DOI as paper_url.\n"
         "- problem_solved MUST describe the main problem addressed by the paper.\n"
         "- score_relevance and score_quality MUST be integers from 0 to 10.\n"
         "- If fulltext_available is true, summary_full_paper MUST reflect the full paper content.\n"
         "- If fulltext_available is false, summary_full_paper MUST be an abstract-based summary without stating that full text was missing.\n"
-        "- proposed_model_or_approach MUST describe what the paper explicitly proposes (method/model/approach/algorithm). If the paper does not propose a new method, write \"Not specified in paper\".\n"
+        "- proposed_model_or_approach MUST describe what the paper explicitly proposes (method/model/approach/algorithm). If the paper does not propose a new method, say so clearly using cautious language such as 'The source metadata does not expose a distinct new method'.\n"
         "- research_gaps MUST contain one specific, actionable gap per selected paper (list format).\n"
         "- assistant_reply MUST be a concise researcher-style response (neutral, evidence-based, no fluff) that introduces the findings.\n"
         "- generated_idea MUST synthesize the identified research_gaps into one concrete and novel research direction.\n"
         "- generated_idea_steps MUST be 6-8 detailed, actionable steps to implement the generated_idea, referencing specific methods or datasets from the context where appropriate.\n"
-        "- NEVER leave any field blank. If information is missing, write \"Not specified in paper\".\n"
+        "- NEVER leave any field blank. If information is missing, summarize cautiously from the title/metadata instead of repeating a placeholder.\n"
         '- generated_idea_citations MUST list paper_name values used in the idea.\n\n'
         "Example (format only, use real content):\n"
         '{{"table":[{{"paper_name":"...","paper_url":"...","authors_name":"...",'
@@ -73,7 +74,10 @@ REVIEW_PROMPT = PromptTemplate(
     input_variables=["paper"],
     template=(
         "You are a peer reviewer. Use ONLY the provided paper text. "
+        "Ignore the title page, author list, affiliation block, conference header, page numbers, and reference list. "
+        "Do NOT copy the paper title or venue into the review fields. "
         "Do NOT invent details not stated in the text. "
+        "Write concise, evidence-based critique grounded in the paper's abstract, introduction, method, experiments, and conclusion. "
         "Return ONLY valid JSON with fields:\n"
         "{{\n"
         '  "strengths": "...",\n'
@@ -82,8 +86,16 @@ REVIEW_PROMPT = PromptTemplate(
         '  "technical_correctness": "...",\n'
         '  "reproducibility": "...",\n'
         '  "recommendation": "Accept | Minor Revision | Major Revision | Reject",\n'
-        '  "suggested_venue": "Journal | Conference"\n'
+        '  "suggested_venue": "Conference | Journal"\n'
         "}}\n\n"
+        "Guidelines:\n"
+        "- Strengths should cite concrete contributions, not the paper title or author names.\n"
+        "- Weaknesses should mention missing experiments, unclear baselines, limited evaluation, or scope issues when supported by the text.\n"
+        "- Novelty should explain what is actually new relative to the described method.\n"
+        "- Technical correctness should focus on method clarity, assumptions, and evaluation soundness.\n"
+        "- Reproducibility should assess whether datasets, hyperparameters, code, or training details are sufficient.\n"
+        "- Suggested venue must be exactly one label: Conference or Journal. Choose Conference for shorter, incremental, or application-focused papers; choose Journal for more mature, comprehensive, and deeply validated work.\n"
+        "- Keep each field to 1-3 sentences and avoid generic filler.\n\n"
         "Paper text:\n{paper}"
     ),
 )
@@ -93,6 +105,20 @@ PAPER_QA_PROMPT = PromptTemplate(
     template=(
         "You are a research assistant. Answer the user's question based ONLY on the provided paper text. "
         "If the answer is not in the text, say \"Not specified in the paper.\" Do not guess.\n\n"
+        "Paper text:\n{paper_text}\n\n"
+        "Question: {question}"
+    ),
+)
+
+REVIEW_FOLLOWUP_PROMPT = PromptTemplate(
+    input_variables=["paper_text", "question"],
+    template=(
+        "You are continuing a peer review discussion. "
+        "Answer the user's question as a reviewer, not as a generic QA assistant. "
+        "Keep the response critique-oriented and grounded in the paper text. "
+        "Focus on strengths, weaknesses, novelty, technical correctness, reproducibility, or recommendation when relevant. "
+        "Do not repeat the paper title, authors, or venue unless directly relevant. "
+        "If the paper text does not support a confident answer, say what evidence is missing.\n\n"
         "Paper text:\n{paper_text}\n\n"
         "Question: {question}"
     ),
@@ -197,6 +223,14 @@ def paper_qa_chain(llm: BaseLLM) -> Runnable:
         return PAPER_QA_PROMPT | llm
     except Exception as exc:
         raise RuntimeError(f"Failed to build paper QA chain: {exc}") from exc
+
+
+def paper_reviewer_followup_chain(llm: BaseLLM) -> Runnable:
+    """Build a chain that answers reviewer follow-up questions in critique mode."""
+    try:
+        return REVIEW_FOLLOWUP_PROMPT | llm
+    except Exception as exc:
+        raise RuntimeError(f"Failed to build paper reviewer follow-up chain: {exc}") from exc
 
 
 def paper_chunk_summarizer_chain(llm: BaseLLM) -> Runnable:

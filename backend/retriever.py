@@ -354,12 +354,27 @@ def openalex_search(query: str, max_results: int = 5) -> tuple[List[dict], str |
     """Search OpenAlex for open-access papers and PDFs when available."""
     if not query:
         return [], None
+
+    def _openalex_abstract_from_index(index: dict | None) -> str:
+        if not isinstance(index, dict) or not index:
+            return ""
+        positions: dict[int, str] = {}
+        for word, idxs in index.items():
+            if not isinstance(word, str) or not isinstance(idxs, list):
+                continue
+            for pos in idxs:
+                if isinstance(pos, int):
+                    positions[pos] = word
+        if not positions:
+            return ""
+        return " ".join(positions[i] for i in sorted(positions)).strip()
+
     try:
         params = {
             "search": query,
             "per-page": max_results,
             "filter": "is_oa:true",
-            "select": "title,authorships,publication_year,primary_location,doi,open_access",
+            "select": "title,authorships,publication_year,primary_location,doi,open_access,abstract_inverted_index",
         }
         resp = requests.get("https://api.openalex.org/works", params=params, timeout=20)
         resp.raise_for_status()
@@ -376,6 +391,7 @@ def openalex_search(query: str, max_results: int = 5) -> tuple[List[dict], str |
             loc = w.get("primary_location") or {}
             if isinstance(loc, dict):
                 pdf_url = (loc.get("pdf_url") or "") if isinstance(loc.get("pdf_url"), str) else ""
+            abstract = _openalex_abstract_from_index(w.get("abstract_inverted_index"))
             rows.append(
                 {
                     "title": w.get("title", ""),
@@ -384,7 +400,7 @@ def openalex_search(query: str, max_results: int = 5) -> tuple[List[dict], str |
                     "url": (loc.get("landing_page_url") or "") if isinstance(loc, dict) else "",
                     "pdf_url": pdf_url,
                     "doi": doi,
-                    "abstract": "",
+                    "abstract": abstract,
                     "source": "openalex",
                 }
             )
