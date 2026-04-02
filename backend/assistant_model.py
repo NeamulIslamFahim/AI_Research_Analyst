@@ -93,8 +93,63 @@ def _vectorstore_docs() -> list[dict[str, Any]]:
                     "pdf_url": metadata.get("pdf_url", ""),
                     "chunk": metadata.get("chunk", ""),
                 },
+                }
+            )
+    return docs
+
+
+def _chat_history_docs() -> list[dict[str, Any]]:
+    """Load saved chat workspaces as lightweight retrievable documents."""
+    include_logs = (load_env_var("ASSISTANT_INCLUDE_CHAT_LOGS", "true") or "true").lower() == "true"
+    if not include_logs:
+        return []
+
+    chat_dir = Path(load_env_var("CHAT_LOG_DIR", "data/chat_logs") or "data/chat_logs")
+    if not chat_dir.exists():
+        return []
+
+    docs: list[dict[str, Any]] = []
+    for path in sorted(chat_dir.glob("*.json")):
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                record = json.load(handle)
+        except Exception:
+            continue
+
+        messages = record.get("messages", [])
+        if not isinstance(messages, list):
+            continue
+
+        lines: list[str] = []
+        for msg in messages:
+            if not isinstance(msg, dict):
+                continue
+            role = "User" if msg.get("role") == "user" else "Assistant"
+            content = msg.get("effective_query") or msg.get("display_text") or msg.get("content") or ""
+            if isinstance(content, dict):
+                content = content.get("answer") or content.get("assistant_reply") or ""
+            content_text = _normalize_whitespace(str(content))
+            if content_text:
+                lines.append(f"{role}: {content_text}")
+
+        if not lines:
+            continue
+
+        docs.append(
+            {
+                "text": "\n".join(lines),
+                "metadata": {
+                    "title": record.get("title", "") or path.stem,
+                    "authors": "",
+                    "source": "chat_history",
+                    "url": str(path),
+                    "pdf_url": "",
+                    "chunk": 0,
+                    "mode": record.get("mode", ""),
+                },
             }
         )
+
     return docs
 
 
@@ -130,7 +185,7 @@ def _pdf_docs() -> list[dict[str, Any]]:
 
 def _build_corpus() -> list[dict[str, Any]]:
     deduped: dict[str, dict[str, Any]] = {}
-    for item in _pdf_docs() + _vectorstore_docs():
+    for item in _chat_history_docs() + _pdf_docs() + _vectorstore_docs():
         text = item.get("text", "")
         metadata = item.get("metadata", {}) or {}
         if not text:
