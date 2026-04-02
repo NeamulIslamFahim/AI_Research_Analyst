@@ -192,19 +192,19 @@ def render_reviewer_panel(session: dict[str, Any], on_process_upload) -> None:
         """
         <div class="panel-card">
           <div class="section-title">Reviewer Tools</div>
-          <div class="muted-copy">Upload a PDF once, generate a structured review, then use the conversation below for follow-up questions.</div>
+          <div class="muted-copy">Upload a PDF once and it will be processed automatically for a structured review, then use the conversation below for follow-up questions.</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
     uploaded_file = st.file_uploader("Upload PDF for review", type=["pdf"], key=f"upload-{session['id']}")
-    col1, col2 = st.columns([1.2, 2])
-    with col1:
-        if uploaded_file is not None and st.button("Process PDF", width="stretch"):
-            on_process_upload(uploaded_file)
+    if uploaded_file is not None:
+        processed = on_process_upload(uploaded_file)
+        if processed:
             st.rerun()
-    with col2:
-        if session.get("paper_text"):
-            st.success("PDF loaded and ready for questions.")
-        else:
-            st.info("No PDF loaded yet.")
+    if session.get("paper_text"):
+        st.success("PDF loaded and ready for questions.")
+    elif uploaded_file is not None:
+        st.info("Processing uploaded PDF...")
+    else:
+        st.info("No PDF loaded yet.")

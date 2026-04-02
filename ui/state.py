@@ -19,6 +19,7 @@ def default_sessions(default_mode: str) -> list[dict[str, Any]]:
             "mode": default_mode,
             "messages": [],
             "paper_text": "",
+            "last_uploaded_pdf_signature": "",
             "writer_state": {"phase": "start"},
             "writer_intro_shown": False,
         }
@@ -112,6 +113,7 @@ def new_chat(mode: str) -> None:
         "mode": mode,
         "messages": [],
         "paper_text": "",
+        "last_uploaded_pdf_signature": "",
         "writer_state": {"phase": "start"},
         "writer_intro_shown": False,
     }

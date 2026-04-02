@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import threading
 from typing import Any
@@ -195,12 +196,20 @@ def ensure_writer_intro(session: dict[str, Any]) -> None:
     )
 
 
-def handle_upload(uploaded_file: Any) -> None:
+def handle_upload(uploaded_file: Any) -> bool:
     """Process a PDF upload and insert the review into the conversation."""
     if uploaded_file is None:
-        return
+        return False
 
     session = current_session()
+    raw_bytes = uploaded_file.getvalue()
+    file_signature = hashlib.sha256(
+        (uploaded_file.name or "").encode("utf-8") + b"::" + raw_bytes
+    ).hexdigest()
+    if session.get("last_uploaded_pdf_signature") == file_signature:
+        return False
+
+    update_current_session(last_uploaded_pdf_signature=file_signature)
     messages = [*session["messages"], {"role": "assistant", "content": "Loading...", "type": "loading"}]
     update_current_session(messages=messages)
 
@@ -238,6 +247,7 @@ def handle_upload(uploaded_file: Any) -> None:
         paper_text=paper_text,
     )
     schedule_assistant_retrain()
+    return True
 
 
 def handle_send(prompt: str) -> None:
