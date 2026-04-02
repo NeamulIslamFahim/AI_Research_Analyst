@@ -10,6 +10,7 @@ import streamlit as st
 from fastapi import HTTPException
 
 from backend.app import writer_step
+from backend.assistant_model import schedule_assistant_retrain
 from backend.main import (
     download_papers_for_topic,
     paper_qa,
@@ -143,6 +144,7 @@ def regenerate_from_user_message(user_idx: int) -> None:
         update_current_session(messages=updated_messages)
         if meta and meta.get("background_download_topic"):
             start_background_download(meta["background_download_topic"])
+        schedule_assistant_retrain()
 
 
 def save_edited_user_message(user_idx: int) -> None:
@@ -215,6 +217,7 @@ def handle_upload(uploaded_file: Any) -> None:
     if result.get("error"):
         final_msg = {"role": "assistant", "content": result["error"], "type": "text", "display_text": result["error"]}
         update_current_session(messages=replace_or_append_assistant(current_session()["messages"], final_msg))
+        schedule_assistant_retrain()
         return
 
     review_text = "\n\n".join(
@@ -234,6 +237,7 @@ def handle_upload(uploaded_file: Any) -> None:
         messages=replace_or_append_assistant(current_session()["messages"], final_msg),
         paper_text=paper_text,
     )
+    schedule_assistant_retrain()
 
 
 def handle_send(prompt: str) -> None:
@@ -291,6 +295,7 @@ def handle_send(prompt: str) -> None:
                     messages=[*session["messages"][:-1], *replies],
                     writer_state=response.next_state or {"phase": "start"},
                 )
+                schedule_assistant_retrain()
                 return
 
             if mode == "Research Paper Reviewer":
@@ -302,6 +307,7 @@ def handle_send(prompt: str) -> None:
                     answer = result.get("answer") or "No answer found."
                     final_msg = {"role": "assistant", "content": answer, "type": "text", "display_text": answer}
                 update_current_session(messages=replace_or_append_assistant(session["messages"], final_msg))
+                schedule_assistant_retrain()
                 return
 
             if mode == "Research Explorer":
@@ -315,8 +321,10 @@ def handle_send(prompt: str) -> None:
                 final_msg = {"role": "assistant", "content": result, "type": "research", "display_text": result.get("assistant_reply", "Research result")}
                 update_current_session(messages=replace_or_append_assistant(session["messages"], final_msg))
                 start_background_download(trimmed)
+                schedule_assistant_retrain()
                 return
 
         except Exception as exc:
             final_msg = {"role": "assistant", "content": str(exc), "type": "text", "display_text": str(exc)}
             update_current_session(messages=replace_or_append_assistant(session["messages"], final_msg))
+            schedule_assistant_retrain()

@@ -22,6 +22,9 @@ from .storage import list_paper_records
 
 DEFAULT_ASSISTANT_MODEL = "trained-local-corpus"
 _MODEL_CACHE: dict[str, Any] | None = None
+_TRAINING_LOCK = threading.Lock()
+_TRAINING_THREAD: threading.Thread | None = None
+_TRAINING_REQUESTS = 0
 
 
 def _artifact_dir() -> str:
@@ -271,6 +274,41 @@ def train_assistant_model(force: bool = False) -> dict[str, Any]:
     )
     _MODEL_CACHE = _load_runtime(payload)
     return payload["meta"]
+
+
+def schedule_assistant_retrain() -> None:
+    """Queue a background retrain, coalescing repeated requests."""
+    global _TRAINING_THREAD, _TRAINING_REQUESTS
+
+    with _TRAINING_LOCK:
+        _TRAINING_REQUESTS += 1
+        if _TRAINING_THREAD is not None and _TRAINING_THREAD.is_alive():
+            return
+
+        thread = threading.Thread(target=_assistant_retrain_worker, daemon=True)
+        _TRAINING_THREAD = thread
+        thread.start()
+
+
+def _assistant_retrain_worker() -> None:
+    """Process queued retrain requests until the queue is drained."""
+    global _TRAINING_THREAD
+
+    last_processed = 0
+    while True:
+        with _TRAINING_LOCK:
+            request_count = _TRAINING_REQUESTS
+        if request_count <= last_processed:
+            break
+        last_processed = request_count
+        try:
+            train_assistant_model(force=True)
+        except Exception:
+            # Retraining is a best-effort background task.
+            pass
+
+    with _TRAINING_LOCK:
+        _TRAINING_THREAD = None
 
 
 def get_assistant_status() -> dict[str, Any]:
