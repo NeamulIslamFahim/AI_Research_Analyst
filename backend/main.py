@@ -569,13 +569,13 @@ def _run_research_explorer_impl_legacy(topic: str, chat_history: str | None = No
             key = (r.get("title", "") or "", r.get("url", "") or "")
             fulltext_snippet = fulltext_map.get(key) or fulltext_by_title.get(r.get("title", "") or "")
             abstract = _clean_row_text(r.get("abstract", ""))
-            summary_text = truncate_text(fulltext_snippet, max_chars=1200) if fulltext_snippet else abstract
+            summary_text = _normalize_output_text(truncate_text(fulltext_snippet, max_chars=1200) if fulltext_snippet else abstract, max_chars=1200)
             problem_text = ""
             if fulltext_snippet:
                 problem_text = fulltext_snippet.split(".")[0].strip()
             if not problem_text and abstract:
                 problem_text = abstract.split(".")[0].strip()
-            proposed = extract_proposed_approach(fulltext_snippet or abstract)
+            proposed = _normalize_output_text(extract_proposed_approach(fulltext_snippet or abstract), max_chars=420)
             fallback_rows.append(
                 {
                     "paper_name": r.get("title", ""),
@@ -680,6 +680,55 @@ def _run_research_explorer_impl_legacy(topic: str, chat_history: str | None = No
 
         def _clean_row_text(value: Any) -> str:
             return strip_html(value or "").replace("\n", " ").strip()
+
+        def _normalize_output_text(value: Any, max_chars: int | None = None) -> str:
+            text = _clean_row_text(value)
+            if not text:
+                return ""
+            replacements = {
+                "â€”": "-",
+                "â€“": "-",
+                "â€˜": "'",
+                "â€™": "'",
+                "â€œ": '"',
+                "â€": '"',
+                "â€¦": "...",
+                "Ã©": "é",
+                "Ã¨": "è",
+                "Ã ": "à",
+                "Ã±": "ñ",
+                "Ã¼": "ü",
+                "Ã¶": "ö",
+            }
+            for bad, good in replacements.items():
+                text = text.replace(bad, good)
+            text = re.sub(r"\s+", " ", text).strip()
+            if max_chars and len(text) > max_chars:
+                text = text[: max_chars - 3].rstrip() + "..."
+            return text
+
+        def _looks_generic_gap(text: str) -> bool:
+            lowered = (text or "").lower()
+            generic_markers = [
+                "not specified in paper",
+                "gap text",
+                "gap not extracted",
+                "no abstract available",
+                "synthesize",
+                "broader source",
+            ]
+            return len(lowered.strip()) < 25 or any(marker in lowered for marker in generic_markers)
+
+        def _looks_generic_idea(text: str) -> bool:
+            lowered = (text or "").lower()
+            generic_markers = [
+                "synthesize the identified research_gaps",
+                "unify the identified gaps",
+                "synthesize the missing aspects",
+                "broader source results",
+                "not provided",
+            ]
+            return len(lowered.strip()) < 35 or any(marker in lowered for marker in generic_markers)
 
         def _needs_ml_context(text: str) -> bool:
             normalized = f" {text.lower().replace('-', ' ')} "
@@ -1023,8 +1072,16 @@ def _run_research_explorer_impl_legacy(topic: str, chat_history: str | None = No
             for r in rows_sorted[: min(5, len(rows_sorted))]:
                 title = r.get("title", "") or "Paper"
                 abstract = _clean_row_text(r.get("abstract", ""))
+                problem = (r.get("problem_solved", "") or "").strip()
+                approach = (r.get("proposed_model_or_approach", "") or "").strip()
                 snippet = abstract.split(".")[0] if abstract else "No abstract available"
-                gaps_list.append(f"{title}: {snippet}.")
+                if problem and problem not in ("Not specified in paper", "Not specified in abstract"):
+                    gap_text = f"{title}: the paper leaves room to test the approach under broader or cross-dataset settings."
+                elif approach and approach not in ("Not specified in paper", "Not specified in abstract"):
+                    gap_text = f"{title}: the proposed approach could be stressed with stronger baselines, ablations, or real-world evaluation."
+                else:
+                    gap_text = f"{title}: {snippet}."
+                gaps_list.append(_normalize_output_text(gap_text, max_chars=320))
             return gaps_list
 
         def _heuristic_idea(gaps_list: List[str]) -> str:
@@ -1033,8 +1090,16 @@ def _run_research_explorer_impl_legacy(topic: str, chat_history: str | None = No
                     "Synthesize the missing aspects across papers into a unified approach and evaluate on shared benchmarks."
                 )
             return (
-                "Unify the identified gaps into a single research direction by designing a method that addresses the missing "
-                "assumptions, data coverage, and evaluation gaps across the selected papers."
+                "Design a cross-paper evaluation and adaptation pipeline that targets the shared weak points: limited "
+                "generalization, narrow benchmark coverage, and incomplete validation against strong baselines."
+            )
+
+        def _fallback_idea_from_rows(selected_rows: List[dict]) -> str:
+            titles = [str(r.get("title", "")).strip() for r in selected_rows[:3] if str(r.get("title", "")).strip()]
+            focus = ", ".join(titles) if titles else "the selected papers"
+            return (
+                f"Build a comparative benchmark for {focus} that tests cross-dataset transfer, ablation stability, "
+                f"and robustness against stronger baselines, then turn the best-performing setup into a reusable pipeline."
             )
 
         raw_output = _invoke_with_fallback(
@@ -1150,7 +1215,7 @@ def _run_research_explorer_impl_legacy(topic: str, chat_history: str | None = No
                     # Strip HTML tags from text fields
                     for field in ["summary_full_paper", "problem_solved", "proposed_model_or_approach"]:
                         if field in row:
-                            row[field] = strip_html(row.get(field, ""))
+                            row[field] = _normalize_output_text(row.get(field, ""), max_chars=1200 if field == "summary_full_paper" else 420)
                 if isinstance(row, dict) and not row.get("paper_url"):
                     title = row.get("paper_name", "")
                     if title in title_to_url:
@@ -1167,14 +1232,14 @@ def _run_research_explorer_impl_legacy(topic: str, chat_history: str | None = No
                 if isinstance(row, dict) and not row.get("summary_full_paper"):
                     title = row.get("paper_name", "")
                     abstract = title_to_abstract.get(title, "")
-                    row["summary_full_paper"] = abstract or "Not specified in paper"
+                    row["summary_full_paper"] = _normalize_output_text(abstract or "Not specified in paper", max_chars=1200)
                 # Replace any "full text not provided" phrasing with abstract-based summary
                 if isinstance(row, dict):
                     summary = (row.get("summary_full_paper", "") or "").lower()
                     if "full text not provided" in summary or "supplied context" in summary:
                         title = row.get("paper_name", "")
                         abstract = title_to_abstract.get(title, "")
-                        row["summary_full_paper"] = abstract or "Not specified in paper"
+                        row["summary_full_paper"] = _normalize_output_text(abstract or "Not specified in paper", max_chars=1200)
                 # If full text is available, prefer it for summaries and problem/approach fields.
                 if isinstance(row, dict):
                     title = row.get("paper_name", "") or ""
@@ -1185,27 +1250,27 @@ def _run_research_explorer_impl_legacy(topic: str, chat_history: str | None = No
                             "Not specified in paper",
                             "Not specified in abstract",
                         ):
-                            row["summary_full_paper"] = truncate_text(fulltext_snippet, max_chars=1200)
+                            row["summary_full_paper"] = _normalize_output_text(truncate_text(fulltext_snippet, max_chars=1200), max_chars=1200)
                         if not row.get("problem_solved") or row.get("problem_solved") in (
                             "Not specified in paper",
                             "Not specified in abstract",
                         ):
-                            row["problem_solved"] = fulltext_snippet.split(".")[0].strip() or row.get(
+                            row["problem_solved"] = _normalize_output_text(fulltext_snippet.split(".")[0].strip() or row.get(
                                 "problem_solved", ""
-                            )
+                            ), max_chars=420)
                         if not row.get("proposed_model_or_approach") or row.get(
                             "proposed_model_or_approach"
                         ) in ("Not specified in paper", "Not specified in abstract"):
                             inferred = extract_proposed_approach(fulltext_snippet)
-                            row["proposed_model_or_approach"] = inferred or row.get("proposed_model_or_approach", "")
+                            row["proposed_model_or_approach"] = _normalize_output_text(inferred or row.get("proposed_model_or_approach", ""), max_chars=420)
                     # Ensure proposed_model_or_approach is not just the first abstract line.
                     proposed = (row.get("proposed_model_or_approach", "") or "").strip()
                     summary = (row.get("summary_full_paper", "") or "").strip()
                     problem = (row.get("problem_solved", "") or "").strip()
-                    if proposed and (proposed == summary or proposed == problem or proposed in summary):
+                    if proposed and (proposed == summary or proposed == problem or proposed in summary or _looks_generic_idea(proposed)):
                         abstract = title_to_abstract.get(title, "")
                         inferred = extract_proposed_approach(fulltext_snippet or abstract)
-                        row["proposed_model_or_approach"] = inferred or "Not specified in paper"
+                        row["proposed_model_or_approach"] = _normalize_output_text(inferred or "Not specified in paper", max_chars=420)
                 # Fix proposed_model_or_approach if it duplicates the paper title
                 if isinstance(row, dict):
                     title = (row.get("paper_name", "") or "").strip()
@@ -1213,16 +1278,19 @@ def _run_research_explorer_impl_legacy(topic: str, chat_history: str | None = No
                     if title and proposed and (proposed == title or proposed in title or title in proposed):
                         abstract = title_to_abstract.get(title, "")
                         inferred = extract_proposed_approach(abstract)
-                        row["proposed_model_or_approach"] = inferred or "Not specified in paper"
+                        row["proposed_model_or_approach"] = _normalize_output_text(inferred or "Not specified in paper", max_chars=420)
                     # Ensure problem_solved is populated
                     if isinstance(row, dict) and not row.get("problem_solved"):
                         abstract = title_to_abstract.get(row.get("paper_name", ""), "")
                         snippet = abstract.split(".")[0] if abstract else ""
-                        row["problem_solved"] = snippet or "Not specified in paper"
+                        row["problem_solved"] = _normalize_output_text(snippet or "Not specified in paper", max_chars=420)
                     # Normalize bare DOI URLs
                     paper_url = (row.get("paper_url", "") or "").strip()
                     if paper_url.startswith("10.") and "/" in paper_url:
                         row["paper_url"] = f"https://doi.org/{paper_url}"
+                    row["summary_full_paper"] = _normalize_output_text(row.get("summary_full_paper", ""), max_chars=1200)
+                    row["problem_solved"] = _normalize_output_text(row.get("problem_solved", ""), max_chars=420)
+                    row["proposed_model_or_approach"] = _normalize_output_text(row.get("proposed_model_or_approach", ""), max_chars=420)
                 if isinstance(row, dict):
                     key = (
                         (row.get("paper_name", "") or "").strip().lower(),
@@ -1337,7 +1405,7 @@ def _run_research_explorer_impl_legacy(topic: str, chat_history: str | None = No
             parsed["research_gaps"] = _heuristic_gaps()
 
         if isinstance(parsed, dict) and not parsed.get("generated_idea"):
-            parsed["generated_idea"] = _heuristic_idea(parsed.get("research_gaps") or [])
+            parsed["generated_idea"] = _fallback_idea_from_rows(rows_sorted)
         if isinstance(parsed, dict) and not parsed.get("assistant_reply"):
             parsed["assistant_reply"] = (
                 "Research summary: The evidence below synthesizes the retrieved papers, then details paper-level gaps and "
@@ -1354,7 +1422,7 @@ def _run_research_explorer_impl_legacy(topic: str, chat_history: str | None = No
             for g in parsed["research_gaps"]:
                 if not isinstance(g, str):
                     continue
-                g = strip_html(g)
+                g = _normalize_output_text(g, max_chars=320)
                 if "gap text" in g.lower():
                     # Try to map to a paper title prefix
                     parts = g.split(":", 1)
@@ -1366,19 +1434,28 @@ def _run_research_explorer_impl_legacy(topic: str, chat_history: str | None = No
                     if "no abstract available" in g.lower():
                         continue
                     cleaned_gaps.append(g)
+            if not cleaned_gaps:
+                cleaned_gaps = _heuristic_gaps()
             parsed["research_gaps"] = cleaned_gaps
         if isinstance(parsed, dict) and isinstance(parsed.get("research_gaps"), list):
             if any(isinstance(g, str) and "Gap not extracted" in g for g in parsed["research_gaps"]):
                 parsed["research_gaps"] = _heuristic_gaps()
         if isinstance(parsed, dict) and isinstance(parsed.get("generated_idea"), str):
-            if "Idea not extracted" in parsed["generated_idea"]:
-                parsed["generated_idea"] = _heuristic_idea(parsed.get("research_gaps") or [])
+            parsed["generated_idea"] = _normalize_output_text(parsed.get("generated_idea", ""), max_chars=700)
+            if "Idea not extracted" in parsed["generated_idea"] or _looks_generic_idea(parsed["generated_idea"]):
+                parsed["generated_idea"] = _fallback_idea_from_rows(rows_sorted)
 
         # Strip HTML from idea and steps
         if isinstance(parsed, dict) and parsed.get("generated_idea"):
-            parsed["generated_idea"] = strip_html(parsed.get("generated_idea"))
+            parsed["generated_idea"] = _normalize_output_text(parsed.get("generated_idea"), max_chars=700)
         if isinstance(parsed, dict) and isinstance(parsed.get("generated_idea_steps"), list):
-            parsed["generated_idea_steps"] = [strip_html(s) for s in parsed.get("generated_idea_steps", [])]
+            parsed["generated_idea_steps"] = [
+                _normalize_output_text(s, max_chars=220)
+                for s in parsed.get("generated_idea_steps", [])
+                if _normalize_output_text(s, max_chars=220)
+            ]
+        if isinstance(parsed, dict) and parsed.get("assistant_reply"):
+            parsed["assistant_reply"] = _normalize_output_text(parsed.get("assistant_reply"), max_chars=500)
 
         # Add references from source docs if model did not include them.
         # Fallback table if the model didn't provide one.
@@ -1396,8 +1473,8 @@ def _run_research_explorer_impl_legacy(topic: str, chat_history: str | None = No
                 abstract = _clean_row_text(r.get("abstract", ""))
                 key = (r.get("title", "") or "", r.get("url", "") or "")
                 fulltext_snippet = fulltext_map.get(key) or fulltext_by_title.get(r.get("title", "") or "")
-                summary_text = truncate_text(fulltext_snippet, max_chars=1200) if fulltext_snippet else abstract
-                problem_text = fulltext_snippet.split(".")[0].strip() if fulltext_snippet else (abstract.split(".")[0].strip() if abstract else "")
+                summary_text = _normalize_output_text(truncate_text(fulltext_snippet, max_chars=1200) if fulltext_snippet else abstract, max_chars=1200)
+                problem_text = _normalize_output_text(fulltext_snippet.split(".")[0].strip() if fulltext_snippet else (abstract.split(".")[0].strip() if abstract else ""), max_chars=420)
                 
                 fallback_rows.append(
                     {
@@ -1406,7 +1483,7 @@ def _run_research_explorer_impl_legacy(topic: str, chat_history: str | None = No
                         "authors_name": r.get("authors", ""),
                         "summary_full_paper": summary_text or "Not specified in paper",
                         "problem_solved": problem_text or "Not specified in paper",
-                        "proposed_model_or_approach": extract_proposed_approach(fulltext_snippet or abstract) or "Not specified in paper",
+                        "proposed_model_or_approach": _normalize_output_text(extract_proposed_approach(fulltext_snippet or abstract) or "Not specified in paper", max_chars=420),
                         "source": r.get("source", ""),
                         "score_relevance": 5,
                         "score_quality": 5,
