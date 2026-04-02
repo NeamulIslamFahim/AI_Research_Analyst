@@ -9,20 +9,32 @@ from typing import Any
 from urllib.parse import quote, urlparse
 
 
-def format_chat_history(messages: list[dict[str, Any]], max_messages: int = 8) -> str:
+def format_chat_history(messages: list[dict[str, Any]], max_messages: int = 100) -> str:
     """Convert recent chat messages into a plain text history string."""
     trimmed_messages = messages[-max_messages:]
     lines = []
     for msg in trimmed_messages:
         label = "User" if msg["role"] == "user" else "Assistant"
         content = msg.get("effective_query") or msg.get("display_text") or msg.get("content") or ""
+        extra_lines: list[str] = []
         if isinstance(content, dict):
             content = content.get("answer") or content.get("assistant_reply") or ""
+            sources = msg.get("content", {}).get("sources") or []
+            if isinstance(sources, list) and sources:
+                titles = [str(item.get("title", "")).strip() for item in sources if isinstance(item, dict) and item.get("title")]
+                if titles:
+                    extra_lines.append("Sources: " + " | ".join(titles[:8]))
+            table = msg.get("content", {}).get("table") or []
+            if isinstance(table, list) and table:
+                titles = [str(item.get("paper_name", "")).strip() for item in table if isinstance(item, dict) and item.get("paper_name")]
+                if titles:
+                    extra_lines.append("Papers: " + " | ".join(titles[:8]))
         lines.append(f"{label}: {content}")
+        lines.extend(extra_lines)
     return "\n".join(lines)
 
 
-def format_chat_history_up_to(messages: list[dict[str, Any]], idx: int, max_messages: int = 8) -> str:
+def format_chat_history_up_to(messages: list[dict[str, Any]], idx: int, max_messages: int = 100) -> str:
     """Like format_chat_history, but only up to a chosen message index."""
     return format_chat_history(messages[: idx + 1], max_messages=max_messages)
 

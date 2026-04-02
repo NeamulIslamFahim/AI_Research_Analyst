@@ -12,19 +12,12 @@ load_dotenv()
 
 ASSISTANT_ONLY = (os.getenv("ASSISTANT_ONLY", "false") or "false").lower() == "true"
 MODES = ["Research Explorer"] if ASSISTANT_ONLY else [
-    "Assistant Chat",
     "Research Explorer",
     "Research Paper Reviewer",
     "Research Paper Writer",
 ]
 
 MODE_META = {
-    "Assistant Chat": {
-        "title": "Assistant Chat",
-        "subtitle": "Answer from the local VectorDB first, then search the web, download papers, and learn incrementally when needed.",
-        "prompt": "Ask a research question...",
-        "status": "VectorDB first, external fallback",
-    },
     "Research Explorer": {
         "title": "Research Explorer",
         "subtitle": "Search scholarly sources, compare papers, surface gaps, and shape a grounded research direction.",
@@ -66,6 +59,16 @@ def setup_page() -> None:
         [data-testid="stSidebar"] {
             background: linear-gradient(180deg, #17231e 0%, #23372d 100%);
             border-right: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        [data-testid="stSidebar"] > div:first-child {
+            display: flex;
+            flex-direction: column;
+            height: auto;
+            max-height: none;
+        }
+        [data-testid="stSidebar"] > div:first-child > div[data-testid="stVerticalBlock"] {
+            flex-grow: 1;
+            overflow-y: visible;
         }
         [data-testid="stSidebar"] * {
             color: #f7f2e8;

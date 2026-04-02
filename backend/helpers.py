@@ -13,7 +13,10 @@ from typing import Any, Dict, List
 from dotenv import load_dotenv
 
 
-load_dotenv()
+# Ensure we load the .env from the project root relative to this file's location
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ENV_PATH = os.path.join(BASE_DIR, ".env")
+load_dotenv(dotenv_path=ENV_PATH, override=True)
 
 
 def _sanitize_json_like(text: str) -> str:
@@ -115,22 +118,6 @@ def truncate_text(text: str, max_chars: int = 12000) -> str:
     return text[: max_chars - 200] + "\n\n[TRUNCATED]"
 
 
-def format_apa_reference(title: str, authors: List[str], year: str | int, url: str) -> str:
-    """Format a simple APA reference string.
-
-    This is a best-effort formatter for arXiv metadata.
-    """
-    if isinstance(year, int):
-        year_str = str(year)
-    else:
-        year_str = year or "n.d."
-
-    # APA: Authors. (Year). Title. URL
-    authors_str = ", ".join(authors) if authors else "Unknown Authors"
-    title_str = title.rstrip(".")
-    return f"{authors_str}. ({year_str}). {title_str}. {url}"
-
-
 def clean_authors(authors: List[str]) -> List[str]:
     """Normalize author list to a small, readable set."""
     if not authors:
@@ -227,14 +214,32 @@ def safe_get(dct: Dict[str, Any], key: str, default: Any = "") -> Any:
     return dct.get(key, default)
 
 
+def append_chat_log_entry(entry: Dict[str, Any], path: str | None = None) -> None:
+    """Append a single chat interaction entry to a JSONL file."""
+    if not isinstance(entry, dict):
+        return
+    log_path = path or load_env_var("CHAT_LOG_PATH", "data/chat_history.jsonl") or "data/chat_history.jsonl"
+    directory = os.path.dirname(log_path) or "."
+    try:
+        os.makedirs(directory, exist_ok=True)
+        with open(log_path, "a", encoding="utf-8") as handle:
+            json.dump(entry, handle, ensure_ascii=False)
+            handle.write("\n")
+    except Exception:
+        # Logging should never break the assistant flow.
+        pass
+
+
 def strip_html(text: Any) -> str:
-    """Remove simple HTML tags from a string."""
+    """Remove HTML tags and special formatting characters (markdown artifacts)."""
     if text is None:
         return ""
     if not isinstance(text, str):
         text = str(text)
     # Remove tags like <h4>...</h4>
     cleaned = re.sub(r"<[^>]+>", "", text)
-    # Collapse extra whitespace
+    # Remove common markdown special characters used for formatting (asterisks, underscores, backticks, hashes)
+    cleaned = re.sub(r"[\*\_\#`~]", "", cleaned)
+    # Collapse extra whitespace and newlines
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     return cleaned

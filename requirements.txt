@@ -2,7 +2,7 @@ fastapi
 uvicorn
 streamlit
 python-multipart
-langchain
+langchain-core
 langchain-community
 langchain-huggingface
 langchain-groq

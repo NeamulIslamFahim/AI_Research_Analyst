@@ -9,9 +9,13 @@ from typing import Any
 import streamlit as st
 from fastapi import HTTPException
 
-from backend.assistant_model import assistant_chat
-from backend.app import research_explore, writer_step
-from backend.main import download_papers_for_topic, run_paper_qa, run_paper_reviewer
+from backend.app import writer_step
+from backend.main import (
+    download_papers_for_topic,
+    paper_qa,
+    paper_reviewer,
+    research_explorer,
+)
 from backend.pdf_utils import extract_text
 from backend.schemas import ResearchExplorerRequest, WriterStepRequest
 
@@ -69,18 +73,6 @@ def assistant_response_for_prompt(
     if mode == "Research Paper Writer":
         raise RuntimeError("Writer mode is not supported by this helper.")
 
-    if mode == "Assistant Chat":
-        result = assistant_chat(prompt=prompt, chat_history=history)
-        return (
-            {
-                "role": "assistant",
-                "content": result,
-                "type": "assistant",
-                "display_text": result.get("answer", "Assistant result"),
-            },
-            None,
-        )
-
     if mode == "Research Paper Reviewer":
         paper_text = session.get("paper_text") or ""
         if not paper_text:
@@ -90,7 +82,7 @@ def assistant_response_for_prompt(
                 None,
             )
 
-        result = run_paper_qa(prompt, paper_text)
+        result = paper_qa.run(prompt, paper_text)
         answer = result.get("answer") or "No answer found."
         return (
             {"role": "assistant", "content": answer, "type": "text", "display_text": answer},
@@ -99,13 +91,8 @@ def assistant_response_for_prompt(
 
     if mode == "Research Explorer":
         try:
-            result = research_explore(
-                ResearchExplorerRequest(
-                    topic=prompt,
-                    chat_history=history or None,
-                    use_live=None,
-                    force_refresh=force_refresh,
-                )
+            result = research_explorer.run(
+                topic=prompt, chat_history=history, use_live=None
             )
         except HTTPException as exc:
             detail = exc.detail if hasattr(exc, "detail") else str(exc)
@@ -141,8 +128,6 @@ def regenerate_from_user_message(user_idx: int) -> None:
 
     history = format_chat_history_up_to(messages, user_idx, 100)
     spinner_text = "Regenerating response..."
-    if session["mode"] == "Assistant Chat":
-        spinner_text = "Regenerating assistant answer..."
     if session["mode"] == "Research Explorer":
         spinner_text = "Regenerating research response from external sources..."
 
@@ -220,7 +205,7 @@ def handle_upload(uploaded_file: Any) -> None:
     tmp_path = save_uploaded_pdf(uploaded_file)
     try:
         paper_text = extract_text(tmp_path)
-        result = run_paper_reviewer(paper_text)
+        result = paper_reviewer.run(paper_text)
     finally:
         try:
             os.remove(tmp_path)
@@ -272,9 +257,7 @@ def handle_send(prompt: str) -> None:
         "effective_query": trimmed,
     }
     loading_text = "Working on your request..."
-    if mode == "Assistant Chat":
-        loading_text = "Checking the local VectorDB, then searching external sources if needed..."
-    elif mode == "Research Explorer":
+    if mode == "Research Explorer":
         loading_text = "Searching papers, comparing sources, and generating a research summary..."
     elif mode == "Research Paper Reviewer":
         loading_text = "Reading the uploaded paper and preparing an answer..."
@@ -293,24 +276,11 @@ def handle_send(prompt: str) -> None:
     session = current_session()
     history = format_chat_history(session["messages"], 100)
     spinner_text = "Processing request..."
-    if mode == "Assistant Chat":
-        spinner_text = "Assistant is checking local knowledge and external sources when needed."
-    elif mode == "Research Explorer":
+    if mode == "Research Explorer":
         spinner_text = "Research Explorer is working. This can take a bit while papers are retrieved and summarized."
 
     with st.spinner(spinner_text):
         try:
-            if mode == "Assistant Chat":
-                result = assistant_chat(prompt=trimmed, chat_history=history)
-                final_msg = {
-                    "role": "assistant",
-                    "content": result,
-                    "type": "assistant",
-                    "display_text": result.get("answer", "Assistant result"),
-                }
-                update_current_session(messages=replace_or_append_assistant(session["messages"], final_msg))
-                return
-
             if mode == "Research Paper Writer":
                 response = writer_step(WriterStepRequest(user_text=trimmed, state=session.get("writer_state") or {"phase": "start"}))
                 replies = [
@@ -328,7 +298,7 @@ def handle_send(prompt: str) -> None:
                 if not paper_text:
                     final_msg = {"role": "assistant", "content": "Please upload a PDF first.", "type": "text", "display_text": "Please upload a PDF first."}
                 else:
-                    result = run_paper_qa(trimmed, paper_text)
+                    result = paper_qa.run(trimmed, paper_text)
                     answer = result.get("answer") or "No answer found."
                     final_msg = {"role": "assistant", "content": answer, "type": "text", "display_text": answer}
                 update_current_session(messages=replace_or_append_assistant(session["messages"], final_msg))
@@ -336,13 +306,8 @@ def handle_send(prompt: str) -> None:
 
             if mode == "Research Explorer":
                 try:
-                    result = research_explore(
-                        ResearchExplorerRequest(
-                            topic=trimmed,
-                            chat_history=history or None,
-                            use_live=None,
-                            force_refresh=None,
-                        )
+                    result = research_explorer.run(
+                        topic=trimmed, chat_history=history, use_live=None
                     )
                 except HTTPException as exc:
                     detail = exc.detail if hasattr(exc, "detail") else str(exc)

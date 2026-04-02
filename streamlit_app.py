@@ -26,12 +26,12 @@ def render_chat_thread(session: dict) -> None:
         if msg.get("role") == "user" and session["mode"] != "Research Paper Writer":
             toolbar_col1, toolbar_col2, toolbar_col3 = st.columns([1, 1.2, 6])
             with toolbar_col1:
-                if st.button("Edit", key=f"edit-{session['id']}-{idx}", use_container_width=True):
+                if st.button("Edit", key=f"edit-{session['id']}-{idx}", width="stretch"):
                     st.session_state.edit_message_index = idx
                     st.session_state.edit_message_text = msg.get("display_text") or msg.get("content") or ""
                     st.rerun()
             with toolbar_col2:
-                if st.button("Regenerate", key=f"regen-{session['id']}-{idx}", use_container_width=True):
+                if st.button("Regenerate", key=f"regen-{session['id']}-{idx}", width="stretch"):
                     regenerate_from_user_message(idx)
                     st.rerun()
             if st.session_state.edit_message_index == idx:
@@ -44,7 +44,7 @@ def render_chat_thread(session: dict) -> None:
                 )
                 cancel_col, hint_col = st.columns([1, 5])
                 with cancel_col:
-                    if st.button("Cancel", key=f"cancel-edit-{session['id']}-{idx}", use_container_width=True):
+                    if st.button("Cancel", key=f"cancel-edit-{session['id']}-{idx}", width="stretch"):
                         st.session_state.edit_message_index = None
                         st.session_state.edit_message_text = ""
                         st.rerun()

@@ -4,14 +4,16 @@
 from __future__ import annotations
 
 from langchain_classic.prompts import PromptTemplate
-from langchain_core.runnables import RunnableSequence
 from langchain_core.language_models import BaseLLM
+from langchain_core.runnables import Runnable
 
 
 RESEARCH_PROMPT = PromptTemplate(
     input_variables=["context", "question", "papers_json"],
     template=(
-        "You are a research assistant. Use ONLY the provided context and papers list. "
+        "You are a conversational research assistant. Use the provided context, chat history, and papers list. "
+        "If the user asks for 'more' or similar, acknowledge it and provide additional papers from the list "
+        "that were not emphasized in previous responses. "
         "Do NOT invent papers, titles, authors, venues, metrics, datasets, or claims. "
         "Every row MUST correspond to a paper from the papers list. "
         "Do NOT mention missing full text in any field. "
@@ -40,8 +42,8 @@ RESEARCH_PROMPT = PromptTemplate(
         "}}\n\n"
         "Rules:\n"
         "- Choose only relevant papers to the user's question; if none are relevant, return an empty table and explain in assistant_reply.\n"
-        "- Choose up to 10-20 relevant papers from the papers list across different sources; if fewer are available, use all.\n"
-        "- The output table MUST have the same number of rows as the papers list you select.\n"
+        "- From the papers list, select exactly 5 of the most relevant papers for the user's question.\n"
+        "- The output table MUST have exactly 5 rows, each corresponding to one of the selected papers.\n"
         "- For each row, copy paper_name, paper_url, authors_name, and source from the papers list.\n"
         "- If a DOI is present in the papers list, prefer https://doi.org/DOI as paper_url.\n"
         "- problem_solved MUST describe the main problem addressed by the paper.\n"
@@ -49,10 +51,10 @@ RESEARCH_PROMPT = PromptTemplate(
         "- If fulltext_available is true, summary_full_paper MUST reflect the full paper content.\n"
         "- If fulltext_available is false, summary_full_paper MUST be an abstract-based summary without stating that full text was missing.\n"
         "- proposed_model_or_approach MUST describe what the paper explicitly proposes (method/model/approach/algorithm). If the paper does not propose a new method, write \"Not specified in paper\".\n"
-        "- research_gaps MUST contain one gap per selected paper (list format).\n"
-        "- assistant_reply MUST be a concise researcher-style response (neutral, evidence-based, no fluff).\n"
-        "- generated_idea MUST synthesize all gaps into one concrete solution.\n"
-        "- generated_idea_steps MUST be 6-8 detailed steps, including tools/datasets where relevant.\n"
+        "- research_gaps MUST contain one specific, actionable gap per selected paper (list format).\n"
+        "- assistant_reply MUST be a concise researcher-style response (neutral, evidence-based, no fluff) that introduces the findings.\n"
+        "- generated_idea MUST synthesize the identified research_gaps into one concrete and novel research direction.\n"
+        "- generated_idea_steps MUST be 6-8 detailed, actionable steps to implement the generated_idea, referencing specific methods or datasets from the context where appropriate.\n"
         "- NEVER leave any field blank. If information is missing, write \"Not specified in paper\".\n"
         '- generated_idea_citations MUST list paper_name values used in the idea.\n\n'
         "Example (format only, use real content):\n"
@@ -173,7 +175,7 @@ ASSISTANT_QA_PROMPT = PromptTemplate(
 )
 
 
-def research_explainer_chain(llm: BaseLLM) -> RunnableSequence:
+def research_explainer_chain(llm: BaseLLM) -> Runnable:
     """Build a chain that outputs a strict JSON table and narrative."""
     try:
         return RESEARCH_PROMPT | llm
@@ -181,7 +183,7 @@ def research_explainer_chain(llm: BaseLLM) -> RunnableSequence:
         raise RuntimeError(f"Failed to build research explainer chain: {exc}") from exc
 
 
-def paper_reviewer_chain(llm: BaseLLM) -> RunnableSequence:
+def paper_reviewer_chain(llm: BaseLLM) -> Runnable:
     """Build a reviewer chain that outputs structured JSON."""
     try:
         return REVIEW_PROMPT | llm
@@ -189,7 +191,7 @@ def paper_reviewer_chain(llm: BaseLLM) -> RunnableSequence:
         raise RuntimeError(f"Failed to build paper reviewer chain: {exc}") from exc
 
 
-def paper_qa_chain(llm: BaseLLM) -> RunnableSequence:
+def paper_qa_chain(llm: BaseLLM) -> Runnable:
     """Build a chain that answers questions about a paper."""
     try:
         return PAPER_QA_PROMPT | llm
@@ -197,7 +199,7 @@ def paper_qa_chain(llm: BaseLLM) -> RunnableSequence:
         raise RuntimeError(f"Failed to build paper QA chain: {exc}") from exc
 
 
-def paper_chunk_summarizer_chain(llm: BaseLLM) -> RunnableSequence:
+def paper_chunk_summarizer_chain(llm: BaseLLM) -> Runnable:
     """Build a chain that summarizes a chunk of a paper."""
     try:
         return PAPER_CHUNK_SUMMARIZER_PROMPT | llm
@@ -205,7 +207,7 @@ def paper_chunk_summarizer_chain(llm: BaseLLM) -> RunnableSequence:
         raise RuntimeError(f"Failed to build paper chunk summarizer chain: {exc}") from exc
 
 
-def reference_generator_chain(llm: BaseLLM) -> RunnableSequence:
+def reference_generator_chain(llm: BaseLLM) -> Runnable:
     """Build a reference generation chain for APA references."""
     try:
         return REFERENCE_PROMPT | llm
@@ -213,7 +215,7 @@ def reference_generator_chain(llm: BaseLLM) -> RunnableSequence:
         raise RuntimeError(f"Failed to build reference generator chain: {exc}") from exc
 
 
-def json_repair_chain(llm: BaseLLM) -> RunnableSequence:
+def json_repair_chain(llm: BaseLLM) -> Runnable:
     """Build a chain that repairs invalid JSON into valid JSON."""
     try:
         return JSON_REPAIR_PROMPT | llm
@@ -221,7 +223,7 @@ def json_repair_chain(llm: BaseLLM) -> RunnableSequence:
         raise RuntimeError(f"Failed to build JSON repair chain: {exc}") from exc
 
 
-def gap_idea_chain(llm: BaseLLM) -> RunnableSequence:
+def gap_idea_chain(llm: BaseLLM) -> Runnable:
     """Build a chain that returns plain-text gap + idea lines."""
     try:
         return GAP_IDEA_PROMPT | llm
@@ -229,7 +231,7 @@ def gap_idea_chain(llm: BaseLLM) -> RunnableSequence:
         raise RuntimeError(f"Failed to build gap/idea chain: {exc}") from exc
 
 
-def gap_list_chain(llm: BaseLLM) -> RunnableSequence:
+def gap_list_chain(llm: BaseLLM) -> Runnable:
     """Build a chain that returns JSON gaps + idea + steps."""
     try:
         return GAP_LIST_PROMPT | llm
@@ -237,7 +239,7 @@ def gap_list_chain(llm: BaseLLM) -> RunnableSequence:
         raise RuntimeError(f"Failed to build gap list chain: {exc}") from exc
 
 
-def assistant_answer_chain(llm: BaseLLM) -> RunnableSequence:
+def assistant_answer_chain(llm: BaseLLM) -> Runnable:
     """Build a grounded assistant chain for the trained local corpus."""
     try:
         return ASSISTANT_QA_PROMPT | llm

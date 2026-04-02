@@ -3,19 +3,17 @@
 
 from __future__ import annotations
 
+import abc
 import os
 import re
-import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Dict, List, Optional, Tuple, TypedDict
+from typing import Any, Dict, List, Optional, TypedDict
 from urllib.parse import urlparse
 from pydantic import BaseModel, Field, ValidationError
 
 from dotenv import load_dotenv
-from langchain_groq import ChatGroq
-from langchain_openai import ChatOpenAI
+from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
-from langgraph.graph import StateGraph, END
 import json
 import requests
 
@@ -31,11 +29,11 @@ from .chains import (
 )
 from .embeddings import create_embeddings, create_dummy_embeddings, get_faiss_persist_dir
 from .helpers import (
+    ENV_PATH,
     clean_authors,
     extract_datasets,
     extract_models,
     extract_proposed_approach,
-    format_apa_reference,
     load_env_var,
     safe_get,
     safe_json_loads,
@@ -43,6 +41,7 @@ from .helpers import (
     authors_to_str,
     strip_html,
 )
+from .explorer_utils import fix_paper_url, format_apa_reference
 from .storage import get_cached_pdf_path, save_pdf_bytes, upsert_paper_record
 from .pdf_utils import chunk_text, extract_text
 from .retriever import (
@@ -62,6 +61,7 @@ from .retriever import (
     doaj_search,
     europe_pmc_search,
 )
+from langgraph.graph import StateGraph, END
 
 
 DEFAULT_LLM_MODEL_PRIMARY = "llama-3.3-70b-versatile"
@@ -100,24 +100,41 @@ def _set_vector_store(vs: Any) -> None:
     _CACHED_VECTOR_STORE = vs
 
 
-def init_llm(model_id: str) -> ChatGroq:
+def init_llm(model_id: str):
     """Initialize Groq chat LLM with environment token."""
     try:
-        load_dotenv()
-        token = load_env_var("GROQ_API_KEY")
+        from langchain_groq import ChatGroq
+    except ModuleNotFoundError as exc:
+        raise RuntimeError("langchain_groq is not installed. Install with `pip install langchain-groq`.") from exc
+
+    try:
+        # Force reload from the absolute path to catch .env changes without process restart
+        load_dotenv(dotenv_path=ENV_PATH, override=True)
+        token = (load_env_var("GROQ_API_KEY") or "")
+        # Strip whitespace and common accidental characters like quotes
+        token = token.strip().strip("'").strip('"')
         if not token:
             raise ValueError("GROQ_API_KEY is missing. Add it to your .env file.")
 
-        reasoning_effort = load_env_var("GROQ_REASONING_EFFORT", DEFAULT_GROQ_REASONING_EFFORT)
+        if not token.startswith("gsk_"):
+            raise ValueError(
+                f"GROQ_API_KEY in .env does not start with 'gsk_'. Please ensure you copied the correct key. "
+                f"Detected prefix: '{token[:4]}...'"
+            )
+
+        reasoning_effort = load_env_var("GROQ_REASONING_EFFORT", "") or DEFAULT_GROQ_REASONING_EFFORT
         max_tokens = int(load_env_var("GROQ_MAX_TOKENS", "1024") or "1024")
+
+        # Reasoning effort is typically only supported by 'o1' or 'r1' type models.
+        is_reasoning_model = any(x in model_id.lower() for x in ["r1", "reasoning", "deepseek"])
 
         kwargs = {
             "api_key": token,
             "model": model_id,
-            "temperature": 0.2,
+            "temperature": 0.5,
             "max_tokens": max_tokens,
         }
-        if reasoning_effort:
+        if reasoning_effort and is_reasoning_model:
             kwargs["reasoning_effort"] = reasoning_effort
         return ChatGroq(
             **kwargs,
@@ -126,10 +143,14 @@ def init_llm(model_id: str) -> ChatGroq:
         raise RuntimeError(f"Failed to initialize Groq LLM: {exc}") from exc
 
 
-def init_oss_llm() -> ChatOpenAI:
+def init_oss_llm():
     """Initialize gpt-oss via an OpenAI-compatible local endpoint."""
     try:
-        load_dotenv()
+        from langchain_openai import ChatOpenAI
+    except ModuleNotFoundError as exc:
+        raise RuntimeError("langchain_openai is not installed. Install with `pip install langchain-openai`.") from exc
+
+    try:
         base_url = load_env_var("OSS_BASE_URL")
         if not base_url:
             raise ValueError("OSS_BASE_URL is missing. Set it to your local inference server URL.")
@@ -139,7 +160,7 @@ def init_oss_llm() -> ChatOpenAI:
             api_key=api_key,
             model=model_id,
             base_url=base_url,
-            temperature=0.2,
+            temperature=0.5,
             max_tokens=1024,
         )
     except Exception as exc:
@@ -156,6 +177,21 @@ def get_model_ids() -> tuple[str, str]:
 def _is_rate_limit_error(exc: Exception) -> bool:
     message = str(exc).lower()
     return "rate limit" in message or "rate_limit_exceeded" in message or "tpd" in message
+
+
+def _is_oss_config_error(exc: Exception) -> bool:
+    message = str(exc).lower()
+    indicators = [
+        "invalid_api_key",
+        "invalid api key",
+        "incorrect api key",
+        "unauthorized",
+        "401",
+        "connection refused",
+        "failed to establish a new connection",
+        "oss_base_url",
+    ]
+    return any(indicator in message for indicator in indicators)
 
 
 def _normalize_search_rows_output(output: Any) -> tuple[List[dict], str | None]:
@@ -178,25 +214,39 @@ def _normalize_search_rows_output(output: Any) -> tuple[List[dict], str | None]:
 def _invoke_with_fallback(chain_builder, invoke_payload: dict) -> Any:
     """Invoke a chain with gpt-oss if enabled; otherwise use Groq with fallback."""
     use_oss = (load_env_var("USE_GPT_OSS", "false") or "false").lower() == "true"
-    if use_oss:
-        llm = init_oss_llm()
-        chain = chain_builder(llm)
-        return chain.invoke(invoke_payload)
-
+    if str(use_oss).lower() == "none":
+        use_oss = False
     primary, secondary = get_model_ids()
+
+    if use_oss:
+        try:
+            llm = init_oss_llm()
+            chain = chain_builder(llm)
+            return chain.invoke(invoke_payload)
+        except Exception:
+            # Any OSS failure should fall back to Groq so the user still gets a response.
+            pass
+
     try:
         llm = init_llm(primary)
         chain = chain_builder(llm)
         return chain.invoke(invoke_payload)
     except Exception as exc:
+        if "langchain_groq" in str(exc) or "langchain_openai" in str(exc):
+            raise RuntimeError("No LLM backend available. Install langchain-groq or langchain-openai and set keys/URL.") from exc
+        if "401" in str(exc) or "invalid_api_key" in str(exc):
+            raise RuntimeError(f"Groq Authentication Failed: Please check your GROQ_API_KEY in .env. ({exc})") from exc
         if _is_rate_limit_error(exc):
-            llm = init_llm(secondary)
-            chain = chain_builder(llm)
-            return chain.invoke(invoke_payload)
+            try:
+                llm = init_llm(secondary)
+                chain = chain_builder(llm)
+                return chain.invoke(invoke_payload)
+            except Exception as exc2:
+                raise RuntimeError(f"Failed to invoke secondary model: {exc2}") from exc2
         raise
 
 
-def _ensure_vector_store_with_docs(docs: List[Document]) -> Any:
+def _ensure_vector_store_with_docs(docs: List[Document]) -> Any | None:
     """Load vector store if present, otherwise build; add docs if provided."""
     vector_store = _get_vector_store()
     embeddings = _get_embeddings()
@@ -271,10 +321,10 @@ def _is_paper_vectorized(title: str) -> bool:
     return False
 
 
-def _download_arxiv_fulltext(docs: List[Document]) -> List[Document]:
+def _download_arxiv_fulltext(docs: List[Document], limit: int = 5) -> List[Document]:
     """Optionally download arXiv PDFs and return chunked Documents."""
     fulltext_docs: List[Document] = []
-    max_downloads = int(load_env_var("MAX_PDF_DOWNLOADS", "15") or "15")
+    max_downloads = limit
     downloaded = 0
     for d in docs:
         meta = d.metadata or {}
@@ -303,7 +353,7 @@ def _download_arxiv_fulltext(docs: List[Document]) -> List[Document]:
                 resp.raise_for_status()
                 content_type = resp.headers.get("Content-Type", "")
                 if "pdf" not in content_type.lower() and not resp.content.startswith(b"%PDF"):
-                    continue
+                    continue 
                 tmp_path = save_pdf_bytes(url, resp.content)
                 upsert_paper_record(title, authors_to_str(authors), url, url, "arxiv", tmp_path)
                 downloaded += 1
@@ -330,10 +380,10 @@ def _download_arxiv_fulltext(docs: List[Document]) -> List[Document]:
     return fulltext_docs
 
 
-def _download_external_fulltext(rows: List[dict]) -> List[Document]:
+def _download_external_fulltext(rows: List[dict], limit: int = 5) -> List[Document]:
     """Download PDFs from external sources when a direct PDF URL is provided."""
     fulltext_docs: List[Document] = []
-    max_downloads = int(load_env_var("MAX_PDF_DOWNLOADS", "15") or "15")
+    max_downloads = limit
     downloaded = 0
     for r in rows:
         pdf_url = r.get("pdf_url", "")
@@ -354,7 +404,7 @@ def _download_external_fulltext(rows: List[dict]) -> List[Document]:
                 resp.raise_for_status()
                 content_type = resp.headers.get("Content-Type", "")
                 if "pdf" not in content_type.lower() and not resp.content.startswith(b"%PDF"):
-                    continue
+                    continue 
                 tmp_path = save_pdf_bytes(pdf_url, resp.content)
                 upsert_paper_record(
                     r.get("title", ""),
@@ -420,15 +470,66 @@ def download_papers_for_topic(topic: str) -> Dict[str, Any]:
         except Exception:
             pass
     return {"downloaded_chunks": len(fulltext_docs)}
+
+def _is_generic_explorer_prompt(text: str) -> bool:
+    """Identify generic follow-up prompts that require context from history."""
+    normalized = text.strip().lower()
+    return normalized in {
+        "more", "next", "show more", "give me more", "continue", "elaborate",
+        "tell me more", "more papers", "more results", "another", "others"
+    }
+
+def _resolve_topic_from_history(topic: str, chat_history: str | None) -> str:
+    """Extract the previous research topic if the current prompt is generic."""
+    if not _is_generic_explorer_prompt(topic) or not chat_history:
+        return topic
+    # History lines are usually "User: topic" or "Assistant: summary"
+    lines = [l.strip() for l in chat_history.splitlines() if l.strip()]
+    for line in reversed(lines):
+        # Strictly resolve the topic from the last User input that wasn't a generic follow-up
+        if line.lower().startswith("user:"):
+            clean_user_input = re.sub(r"^user:\s*", "", line, flags=re.IGNORECASE).strip()
+            if clean_user_input and not _is_generic_explorer_prompt(clean_user_input):
+                return clean_user_input
+    return topic
+
 def _run_research_explorer_impl(
     topic: str,
     chat_history: str | None = None,
     focus_topic: str | None = None,
     use_live_sources: bool | None = None,
+    previously_returned_titles: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """Run arXiv retrieval + RAG generation for the given topic."""
+    workflow = _build_research_graph()
+    initial_state: ResearchState = {
+        "topic": topic,
+        "chat_history": chat_history,
+        "focus_topic": focus_topic,
+        "use_live": use_live_sources,
+        "previously_returned_titles": previously_returned_titles,
+        "result": None,
+        "retries": 0,
+        "validation_error": None,
+    }
+    final_state = workflow.invoke(initial_state)
+    return final_state.get("result") or {"error": "Workflow finished with no result."}
+
+def _run_research_explorer_impl_legacy(topic: str, chat_history: str | None = None, focus_topic: str | None = None, use_live_sources: bool | None = None, previously_returned_titles: Optional[List[str]] = None) -> Dict[str, Any]:
     if not topic:
         return {"error": "Topic is required."}
+
+    is_more_request = _is_generic_explorer_prompt(topic)
+    # Resolve generic prompts like "more" into the actual research topic
+    topic = _resolve_topic_from_history(topic, chat_history)
+
+    # Force live search for "more" requests to bypass stale cache/fallbacks
+    if is_more_request:
+        use_live_sources = True
+    
+    # Normalize previously returned titles for case-insensitive comparison
+    excluded_titles_lower = {t.lower() for t in (previously_returned_titles or [])}
+
     rows: List[dict] = []
     rows_sorted: List[dict] = []
     fulltext_docs: List[Document] = []
@@ -464,7 +565,7 @@ def _run_research_explorer_impl(
     def _deterministic_fallback_response(source_rows: List[dict], reason: str = "") -> Dict[str, Any]:
         fallback_rows: List[dict] = []
         chosen_rows = source_rows[:12] if source_rows else []
-        for r in chosen_rows:
+        for r in chosen_rows[:5]: # Limit to 5 papers for deterministic fallback
             key = (r.get("title", "") or "", r.get("url", "") or "")
             fulltext_snippet = fulltext_map.get(key) or fulltext_by_title.get(r.get("title", "") or "")
             abstract = _clean_row_text(r.get("abstract", ""))
@@ -489,16 +590,20 @@ def _run_research_explorer_impl(
                 }
             )
         heuristics = []
-        for r in chosen_rows[: min(12, len(chosen_rows))]:
+        for r in chosen_rows[: min(5, len(chosen_rows))]: # Limit to 5 for heuristics
             title = r.get("title", "") or "Paper"
             abstract = _clean_row_text(r.get("abstract", ""))
             snippet = abstract.split(".")[0] if abstract else "No abstract available"
             heuristics.append(f"{title}: {snippet}.")
-        message = (
-            "Research summary prepared from broader source results."
-            if not reason
-            else f"Research summary prepared from broader source results after a recovery path was used: {reason}"
-        )
+        
+        if "Groq Authentication Failed" in reason:
+            message = "Groq Authentication Failed: Please check your GROQ_API_KEY in .env. The research summary could not be generated due to this error. Displaying broader source results as a fallback."
+        else:
+            message = (
+                "Research summary prepared from broader source results."
+                if not reason
+                else f"Research summary prepared from broader source results after a recovery path was used: {reason}"
+            )
         return {
             "table": fallback_rows,
             "research_gaps": heuristics,
@@ -507,17 +612,12 @@ def _run_research_explorer_impl(
                 "Synthesize the gaps across these papers into a clearer focused research direction and evaluate on shared benchmarks."
             ),
             "generated_idea_steps": [
-                "Compare the selected papers and identify their shared limitations.",
-                "Define a narrower research question grounded in those limitations.",
-                "Collect papers with full-text access for the focused direction.",
-                "Design an approach that addresses the recurring gaps.",
-                "Evaluate against the strongest baselines from the retrieved papers.",
+                "Compare the selected papers and identify their shared limitations.", "Define a narrower research question grounded in those limitations.", "Collect papers with full-text access for the focused direction.", "Design an approach that addresses the recurring gaps.", "Evaluate against the strongest baselines from the retrieved papers."
             ],
             "generated_idea_citations": [row["paper_name"] for row in fallback_rows[:5]],
             "used_broader_fallback": True,
         }
     try:
-        load_dotenv()
         local_only = (load_env_var("LOCAL_ONLY", "false") or "false").lower() == "true"
         fast_mode = (load_env_var("FAST_MODE", "false") or "false").lower() == "true"
         max_primary = int(load_env_var("FAST_MAX_PRIMARY", "5") or "5")
@@ -536,7 +636,11 @@ def _run_research_explorer_impl(
                     use_live_sources = True
                 else:
                     # Basic relevance check: ensure at least one keyword matches title/abstract.
-                    topic_tokens = [t for t in topic.lower().replace("-", " ").split() if len(t) > 2]
+                    stop_words = {"means", "paper", "research", "using", "approach", "results", "study"}
+                    topic_tokens = [
+                        t for t in topic.lower().replace("-", " ").split() 
+                        if len(t) >= 1 and t not in stop_words
+                    ]
                     def _match(doc: Document) -> bool:
                         meta = doc.metadata or {}
                         hay = " ".join(
@@ -571,8 +675,11 @@ def _run_research_explorer_impl(
                             use_live_sources = True
 
         def _topic_tokens(text: str) -> List[str]:
-            stop = {"the","and","for","with","from","that","this","into","in","on","of","to","a","an","is","are"}
-            tokens = [t for t in text.lower().replace("-", " ").split() if len(t) > 2 and t not in stop]
+            stop = {
+                "the","and","for","with","from","that","this","into","in","on","of","to","a","an","is","are",
+                "means", "paper", "research", "using", "approach", "results", "study"
+            }
+            tokens = [t for t in text.lower().replace("-", " ").split() if len(t) >= 1 and t not in stop]
             return list(dict.fromkeys(tokens))
 
         def _clean_row_text(value: Any) -> str:
@@ -623,8 +730,10 @@ def _run_research_explorer_impl(
         tokens = _topic_tokens(topic)
 
         if use_live_sources:
+            # Increase retrieval depth for "more" requests to find new papers
+            depth_multiplier = 2 if is_more_request else 1
             # Keep retrieval fast but still >10 papers total across sources.
-            docs = arxiv_search(topic, max_results=(max_primary if fast_mode else 8))
+            docs = arxiv_search(topic, max_results=(max_primary if fast_mode else 8) * depth_multiplier)
             if docs and docs[0].metadata.get("error"):
                 arxiv_err = docs[0].metadata.get("error", "")
                 if "429" in str(arxiv_err):
@@ -639,9 +748,9 @@ def _run_research_explorer_impl(
             if tokens:
                 rows = [r for r in rows if _row_matches(r, tokens)]
 
-            def _run_task(fn, max_results: int) -> Tuple[List[dict], str]:
+            def _run_task(fn, max_results: int) -> Any:
                 try:
-                    return _normalize_search_rows_output(fn(topic, max_results=max_results))
+                    return fn(topic, max_results=max_results * depth_multiplier)
                 except Exception as exc:
                     return [], str(exc)
 
@@ -650,7 +759,7 @@ def _run_research_explorer_impl(
                 ("oa", semantic_scholar_open_access_search, max_secondary if fast_mode else 6, False),
                 ("scholar", serpapi_scholar_search, max_secondary if fast_mode else 6, False),
                 ("rg", serpapi_researchgate_search, max_secondary if fast_mode else 6, False),
-                ("web", serpapi_web_search, max_secondary if fast_mode else 4, False),
+                ("web", serpapi_web_search, max_secondary if fast_mode else 4, is_more_request),
                 ("sd", serpapi_sciencedirect_search, max_secondary if fast_mode else 4, False),
                 ("oa2", openalex_search, max_secondary if fast_mode else 6, False),
                 ("core", core_search, max_secondary if fast_mode else 6, False),
@@ -742,15 +851,15 @@ def _run_research_explorer_impl(
                 all_rows = filtered_rows
             rows.extend(all_rows)
             all_docs = docs + rows_to_docs(all_rows)
-            if not fast_mode and (load_env_var("DOWNLOAD_ARXIV_PDFS", "true") or "true").lower() == "true":
-                fulltext_docs.extend(_download_arxiv_fulltext(docs))
-            if not fast_mode and (load_env_var("DOWNLOAD_EXTERNAL_PDFS", "true") or "true").lower() == "true":
-                fulltext_docs.extend(
-                    _download_external_fulltext(
-                        all_rows
-                    )
-                )
 
+            # Requirement: Download 5 papers for each response to ground the result
+            arxiv_to_download = [d for d in docs if "arxiv.org" in (d.metadata or {}).get("url", "")]
+            fulltext_docs.extend(_download_arxiv_fulltext(arxiv_to_download, limit=5))
+            
+            remaining_slots = 5 - len(fulltext_docs)
+            if remaining_slots > 0:
+                fulltext_docs.extend(_download_external_fulltext(all_rows, limit=remaining_slots))
+            
             all_docs.extend(fulltext_docs)
         # Build a lookup for full-text snippets by (title, url) and by title.
         if fulltext_docs:
@@ -839,12 +948,18 @@ def _run_research_explorer_impl(
             focus_rows = [r for r in filtered_rows if _topic_match(r)]
             if focus_rows:
                 filtered_rows = focus_rows
+
+        # Filter out previously returned titles for "more" requests
+        if is_more_request and excluded_titles_lower:
+            filtered_rows = [r for r in filtered_rows if r.get("title", "").lower() not in excluded_titles_lower]
+
         # Prefer fulltext and newer papers
         rows_sorted = sorted(
             filtered_rows,
             key=lambda r: ( _is_fulltext(r), int(str(r.get("year", "0"))[:4] or 0) ),
             reverse=True,
         )
+
         # Prefer rows with usable abstract/fulltext to avoid "No abstract available".
         def _has_content(r: dict) -> bool:
             if _is_fulltext(r):
@@ -856,7 +971,8 @@ def _run_research_explorer_impl(
             rows_sorted = content_rows
         fulltext_only = (load_env_var("FULLTEXT_ONLY", "false") or "false").lower() == "true"
         if fulltext_only:
-            min_fulltext = int(load_env_var("FULLTEXT_MIN", "10") or "10")
+            # Changed to 5 to align with the user's request for 5 papers
+            min_fulltext = int(load_env_var("FULLTEXT_MIN", "5") or "5")
             rows_sorted = [r for r in rows_sorted if _is_fulltext(r)]
             if len(rows_sorted) < min_fulltext:
                 return {
@@ -865,33 +981,17 @@ def _run_research_explorer_impl(
                 }
 
         # Prepare paper rows for the model to fill in.
-        # Trim to keep prompt reasonable but ensure >10 papers.
+        # Pass up to 12 papers to the LLM, allowing it to select the best 5.
+        # The final trimming to 5 is done in app.py.
+        papers_for_llm = rows_sorted[:12]
+
         def _resolve_url(r: dict) -> str:
             doi = r.get("doi", "")
-            url = r.get("url", "") or ""
-            if url:
-                return url
-            pdf_url = r.get("pdf_url", "") or ""
-            if pdf_url:
-                return pdf_url
-            if doi:
-                doi_str = str(doi).strip()
-                if _looks_like_arxiv_id(doi_str):
-                    doi_str = ""
-                if "doi.org/" in doi_str:
-                    doi_str = doi_str.split("doi.org/", 1)[1]
-                doi_str = doi_str.replace("https://", "").replace("http://", "").strip()
-                doi_str = doi_str.replace("doi:", "").strip()
-                doi_str = doi_str.replace(" ", "")
-                if doi_str:
-                    return f"https://doi.org/{doi_str}"
-            title = r.get("title", "") or ""
-            if title:
-                return "https://scholar.google.com/scholar?q=" + requests.utils.quote(title)
-            return ""
-
+            if doi and "10." in doi:
+                return f"https://doi.org/{doi}"
+            return _fix_paper_url(r.get("url", "") or r.get("pdf_url", ""), r.get("title", ""))
         papers_payload = []
-        for r in rows_sorted:
+        for r in papers_for_llm:
             paper_url = _resolve_url(r)
             abstract = _clean_row_text(r.get("abstract", ""))
             if len(abstract) > 800:
@@ -906,11 +1006,10 @@ def _run_research_explorer_impl(
                     "fulltext_available": _is_fulltext(r),
                 }
             )
-        if len(papers_payload) > 12:
-            papers_payload = papers_payload[:12]
+
         if not papers_payload:
             # Fallback to using titles even if abstracts are missing.
-            fallback_rows = rows_sorted[:12] if rows_sorted else rows[:12]
+            fallback_rows = rows_sorted[:5] if rows_sorted else rows[:5] # Ensure 5 papers for fallback
             for r in fallback_rows:
                 papers_payload.append(
                     {
@@ -924,8 +1023,8 @@ def _run_research_explorer_impl(
                 )
 
         def _heuristic_gaps() -> List[str]:
-            gaps_list: List[str] = []
-            for r in rows_sorted[: min(12, len(rows_sorted))]:
+            gaps_list: List[str] = [] # Limit to 5 for heuristics
+            for r in rows_sorted[: min(5, len(rows_sorted))]:
                 title = r.get("title", "") or "Paper"
                 abstract = _clean_row_text(r.get("abstract", ""))
                 snippet = abstract.split(".")[0] if abstract else "No abstract available"
@@ -1041,6 +1140,10 @@ def _run_research_explorer_impl(
             title_to_abstract = {r.get("title", ""): _clean_row_text(r.get("abstract", "")) for r in rows_sorted}
             deduped = []
             seen = set()
+            # Final validation of all URLs before returning
+            for row in parsed.get("table", []):
+                if isinstance(row, dict):
+                    row["paper_url"] = _fix_paper_url(row.get("paper_url", ""), row.get("paper_name", ""))
             for row in parsed["table"]:
                 if isinstance(row, dict) and not row.get("paper_name"):
                     continue
@@ -1133,24 +1236,12 @@ def _run_research_explorer_impl(
                         continue
                     seen.add(key)
                     row["paper_url"] = _fix_paper_url(row.get("paper_url", ""))
-                    # If DOI looks invalid (no slash), fall back to source search link.
-                    paper_url = row.get("paper_url", "") or ""
-                    title = row.get("paper_name", "") or ""
-                    if "doi.org/" in paper_url:
-                        suffix = paper_url.split("doi.org/", 1)[1]
-                        if "/" not in suffix and title:
-                            row["paper_url"] = "https://scholar.google.com/scholar?q=" + requests.utils.quote(title)
-                    # Ensure scores exist
-                    if row.get("score_relevance") is None:
-                        row["score_relevance"] = 0
-                    if row.get("score_quality") is None:
-                        row["score_quality"] = 0
                 deduped.append(row)
             parsed["table"] = deduped
             # If model returned too few rows, fall back to deterministic table.
             if len(parsed["table"]) < min(5, len(rows_sorted)):
-                fallback_rows = []
-                for r in rows_sorted[: min(12, len(rows_sorted))]:
+                fallback_rows = [] # Ensure 5 papers for fallback
+                for r in rows_sorted[: min(5, len(rows_sorted))]:
                     key = (r.get("title", "") or "", r.get("url", "") or "")
                     fulltext_snippet = fulltext_map.get(key) or fulltext_by_title.get(r.get("title", "") or "")
                     abstract = _clean_row_text(r.get("abstract", ""))
@@ -1256,15 +1347,6 @@ def _run_research_explorer_impl(
                 "Research summary: The evidence below synthesizes the retrieved papers, then details paper-level gaps and "
                 "a consolidated research direction."
             )
-        if isinstance(parsed, dict) and not parsed.get("generated_idea_steps"):
-            parsed["generated_idea_steps"] = [
-                "Define a unified problem statement covering all gaps.",
-                "Collect or curate datasets that address the missing aspects.",
-                "Implement a baseline and a new method targeting the gaps.",
-                "Evaluate on standard metrics plus gap-specific diagnostics.",
-                "Run ablations to isolate each component's impact.",
-                "Release code, data splits, and evaluation scripts for reproducibility.",
-            ]
         # Final fallback if gaps/idea are still missing.
         if isinstance(parsed, dict) and not parsed.get("research_gaps"):
             parsed["research_gaps"] = _heuristic_gaps()
@@ -1296,19 +1378,6 @@ def _run_research_explorer_impl(
             if "Idea not extracted" in parsed["generated_idea"]:
                 parsed["generated_idea"] = _heuristic_idea(parsed.get("research_gaps") or [])
 
-        if isinstance(parsed, dict) and not parsed.get("generated_idea"):
-            parsed["generated_idea"] = (
-                "Combine the identified gaps into a unified approach that improves coverage and evaluation rigor."
-            )
-        if isinstance(parsed, dict) and (not parsed.get("generated_idea_steps") or not parsed.get("generated_idea_steps")):
-            parsed["generated_idea_steps"] = [
-                "Define a unified problem statement covering all gaps.",
-                "Collect or curate datasets that address the missing aspects.",
-                "Implement a baseline and a new method targeting the gaps.",
-                "Evaluate on standard metrics plus gap-specific diagnostics.",
-                "Run ablations to isolate each component's impact.",
-                "Release code, data splits, and evaluation scripts for reproducibility.",
-            ]
         # Strip HTML from idea and steps
         if isinstance(parsed, dict) and parsed.get("generated_idea"):
             parsed["generated_idea"] = strip_html(parsed.get("generated_idea"))
@@ -1319,28 +1388,36 @@ def _run_research_explorer_impl(
         # Fallback table if the model didn't provide one.
         if not parsed.get("table"):
             table_rows = []
-            for r in rows:
-                doi = r.get("doi", "")
-                doi_url = f"https://doi.org/{doi}" if doi else ""
-                if _looks_like_arxiv_id(str(doi or "")):
-                    doi_url = ""
-                paper_url = doi_url or r.get("url", "")
-                table_rows.append(
-                    {
-                        "paper_name": r.get("title", ""),
-                        "paper_url": _fix_paper_url(paper_url),
-                        "authors_name": r.get("authors", ""),
-                        "summary_full_paper": _clean_row_text(r.get("abstract", "")),
-                        "datasets_used": [],
-                        "models_used": [],
-                        "proposed_model_or_approach": "",
-                        "source": r.get("source", ""),
-                    }
-                )
-            parsed["table"] = table_rows
         show_warnings = (load_env_var("SHOW_SOURCE_WARNINGS", "false") or "false").lower() == "true"
         if warnings and show_warnings:
             parsed["warnings"] = warnings
+
+        # Ensure the table is never empty if we actually found papers.
+        # This fixes the issue where the LLM might return an empty table for a valid query.
+        if isinstance(parsed, dict) and not parsed.get("table") and rows_sorted:
+            fallback_rows = [] # Ensure 5 papers for fallback
+            for r in rows_sorted[:5]:
+                abstract = _clean_row_text(r.get("abstract", ""))
+                key = (r.get("title", "") or "", r.get("url", "") or "")
+                fulltext_snippet = fulltext_map.get(key) or fulltext_by_title.get(r.get("title", "") or "")
+                summary_text = truncate_text(fulltext_snippet, max_chars=1200) if fulltext_snippet else abstract
+                problem_text = fulltext_snippet.split(".")[0].strip() if fulltext_snippet else (abstract.split(".")[0].strip() if abstract else "")
+                
+                fallback_rows.append(
+                    {
+                        "paper_name": r.get("title", ""),
+                        "paper_url": _resolve_url(r),
+                        "authors_name": r.get("authors", ""),
+                        "summary_full_paper": summary_text or "Not specified in paper",
+                        "problem_solved": problem_text or "Not specified in paper",
+                        "proposed_model_or_approach": extract_proposed_approach(fulltext_snippet or abstract) or "Not specified in paper",
+                        "source": r.get("source", ""),
+                        "score_relevance": 5,
+                        "score_quality": 5,
+                    }
+                )
+            parsed["table"] = fallback_rows
+            parsed["used_broader_fallback"] = True
 
         return parsed
     except Exception as exc:
@@ -1406,7 +1483,6 @@ def _run_paper_qa_impl(question: str, paper_text: str) -> Dict[str, Any]:
 
 
 def _run_reference_generator_impl(topic: str) -> Dict[str, Any]:
-    """Generate 10 APA references for a topic using real arXiv metadata."""
     if not topic:
         return {"error": "Topic is required."}
     try:
@@ -1443,7 +1519,6 @@ def _run_reference_generator_impl(topic: str) -> Dict[str, Any]:
         return {"references": parsed, "seed_references": seed_refs}
     except Exception as exc:
         return {"error": f"Reference Generator failed: {exc}"}
-from langchain_community.retrievers import BM25Retriever
 
 
 class ResearchState(TypedDict):
@@ -1454,6 +1529,7 @@ class ResearchState(TypedDict):
     result: Optional[Dict[str, Any]]
     retries: int
     validation_error: Optional[str]
+    previously_returned_titles: Optional[List[str]]
 
 
 class ReviewState(TypedDict):
@@ -1554,12 +1630,9 @@ def _broaden_research_result(result: Dict[str, Any], topic: str = "") -> Dict[st
     table = broadened.get("table")
     if isinstance(table, list):
         broadened["table"] = table[:12]
-    prefix = (
-        f"No strongly matched papers were found for '{topic}'. "
-        "Showing broader results from multiple sources instead."
-    ).strip()
     reply = (broadened.get("assistant_reply") or "").strip()
-    broadened["assistant_reply"] = f"{prefix}\n\n{reply}" if reply else prefix
+    # Keep existing assistant reply only; no fallback prefix message.
+    broadened["assistant_reply"] = reply or "Research summary prepared."
     broadened.setdefault("research_gaps", [])
     broadened.setdefault("generated_idea", "Not provided.")
     broadened.setdefault("generated_idea_steps", [])
@@ -1626,7 +1699,7 @@ def _normalize_url(url: str) -> str:
     return f"https://{trimmed}"
 
 
-def _fix_paper_url(url: str) -> str:
+def _fix_paper_url(url: str, title: str = "") -> str:
     """Fix common invalid paper URLs (e.g., arXiv IDs wrongly formatted as DOIs)."""
     if not url:
         return ""
@@ -1717,16 +1790,17 @@ def _validate_qa_result(result: Dict[str, Any]) -> Dict[str, Any]:
 def _build_research_graph():
     graph = StateGraph(ResearchState)
 
-    def run_node(state: ResearchState) -> ResearchState:
-        res = _run_research_explorer_impl(
+    def run_node(state: ResearchState) -> dict:
+        res = _run_research_explorer_impl_legacy(
             state["topic"],
             chat_history=state.get("chat_history"),
             focus_topic=state.get("focus_topic"),
             use_live_sources=True if (state.get("retries", 0) or 0) > 0 else state.get("use_live"),
+            previously_returned_titles=state.get("previously_returned_titles"),
         )
-        return {**state, "result": res}
+        return {"result": res}
 
-    def score_node(state: ResearchState) -> ResearchState:
+    def score_node(state: ResearchState) -> dict:
         res = _score_research_result(state.get("result") or {}, state.get("topic") or "")
         return {**state, "result": res}
 
@@ -1754,135 +1828,139 @@ def _build_research_graph():
     graph.add_conditional_edges("check", _route)
     return graph.compile()
 
+class BaseWorkflow(abc.ABC):
+    """Abstract base class for a research workflow."""
 
-def _build_review_graph():
-    graph = StateGraph(ReviewState)
+    def __init__(self):
+        self.graph = self._build_graph()
 
-    def run_node(state: ReviewState) -> ReviewState:
-        res = _run_paper_reviewer_impl(state["paper_text"])
-        return {**state, "result": res}
+    @abc.abstractmethod
+    def _build_graph(self):
+        """Build the LangGraph for this workflow."""
+        raise NotImplementedError
 
-    def check_node(state: ReviewState) -> ReviewState:
+    @abc.abstractmethod
+    def run(self, *args, **kwargs) -> Dict[str, Any]:
+        """Execute the workflow."""
+        raise NotImplementedError
+
+
+class ResearchExplorer(BaseWorkflow):
+    """Workflow for the Research Explorer feature."""
+
+    def _build_graph(self):
+        return _build_research_graph()
+
+    def run(self, topic: str, chat_history: str | None = None, focus_topic: str | None = None, use_live: bool | None = None,
+            previously_returned_titles: Optional[List[str]] = None) -> Dict[str, Any]:
+        state: ResearchState = {
+            "topic": topic, "chat_history": chat_history, "focus_topic": focus_topic,
+            "use_live": use_live, "result": None, "retries": 0, "validation_error": None,
+            "previously_returned_titles": previously_returned_titles,
+        }
+        out = self.graph.invoke(state)
+        return out.get("result") or {}
+
+
+class PaperReviewer(BaseWorkflow):
+    """Workflow for the Paper Reviewer feature."""
+
+    def _build_graph(self):
+        graph = StateGraph(ReviewState)
+        graph.add_node("run", lambda state: {**state, "result": _run_paper_reviewer_impl(state["paper_text"])})
+        graph.add_node("check", self._check_node)
+        graph.set_entry_point("run")
+        graph.add_edge("run", "check")
+        graph.add_conditional_edges("check", lambda state: "run" if state.get("validation_error") and state.get("retries", 0) < 2 else END)
+        return graph.compile()
+
+    def _check_node(self, state: ReviewState) -> ReviewState:
         cleaned = _validate_review_result(state.get("result") or {})
         ok, err = _strict_validate(ReviewResultSchema, cleaned)
-        retries = state.get("retries", 0)
-        if not ok:
-            retries += 1
+        retries = state.get("retries", 0) + (0 if ok else 1)
         return {**state, "result": cleaned, "validation_error": None if ok else err, "retries": retries}
 
-    def _route(state: ReviewState) -> str:
-        if state.get("validation_error") and state.get("retries", 0) < 2:
-            return "run"
-        return END
-
-    graph.add_node("run", run_node)
-    graph.add_node("check", check_node)
-    graph.set_entry_point("run")
-    graph.add_edge("run", "check")
-    graph.add_conditional_edges("check", _route)
-    return graph.compile()
+    def run(self, paper_text: str) -> Dict[str, Any]:
+        state: ReviewState = {"paper_text": paper_text, "result": None, "retries": 0, "validation_error": None}
+        out = self.graph.invoke(state)
+        return out.get("result") or {}
 
 
-def _build_qa_graph():
-    graph = StateGraph(QAState)
+class PaperQA(BaseWorkflow):
+    """Workflow for Paper Q&A."""
 
-    def run_node(state: QAState) -> QAState:
-        res = _run_paper_qa_impl(state["question"], state["paper_text"])
-        return {**state, "result": res}
+    def _build_graph(self):
+        graph = StateGraph(QAState)
+        graph.add_node("run", lambda state: {**state, "result": _run_paper_qa_impl(state["question"], state["paper_text"])})
+        graph.add_node("check", self._check_node)
+        graph.set_entry_point("run")
+        graph.add_edge("run", "check")
+        graph.add_conditional_edges("check", lambda state: "run" if state.get("validation_error") and state.get("retries", 0) < 2 else END)
+        return graph.compile()
 
-    def check_node(state: QAState) -> QAState:
+    def _check_node(self, state: QAState) -> QAState:
         cleaned = _validate_qa_result(state.get("result") or {})
         ok, err = _strict_validate(QAResultSchema, cleaned)
-        retries = state.get("retries", 0)
-        if not ok:
-            retries += 1
+        retries = state.get("retries", 0) + (0 if ok else 1)
         return {**state, "result": cleaned, "validation_error": None if ok else err, "retries": retries}
 
-    def _route(state: QAState) -> str:
-        if state.get("validation_error") and state.get("retries", 0) < 2:
-            return "run"
-        return END
-
-    graph.add_node("run", run_node)
-    graph.add_node("check", check_node)
-    graph.set_entry_point("run")
-    graph.add_edge("run", "check")
-    graph.add_conditional_edges("check", _route)
-    return graph.compile()
+    def run(self, question: str, paper_text: str) -> Dict[str, Any]:
+        state: QAState = {"question": question, "paper_text": paper_text, "result": None, "retries": 0, "validation_error": None}
+        out = self.graph.invoke(state)
+        return out.get("result") or {}
 
 
-def _build_reference_graph():
-    graph = StateGraph(ReferenceState)
+class ReferenceGenerator(BaseWorkflow):
+    """Workflow for Reference Generation."""
 
-    def run_node(state: ReferenceState) -> ReferenceState:
-        res = _run_reference_generator_impl(state["topic"])
-        return {**state, "result": res}
+    def _build_graph(self):
+        graph = StateGraph(ReferenceState)
+        graph.add_node("run", lambda state: {**state, "result": _run_reference_generator_impl(state["topic"])})
+        graph.add_node("check", self._check_node)
+        graph.set_entry_point("run")
+        graph.add_edge("run", "check")
+        graph.add_conditional_edges("check", lambda state: "run" if state.get("validation_error") and state.get("retries", 0) < 2 else END)
+        return graph.compile()
 
-    def check_node(state: ReferenceState) -> ReferenceState:
+    def _check_node(self, state: ReferenceState) -> ReferenceState:
         cleaned = _validate_reference_result(state.get("result") or {})
         ok, err = _strict_validate(ReferenceResultSchema, cleaned)
-        retries = state.get("retries", 0)
-        if not ok:
-            retries += 1
+        retries = state.get("retries", 0) + (0 if ok else 1)
         return {**state, "result": cleaned, "validation_error": None if ok else err, "retries": retries}
 
-    def _route(state: ReferenceState) -> str:
-        if state.get("validation_error") and state.get("retries", 0) < 2:
-            return "run"
-        return END
-
-    graph.add_node("run", run_node)
-    graph.add_node("check", check_node)
-    graph.set_entry_point("run")
-    graph.add_edge("run", "check")
-    graph.add_conditional_edges("check", _route)
-    return graph.compile()
+    def run(self, topic: str) -> Dict[str, Any]:
+        state: ReferenceState = {"topic": topic, "result": None, "retries": 0, "validation_error": None}
+        out = self.graph.invoke(state)
+        return out.get("result") or {}
 
 
-_RESEARCH_GRAPH = _build_research_graph()
-_REVIEW_GRAPH = _build_review_graph()
-_QA_GRAPH = _build_qa_graph()
-_REFERENCE_GRAPH = _build_reference_graph()
+# Instantiate workflow handlers
+research_explorer = ResearchExplorer()
+paper_reviewer = PaperReviewer()
+paper_qa = PaperQA()
+reference_generator = ReferenceGenerator()
 
 
-def run_research_explorer(
-    topic: str,
-    chat_history: str | None = None,
-    focus_topic: str | None = None,
-    use_live: bool | None = None,
-) -> Dict[str, Any]:
-    state: ResearchState = {
-        "topic": topic,
-        "chat_history": chat_history,
-        "focus_topic": focus_topic,
-        "use_live": use_live,
-        "result": None,
-        "retries": 0,
-        "validation_error": None,
-    }
-    out = _RESEARCH_GRAPH.invoke(state)
-    return out.get("result") or {}
+def run_research_explorer(topic: str, chat_history: str | None = None, focus_topic: str | None = None, use_live: bool | None = None, previously_returned_titles: Optional[List[str]] = None) -> Dict[str, Any]:
+    return research_explorer.run(topic, chat_history=chat_history, focus_topic=focus_topic, use_live=use_live, previously_returned_titles=previously_returned_titles)
 
 
 def run_paper_reviewer(paper_text: str) -> Dict[str, Any]:
-    state: ReviewState = {"paper_text": paper_text, "result": None, "retries": 0, "validation_error": None}
-    out = _REVIEW_GRAPH.invoke(state)
-    return out.get("result") or {}
+    return paper_reviewer.run(paper_text)
 
 
 def run_paper_qa(question: str, paper_text: str) -> Dict[str, Any]:
-    state: QAState = {
-        "question": question,
-        "paper_text": paper_text,
-        "result": None,
-        "retries": 0,
-        "validation_error": None,
-    }
-    out = _QA_GRAPH.invoke(state)
-    return out.get("result") or {}
+    return paper_qa.run(question, paper_text)
 
 
 def run_reference_generator(topic: str) -> Dict[str, Any]:
-    state: ReferenceState = {"topic": topic, "result": None, "retries": 0, "validation_error": None}
-    out = _REFERENCE_GRAPH.invoke(state)
-    return out.get("result") or {}
+    return reference_generator.run(topic)
+
+
+def assistant_chat(prompt: str, chat_history: str | None = None) -> dict[str, Any]:
+    """General-purpose assistant chat endpoint wrapper."""
+    try:
+        from .assistant_model import assistant_chat as _assistant_chat
+        return _assistant_chat(prompt, chat_history=chat_history)
+    except Exception as exc:
+        return {"error": str(exc)}

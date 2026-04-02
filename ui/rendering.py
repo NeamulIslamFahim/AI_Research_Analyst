@@ -15,16 +15,21 @@ from .state import current_session, new_chat, update_current_session
 
 def render_header(session: dict[str, Any]) -> None:
     """Render the large page header for the active workspace."""
-    meta = MODE_META[session["mode"]]
+    mode = session.get("mode", "Research Explorer")
+    meta = MODE_META.get(mode, {})
+    title = meta.get("title", mode)
+    subtitle = meta.get("subtitle", "")
+    status = meta.get("status", "")
+    workspace_name = session.get("title", "New Workspace")
     st.markdown(
         f"""
         <div class="hero-card">
           <div class="eyebrow">AI Research Assistant Workspace</div>
-          <div class="hero-title">{html.escape(meta["title"])}</div>
-          <p class="hero-copy">{html.escape(meta["subtitle"])}</p>
-          <span class="mode-chip">{html.escape(session["mode"])}</span>
-          <span class="mode-chip">{html.escape(meta["status"])}</span>
-          <span class="mode-chip">{html.escape(session["title"])}</span>
+          <div class="hero-title">{html.escape(title)}</div>
+          <p class="hero-copy">{html.escape(subtitle)}</p>
+          <span class="mode-chip">{html.escape(mode)}</span>
+          <span class="mode-chip">{html.escape(status)}</span>
+          <span class="mode-chip">{html.escape(workspace_name)}</span>
         </div>
         """,
         unsafe_allow_html=True,
@@ -62,7 +67,7 @@ def render_research_result(result: dict[str, Any]) -> None:
             )
         st.dataframe(
             pd.DataFrame(display_rows),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
             column_config={"Paper URL": st.column_config.LinkColumn("Paper URL", display_text="Open paper")},
         )
@@ -157,7 +162,7 @@ def render_sidebar() -> None:
         st.markdown("### AI Research Assistant")
         st.caption("Small modules, reusable helpers, and a simpler beginner-friendly layout.")
 
-        if st.button("New Workspace", use_container_width=True):
+        if st.button("New Workspace", width="stretch"):
             new_chat(MODES[0])
             st.rerun()
 
@@ -177,6 +182,8 @@ def render_sidebar() -> None:
                 st.session_state.current_session_id = session_item["id"]
                 st.rerun()
             st.caption(session_item["mode"])
+        st.markdown("---")
+        st.caption("All rights reserved by Neamul Islam Fahim")
 
 
 def render_reviewer_panel(session: dict[str, Any], on_process_upload) -> None:
@@ -193,7 +200,7 @@ def render_reviewer_panel(session: dict[str, Any], on_process_upload) -> None:
     uploaded_file = st.file_uploader("Upload PDF for review", type=["pdf"], key=f"upload-{session['id']}")
     col1, col2 = st.columns([1.2, 2])
     with col1:
-        if uploaded_file is not None and st.button("Process PDF", use_container_width=True):
+        if uploaded_file is not None and st.button("Process PDF", width="stretch"):
             on_process_upload(uploaded_file)
             st.rerun()
     with col2:

@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import re
+import requests
 from typing import Any, Dict
-from urllib.parse import quote, urlparse
+from urllib.parse import urlparse
 
 from .helpers import safe_get
 
@@ -48,8 +49,8 @@ def normalize_url(url: str) -> str:
 
 def fix_paper_url(url: str, title: str = "") -> str:
     """Repair malformed paper URLs or fall back to Scholar search."""
-    if not url:
-        return f"https://scholar.google.com/scholar?q={quote(title)}" if title else ""
+    if not url or "not specified" in str(url).lower():
+        return "https://scholar.google.com/scholar?q=" + requests.utils.quote(title)
     trimmed = normalize_url(url)
     trimmed = re.sub(
         r"^https?://arxiv\.org/abs/https?://arxiv\.org/abs/",
@@ -66,7 +67,7 @@ def fix_paper_url(url: str, title: str = "") -> str:
     if "doi.org/" in trimmed:
         suffix = trimmed.split("doi.org/", 1)[1]
         if not suffix or "/" not in suffix:
-            return f"https://scholar.google.com/scholar?q={quote(title)}" if title else ""
+            return f"https://scholar.google.com/scholar?q={requests.utils.quote(title)}" if title else ""
         if suffix.count(".") == 1 and suffix.replace("v", "").replace(".", "").isdigit():
             return f"https://arxiv.org/abs/{suffix}"
         arxiv_prefixes = ["hep-", "astro-", "cs.", "math.", "physics.", "stat."]
@@ -74,7 +75,7 @@ def fix_paper_url(url: str, title: str = "") -> str:
             return f"https://arxiv.org/abs/{suffix}"
     parsed = urlparse(trimmed)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        return f"https://scholar.google.com/scholar?q={quote(title)}" if title else ""
+        return f"https://scholar.google.com/scholar?q={requests.utils.quote(title)}" if title else ""
     return trimmed
 
 
@@ -92,8 +93,14 @@ def fix_explorer_links(result: Dict[str, Any]) -> Dict[str, Any]:
 
 def relevant_to_topic(result: Dict[str, Any], topic: str) -> bool:
     """Check whether a cached result still matches the requested topic."""
-    tokens = [token for token in topic.lower().replace("-", " ").split() if len(token) > 2]
+    # Filter out common academic stop words that cause false positives in cache matching
+    stop_words = {"means", "paper", "research", "using", "approach", "results", "study", "analysis", "method"}
+    tokens = [
+        token for token in topic.lower().replace("-", " ").split() 
+        if len(token) >= 1 and token not in stop_words
+    ]
     if not tokens:
+        # If the topic is entirely stop words, we can't reliably match context
         return True
     table = result.get("table") if isinstance(result, dict) else None
     if not isinstance(table, list):
@@ -117,14 +124,20 @@ def relevant_to_topic(result: Dict[str, Any], topic: str) -> bool:
 
     if total == 0:
         return True
-    return matched / total >= 0.5
+    # Require a higher match threshold for cached results to prevent unrelated topic pollution
+    return matched / total >= 0.7
 
 
 def filter_result_by_topic(result: Dict[str, Any], topic: str) -> Dict[str, Any]:
     """Keep only rows that still look relevant to the current topic."""
     if not isinstance(result, dict):
         return result
-    tokens = [token for token in topic.lower().replace("-", " ").split() if len(token) > 2]
+    
+    stop_words = {"means", "paper", "research", "using", "approach", "results", "study", "analysis", "method"}
+    tokens = [
+        token for token in topic.lower().replace("-", " ").split() 
+        if len(token) >= 1 and token not in stop_words
+    ]
     if not tokens:
         return result
     table = result.get("table")
@@ -169,11 +182,9 @@ def fallback_broader_result(result: Dict[str, Any], topic: str) -> Dict[str, Any
     if isinstance(table, list):
         broader["table"] = table[:12]
     reply = (broader.get("assistant_reply") or "").strip()
-    prefix = (
-        f"No strongly matched papers were found for '{topic}'. "
-        "Showing broader results gathered from multiple external sources instead."
-    )
-    broader["assistant_reply"] = f"{prefix}\n\n{reply}" if reply else prefix
+    
+    # Keep existing assistant reply; remove automated ?no strongly matched papers? fallback banner.
+    broader["assistant_reply"] = reply or "Research summary prepared."
     broader["used_broader_fallback"] = True
     return broader
 
@@ -202,3 +213,18 @@ def fallback_error_result(topic: str, detail: str = "") -> Dict[str, Any]:
         "used_broader_fallback": True,
         "error_recovered": True,
     }
+
+
+def format_apa_reference(title: str, authors: list[str], year: str | int, url: str) -> str:
+    """Format a simple APA reference string.
+
+    This is a best-effort formatter for arXiv metadata.
+    """
+    if isinstance(year, int):
+        year_str = str(year)
+    else:
+        year_str = year or "n.d."
+
+    authors_str = ", ".join(authors) if authors else "Unknown Authors"
+    title_str = title.rstrip(".")
+    return f"{authors_str}. ({year_str}). {title_str}. {url}"

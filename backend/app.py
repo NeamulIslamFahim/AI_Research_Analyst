@@ -11,20 +11,19 @@ from typing import Any, Dict
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
-from .assistant_model import assistant_chat, get_assistant_status, train_assistant_model
+from .assistant_model import train_assistant_model
 from .explorer_cache import ExplorerCache
 from .explorer_utils import (
     fallback_broader_result,
     fallback_error_result,
     filter_result_by_topic,
     fix_explorer_links,
-    format_review_reply,
+    format_review_reply, 
     relevant_to_topic,
 )
+from .main import _is_generic_explorer_prompt
 from .helpers import safe_get
 from .schemas import (
-    AssistantChatRequest,
-    AssistantTrainRequest,
     DownloadRequest,
     ReferenceRequest,
     ResearchExplorerRequest,
@@ -118,9 +117,14 @@ def review_qa(payload: ReviewQARequest) -> Dict[str, Any]:
 @app.post("/api/research/explore")
 def research_explore(payload: ResearchExplorerRequest) -> Dict[str, Any]:
     key = _explorer_cache.make_key(payload.topic, payload.focus_topic, payload.use_live)
-    now = time.time()
-    disk_cache = _explorer_cache.load_disk_cache()
-    if not payload.force_refresh:
+    # Force refresh if the user is asking for "more" or other generic follow-ups
+    # to ensure they don't just get the same cached results.
+    is_follow_up = _is_generic_explorer_prompt(payload.topic)
+    force_refresh = payload.force_refresh or is_follow_up
+
+    if not force_refresh:
+        now = time.time()
+        disk_cache = _explorer_cache.load_disk_cache()
         cached = _explorer_cache.memory_cache.get(key)
         if cached and now - cached.get("ts", 0) <= _CACHE_TTL_SECONDS:
             data = cached.get("data", {})
@@ -133,24 +137,46 @@ def research_explore(payload: ResearchExplorerRequest) -> Dict[str, Any]:
                 _explorer_cache.memory_cache[key] = disk_entry
                 return data
 
+    # Ensure the current topic is part of the history for context resolution on follow-ups.
+    history = payload.chat_history or ""
+    if payload.topic not in history:
+        history = f"User: {payload.topic}\n\n{history}"
+
     backend_main = _backend_main()
     result = backend_main.run_research_explorer(
         topic=payload.topic,
-        chat_history=payload.chat_history,
+        chat_history=history,
         focus_topic=payload.focus_topic,
         use_live=payload.use_live,
+        previously_returned_titles=payload.previously_returned_titles,
     )
     if isinstance(result, dict) and result.get("error"):
         return fallback_error_result(payload.topic, str(result.get("error", "")))
+    now = time.time()
     fixed = fix_explorer_links(result)
     cleaned = filter_result_by_topic(fixed, payload.topic)
     if isinstance(cleaned, dict) and isinstance(cleaned.get("table"), list) and len(cleaned.get("table")) == 0:
         cleaned = fallback_broader_result(fixed, payload.topic)
+    if isinstance(cleaned, dict) and isinstance(cleaned.get("table"), list):
+        cleaned["table"] = cleaned.get("table", [])[:5]
     entry = {"ts": now, "data": cleaned}
     _explorer_cache.memory_cache[key] = entry
+    disk_cache = _explorer_cache.load_disk_cache()
     disk_cache[key] = entry
     _explorer_cache.save_disk_cache(disk_cache)
     return cleaned
+
+
+def _format_history_text(messages: list[dict[str, Any]]) -> str:
+    lines = []
+    for msg in messages:
+        role = msg.get("role", "user")
+        label = "User" if role == "user" else "Assistant"
+        content = msg.get("content")
+        if isinstance(content, dict):
+            content = content.get("answer") or content.get("assistant_reply") or ""
+        lines.append(f"{label}: {content}")
+    return "\n".join(lines)
 
 
 @app.post("/api/reference")
@@ -174,27 +200,6 @@ def download_papers(payload: DownloadRequest) -> Dict[str, Any]:
     except Exception:
         train_meta = None
     return {"status": "ok", "assistant_model": train_meta}
-
-
-@app.get("/api/assistant/status")
-def assistant_status() -> Dict[str, Any]:
-    return get_assistant_status()
-
-
-@app.post("/api/assistant/train")
-def assistant_train(payload: AssistantTrainRequest) -> Dict[str, Any]:
-    result = train_assistant_model(force=bool(payload.force))
-    if result.get("status") == "not_trained":
-        return result
-    return result
-
-
-@app.post("/api/assistant/chat")
-def assistant_chat_route(payload: AssistantChatRequest) -> Dict[str, Any]:
-    try:
-        return assistant_chat(prompt=payload.prompt, chat_history=payload.chat_history)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.post("/api/writer/step", response_model=WriterStepResponse)

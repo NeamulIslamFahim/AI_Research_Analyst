@@ -14,6 +14,9 @@ build/
 .DS_Store
 Thumbs.db
 logs/
+.env
+.env.*
+.python-version
 .cache/
 .mypy_cache/
 .pytest_cache/
@@ -34,6 +37,7 @@ logs/
 *.parquet
 *.csv
 data/trained_assistant/
+data/chat_logs/
 node_modules/
 !data/vectorstore/
 !data/vectorstore/index.faiss

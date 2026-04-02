@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import streamlit as st
@@ -20,6 +23,42 @@ def default_sessions(default_mode: str) -> list[dict[str, Any]]:
             "writer_intro_shown": False,
         }
     ]
+
+
+def _chat_logs_dir() -> Path:
+    """Directory for persisted JSON chat logs."""
+    path = Path("data/chat_logs")
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _chat_log_path(session_id: str) -> Path:
+    return _chat_logs_dir() / f"{session_id}.json"
+
+
+def _persist_session_to_json(session: dict[str, Any]) -> None:
+    record = {
+        "id": session.get("id"),
+        "title": session.get("title"),
+        "mode": session.get("mode"),
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+        "messages": [],
+    }
+
+    for msg in session.get("messages", []):
+        record["messages"].append({
+            "role": msg.get("role"),
+            "type": msg.get("type"),
+            "display_text": msg.get("display_text"),
+            "content": msg.get("content"),
+            "effective_query": msg.get("effective_query"),
+        })
+
+    try:
+        with open(_chat_log_path(session.get("id", "unknown")), "w", encoding="utf-8") as f:
+            json.dump(record, f, ensure_ascii=False, indent=2)
+    except OSError:
+        pass
 
 
 def init_state(default_mode: str) -> None:
@@ -42,8 +81,13 @@ def current_session() -> dict[str, Any]:
 
 
 def save_sessions(sessions: list[dict[str, Any]]) -> None:
-    """Replace the whole session list."""
+    """Replace the whole session list and persist the current workspace in JSON."""
     st.session_state.sessions = sessions
+    try:
+        _persist_session_to_json(current_session())
+    except Exception:
+        # Best effort persistence, do not break UI on write failure.
+        pass
 
 
 def update_current_session(**patch: Any) -> None:
