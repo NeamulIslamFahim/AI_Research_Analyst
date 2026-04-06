@@ -12,7 +12,7 @@ from langchain_core.embeddings import Embeddings
 from .helpers import load_env_var, ensure_directory
 
 
-EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+EMBEDDING_MODEL = load_env_var("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L3-v2") or "sentence-transformers/all-MiniLM-L3-v2"
 
 
 class _SafeEmbeddings(Embeddings):

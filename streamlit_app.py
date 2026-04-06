@@ -10,8 +10,6 @@ from ui.services import (
     ensure_writer_intro,
     handle_send,
     handle_upload,
-    regenerate_from_user_message,
-    submit_edited_user_message,
 )
 from ui.state import current_session, init_state
 
@@ -20,36 +18,9 @@ setup_page()
 
 
 def render_chat_thread(session: dict) -> None:
-    """Render the full conversation and edit/regenerate controls."""
+    """Render the full conversation."""
     for idx, msg in enumerate(session["messages"]):
         render_message(msg)
-        if msg.get("role") == "user" and session["mode"] != "Research Paper Writer":
-            toolbar_col1, toolbar_col2, toolbar_col3 = st.columns([1, 1.2, 6])
-            with toolbar_col1:
-                if st.button("Edit", key=f"edit-{session['id']}-{idx}", width="stretch"):
-                    st.session_state.edit_message_index = idx
-                    st.session_state.edit_message_text = msg.get("display_text") or msg.get("content") or ""
-                    st.rerun()
-            with toolbar_col2:
-                if st.button("Regenerate", key=f"regen-{session['id']}-{idx}", width="stretch"):
-                    regenerate_from_user_message(idx)
-                    st.rerun()
-            if st.session_state.edit_message_index == idx:
-                st.text_input(
-                    "Edit prompt",
-                    key="edit_message_text",
-                    on_change=submit_edited_user_message,
-                    args=(idx,),
-                    placeholder="Rewrite your prompt and press Enter...",
-                )
-                cancel_col, hint_col = st.columns([1, 5])
-                with cancel_col:
-                    if st.button("Cancel", key=f"cancel-edit-{session['id']}-{idx}", width="stretch"):
-                        st.session_state.edit_message_index = None
-                        st.session_state.edit_message_text = ""
-                        st.rerun()
-                with hint_col:
-                    st.caption("Press Enter to save the edit and regenerate the response.")
 
 
 def main() -> None:

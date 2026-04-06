@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from backend.helpers import strip_html
+
 
 class TextPreviewer:
     @staticmethod
@@ -25,8 +27,8 @@ class TextPreviewer:
         }
         for bad, good in replacements.items():
             text = text.replace(bad, good)
+        text = strip_html(text)
         text = " ".join(text.split()).strip()
         if len(text) > max_chars:
             text = text[: max_chars - 3].rstrip() + "..."
         return text
-

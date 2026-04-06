@@ -136,17 +136,111 @@ def sentence_snippets(text: str, limit: int = 2) -> list[str]:
     return snippets
 
 
+def _unique_sentences(sentences: list[str]) -> list[str]:
+    seen: set[str] = set()
+    unique: list[str] = []
+    for sentence in sentences:
+        key = re.sub(r"\s+", " ", sentence).strip().lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        unique.append(sentence)
+    return unique
+
+
+def _paper_snippets(text: str, limit: int = 4, min_words: int = 4, min_chars: int = 24) -> list[str]:
+    pieces = re.split(r"(?<=[.!?])\s+", text.strip())
+    snippets: list[str] = []
+    for piece in pieces:
+        piece = piece.strip()
+        if len(piece) < min_chars:
+            continue
+        if len(piece.split()) < min_words:
+            continue
+        snippets.append(piece)
+        if len(snippets) >= limit:
+            break
+    return snippets
+
+
+def _paper_fragments(text: str, limit: int = 6, min_words: int = 5, min_chars: int = 32) -> list[str]:
+    pieces = re.split(r"(?<=[.!?])\s+|\n+|;\s+|:\s+", text.strip())
+    fragments: list[str] = []
+    for piece in pieces:
+        piece = piece.strip(" -\t\r\n")
+        if len(piece) < min_chars:
+            continue
+        if len(piece.split()) < min_words:
+            continue
+        fragments.append(piece)
+        if len(fragments) >= limit:
+            break
+    return fragments
+
+
+def _clause_fragments(text: str, limit: int = 8, min_words: int = 4, min_chars: int = 24) -> list[str]:
+    pieces = re.split(r",\s+|\band\b\s+(?=[a-z])|\bwhich\b\s+(?=[a-z])|\bthat\b\s+(?=[a-z])", text.strip(), flags=re.IGNORECASE)
+    fragments: list[str] = []
+    for piece in pieces:
+        piece = piece.strip(" -\t\r\n,")
+        if len(piece) < min_chars:
+            continue
+        if len(piece.split()) < min_words:
+            continue
+        fragments.append(piece)
+        if len(fragments) >= limit:
+            break
+    return fragments
+
+
 def human_summary_from_text(text: str, title: str = "", max_chars: int = 380) -> str:
     body = strip_front_matter(text, title)
     if not body:
         return ""
-    snippets = sentence_snippets(body, limit=2)
+    # Larger output fields should read like a compact paper overview, not just the opening lines.
+    snippet_limit = 4 if max_chars >= 900 else 2
+    snippets = sentence_snippets(body, limit=snippet_limit)
     summary = " ".join(snippets) if snippets else body
     summary = re.sub(r"\s+", " ", summary).strip()
     if title:
         title_clean = re.escape(clean_text(title))
         summary = re.sub(rf"^{title_clean}\s*[-:\u00e2\u20ac\u201c\u00e2\u20ac\u201d]?\s*", "", summary, flags=re.IGNORECASE)
     return collapse_text(summary, max_chars)
+
+
+def full_paper_summary_from_text(text: str, title: str = "", max_chars: int = 1600) -> str:
+    """Summarize a PDF-style paper body using both early and later sections."""
+    body = strip_front_matter(text, title)
+    if not body:
+        return ""
+
+    third = max(1, len(body) // 3)
+    early = _paper_snippets(body[: third], limit=6, min_words=3, min_chars=18)
+    middle = _paper_snippets(body[third : 2 * third], limit=6, min_words=3, min_chars=18)
+    late = _paper_snippets(body[2 * third :], limit=6, min_words=3, min_chars=18)
+    summary_parts = _unique_sentences(early + middle + late)
+
+    if not summary_parts:
+        summary_parts = _paper_fragments(body, limit=8, min_words=3, min_chars=18)
+
+    if len(summary_parts) < 3:
+        summary_parts = _unique_sentences(summary_parts + _paper_fragments(body, limit=10, min_words=2, min_chars=14))
+    if len(summary_parts) < 3:
+        summary_parts = _unique_sentences(summary_parts + _clause_fragments(body, limit=10, min_words=3, min_chars=18))
+    if len(summary_parts) < 3:
+        # As a last resort, keep the summary readable by duplicating the best available
+        # paper fragments only when the extractor yields too little text.
+        summary_parts = summary_parts + summary_parts[: max(0, 3 - len(summary_parts))]
+
+    summary_parts = summary_parts[:5]
+    summary_parts = [s if s.endswith((".", "!", "?")) else f"{s}." for s in summary_parts]
+
+    summary = " ".join(summary_parts).strip()
+    summary = re.sub(r"\s+", " ", summary).strip()
+    if title:
+        title_clean = re.escape(clean_text(title))
+        summary = re.sub(rf"^{title_clean}\s*[-:\u00e2\u20ac\u201c\u00e2\u20ac\u201d]?\s*", "", summary, flags=re.IGNORECASE)
+    return collapse_text(summary or body, max_chars)
 
 
 def normalize_output_text(value: Any, max_chars: int | None = None) -> str:

@@ -45,11 +45,28 @@ class ResearchExplorer:
         previously_returned_titles: Optional[List[str]] = None,
         force_refresh: bool = False,
     ) -> Dict[str, Any]:
+        from backend.main import should_use_live_research_sources
+
+        resolved_topic = topic
+        if chat_history:
+            from backend.services.research_service import ResearchService
+
+            resolved_topic = ResearchService.resolve_topic_from_history(topic, chat_history)
+
+        effective_live = use_live
+        if effective_live is None:
+            effective_live = should_use_live_research_sources(
+                resolved_topic,
+                chat_history=chat_history,
+                focus_topic=focus_topic,
+                force_refresh=force_refresh,
+            )
+
         state: ResearchState = {
-            "topic": topic,
+            "topic": resolved_topic,
             "chat_history": chat_history,
             "focus_topic": focus_topic,
-            "use_live": use_live,
+            "use_live": effective_live,
             "result": None,
             "retries": 0,
             "validation_error": None,

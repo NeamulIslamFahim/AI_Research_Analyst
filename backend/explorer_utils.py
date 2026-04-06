@@ -128,67 +128,6 @@ def relevant_to_topic(result: Dict[str, Any], topic: str) -> bool:
     return matched / total >= 0.7
 
 
-def filter_result_by_topic(result: Dict[str, Any], topic: str) -> Dict[str, Any]:
-    """Keep only rows that still look relevant to the current topic."""
-    if not isinstance(result, dict):
-        return result
-    
-    stop_words = {"means", "paper", "research", "using", "approach", "results", "study", "analysis", "method"}
-    tokens = [
-        token for token in topic.lower().replace("-", " ").split() 
-        if len(token) >= 1 and token not in stop_words
-    ]
-    if not tokens:
-        return result
-    table = result.get("table")
-    if not isinstance(table, list):
-        return result
-
-    filtered_rows = []
-    kept_names = set()
-    for row in table:
-        if not isinstance(row, dict):
-            continue
-        haystack = " ".join(
-            [
-                str(row.get("paper_name", "")),
-                str(row.get("summary_full_paper", "")),
-                str(row.get("authors_name", "")),
-            ]
-        ).lower()
-        if any(token in haystack for token in tokens):
-            filtered_rows.append(row)
-            if row.get("paper_name"):
-                kept_names.add(row["paper_name"])
-
-    result["table"] = filtered_rows
-    if isinstance(result.get("research_gaps"), list):
-        result["research_gaps"] = [
-            gap for gap in result["research_gaps"] if any(name in gap for name in kept_names)
-        ] or result["research_gaps"]
-    if isinstance(result.get("generated_idea_citations"), list):
-        result["generated_idea_citations"] = [
-            citation for citation in result["generated_idea_citations"] if citation in kept_names
-        ] or result["generated_idea_citations"]
-    return result
-
-
-def fallback_broader_result(result: Dict[str, Any], topic: str) -> Dict[str, Any]:
-    """Use broader multi-source rows when strict topic filtering becomes too narrow."""
-    if not isinstance(result, dict):
-        return result
-    broader = fix_explorer_links(result)
-    table = broader.get("table")
-    if isinstance(table, list):
-        broader["table"] = table[:12]
-    reply = (broader.get("assistant_reply") or "").strip()
-    
-    # Keep existing assistant reply; remove automated ?no strongly matched papers? fallback banner.
-    broader["assistant_reply"] = reply or "Research summary prepared."
-    broader["used_broader_fallback"] = True
-    return broader
-
-
 def fallback_error_result(topic: str, detail: str = "") -> Dict[str, Any]:
     """Return a safe research response shape when the explorer pipeline fails."""
     message = (
@@ -210,7 +149,6 @@ def fallback_error_result(topic: str, detail: str = "") -> Dict[str, Any]:
             "Retry with one focused subtopic after broader retrieval succeeds.",
         ],
         "generated_idea_citations": [],
-        "used_broader_fallback": True,
         "error_recovered": True,
     }
 

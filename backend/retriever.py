@@ -515,6 +515,12 @@ def europe_pmc_search(query: str, max_results: int = 5) -> tuple[List[dict], str
 def build_vector_store(docs: List[Document]) -> FAISS:
     """Build and persist a FAISS vector store from documents."""
     try:
+        # Limit the number of documents to keep vector store lightweight
+        max_docs = int(load_env_var("VECTORSTORE_MAX_DOCS", "1000") or "1000")
+        if len(docs) > max_docs:
+            # Keep most recent documents (assuming they're at the end)
+            docs = docs[-max_docs:]
+        
         embeddings = create_embeddings()
         persist_dir = get_faiss_persist_dir()
         ensure_directory(persist_dir)

@@ -231,15 +231,13 @@ def append_chat_log_entry(entry: Dict[str, Any], path: str | None = None) -> Non
 
 
 def strip_html(text: Any) -> str:
-    """Remove HTML tags and special formatting characters (markdown artifacts)."""
+    """Remove HTML tags while preserving equation-like symbols and formatting."""
     if text is None:
         return ""
     if not isinstance(text, str):
         text = str(text)
     # Remove tags like <h4>...</h4>
     cleaned = re.sub(r"<[^>]+>", "", text)
-    # Remove common markdown special characters used for formatting (asterisks, underscores, backticks, hashes)
-    cleaned = re.sub(r"[\*\_\#`~]", "", cleaned)
     # Collapse extra whitespace and newlines
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     return cleaned

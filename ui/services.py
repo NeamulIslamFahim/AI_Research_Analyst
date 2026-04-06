@@ -21,12 +21,12 @@ from backend.main import (
 from backend.pdf_utils import extract_text
 from backend.schemas import ResearchExplorerRequest, WriterStepRequest
 from backend.services.response_templates import build_research_error_response
+from backend.services.research_service import ResearchService
 
-from .helpers import format_chat_history, format_chat_history_up_to, save_uploaded_pdf
+from .helpers import format_chat_history, save_uploaded_pdf
 from .state import (
     current_session,
     replace_or_append_assistant,
-    replace_or_insert_assistant_after_user,
     update_current_session,
 )
 
@@ -91,11 +91,16 @@ def assistant_response_for_prompt(
         )
 
     if mode == "Research Explorer":
-        focus_topic = prompt if len(prompt.split()) > 8 else None
-        previously_returned_titles = previously_returned_titles or []
+        resolved_topic = ResearchService.resolve_topic_from_history(prompt, history)
+        is_follow_up = ResearchService.is_generic_explorer_prompt(prompt) or resolved_topic != prompt
+        force_refresh = force_refresh or is_follow_up
+        focus_topic = resolved_topic if is_follow_up else (prompt if len(prompt.split()) > 8 else None)
+        previously_returned_titles = previously_returned_titles or _extract_previously_returned_titles(session)
+        if force_refresh and not is_follow_up:
+            previously_returned_titles = []
         try:
             result = run_research_explorer(
-                topic=prompt,
+                topic=resolved_topic,
                 chat_history=history,
                 use_live=None,
                 focus_topic=focus_topic,
@@ -108,85 +113,28 @@ def assistant_response_for_prompt(
         if isinstance(result, dict) and result.get("error"):
             result = research_error_result(str(result.get("error", "")))
 
+        display_text = result.get("assistant_reply", "Research result")
+        if is_follow_up and isinstance(display_text, str) and not display_text.lower().startswith("here are additional papers on"):
+            display_text = f"Here are additional papers on {resolved_topic}. {display_text}"
+
         return (
             {
                 "role": "assistant",
                 "content": result,
                 "type": "research",
-                "display_text": result.get("assistant_reply", "Research result"),
+                "display_text": display_text,
             },
-            {"background_download_topic": prompt},
+            {"background_download_topic": resolved_topic},
         )
 
     raise RuntimeError(f"Unsupported mode: {mode}")
 
 
-def regenerate_from_user_message(user_idx: int) -> None:
-    """Regenerate the answer for one earlier user prompt."""
-    session = current_session()
-    if session["mode"] == "Research Paper Writer":
-        return
-
-    messages = session["messages"]
-    if user_idx < 0 or user_idx >= len(messages):
-        return
-
-    user_msg = messages[user_idx]
-    prompt = (user_msg.get("effective_query") or user_msg.get("display_text") or user_msg.get("content") or "").strip()
-    if not prompt:
-        return
-
-    history = format_chat_history_up_to(messages, user_idx, 100)
-    spinner_text = "Regenerating response..."
-    if session["mode"] == "Research Explorer":
-        spinner_text = "Regenerating research response from external sources..."
-
-    previously_returned_titles = _extract_previously_returned_titles(session)
-
-    with st.spinner(spinner_text):
-        assistant_msg, meta = assistant_response_for_prompt(
-            session["mode"],
-            prompt,
-            session,
-            history,
-            force_refresh=True,
-            previously_returned_titles=previously_returned_titles,
-        )
-        updated_messages = replace_or_insert_assistant_after_user(messages, user_idx, assistant_msg)
-        update_current_session(messages=updated_messages)
-        if meta and meta.get("background_download_topic"):
-            start_background_download(meta["background_download_topic"])
-        schedule_assistant_retrain()
-
-
-def save_edited_user_message(user_idx: int) -> None:
-    """Persist an edited user message and regenerate the matching response."""
-    session = current_session()
-    messages = list(session["messages"])
-    if user_idx < 0 or user_idx >= len(messages):
-        return
-
-    new_text = (st.session_state.edit_message_text or "").strip()
-    if not new_text:
-        st.session_state.edit_message_index = None
-        st.session_state.edit_message_text = ""
-        return
-
-    messages[user_idx] = {
-        **messages[user_idx],
-        "content": new_text,
-        "display_text": new_text,
-        "effective_query": new_text,
-    }
-    update_current_session(messages=messages)
-    st.session_state.edit_message_index = None
-    st.session_state.edit_message_text = ""
-    regenerate_from_user_message(user_idx)
-
-
-def submit_edited_user_message(user_idx: int) -> None:
-    """Small wrapper so Streamlit callbacks stay readable."""
-    save_edited_user_message(user_idx)
+def _show_running_notice(message: str):
+    """Render a temporary visible notice while the assistant is working."""
+    box = st.empty()
+    box.info(message)
+    return box
 
 
 def ensure_writer_intro(session: dict[str, Any]) -> None:
@@ -303,9 +251,10 @@ def handle_send(prompt: str) -> None:
     spinner_text = "Processing request..."
     if mode == "Research Explorer":
         spinner_text = "Research Explorer is working. This can take a bit while papers are retrieved and summarized."
+    notice = _show_running_notice(spinner_text)
 
-    with st.spinner(spinner_text):
-        try:
+    try:
+        with st.spinner(spinner_text):
             if mode == "Research Paper Writer":
                 response = writer_step(WriterStepRequest(user_text=trimmed, state=session.get("writer_state") or {"phase": "start"}))
                 replies = [
@@ -332,15 +281,19 @@ def handle_send(prompt: str) -> None:
                 return
 
             if mode == "Research Explorer":
+                resolved_topic = ResearchService.resolve_topic_from_history(trimmed, history)
+                is_follow_up = ResearchService.is_generic_explorer_prompt(trimmed) or resolved_topic != trimmed
                 previously_returned_titles = _extract_previously_returned_titles(session)
-                focus_topic = trimmed if len(trimmed.split()) > 8 else None
+                force_refresh = is_follow_up
+                focus_topic = resolved_topic if is_follow_up else (trimmed if len(trimmed.split()) > 8 else None)
                 try:
                     result = run_research_explorer(
-                        topic=trimmed,
+                        topic=resolved_topic,
                         chat_history=history,
                         use_live=None,
                         focus_topic=focus_topic,
                         previously_returned_titles=previously_returned_titles,
+                        force_refresh=force_refresh,
                     )
                 except HTTPException as exc:
                     detail = exc.detail if hasattr(exc, "detail") else str(exc)
@@ -349,11 +302,13 @@ def handle_send(prompt: str) -> None:
                     result = research_error_result(str(result.get("error", "")))
                 final_msg = {"role": "assistant", "content": result, "type": "research", "display_text": result.get("assistant_reply", "Research result")}
                 update_current_session(messages=replace_or_append_assistant(session["messages"], final_msg))
-                start_background_download(trimmed)
+                start_background_download(resolved_topic)
                 schedule_assistant_retrain()
                 return
 
-        except Exception as exc:
-            final_msg = {"role": "assistant", "content": str(exc), "type": "text", "display_text": str(exc)}
-            update_current_session(messages=replace_or_append_assistant(session["messages"], final_msg))
-            schedule_assistant_retrain()
+    except Exception as exc:
+        final_msg = {"role": "assistant", "content": str(exc), "type": "text", "display_text": str(exc)}
+        update_current_session(messages=replace_or_append_assistant(session["messages"], final_msg))
+        schedule_assistant_retrain()
+    finally:
+        notice.empty()

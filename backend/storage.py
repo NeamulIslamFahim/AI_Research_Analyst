@@ -108,6 +108,11 @@ def upsert_paper_record(
             ),
         )
         conn.commit()
+        
+        # Cleanup old PDFs to maintain cache size limits
+        max_cached = int(load_env_var("MAX_CACHED_PDFS", "50") or "50")
+        cleanup_old_pdfs(max_cached)
+        
     finally:
         conn.close()
 
@@ -127,5 +132,47 @@ def list_paper_records() -> list[dict]:
             """
         ).fetchall()
         return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
+def cleanup_old_pdfs(max_pdfs: int = 50) -> int:
+    """Remove oldest PDFs to keep cache size manageable. Returns number of files removed."""
+    init_db()
+    db_path, pdf_dir = _get_paths()
+    conn = sqlite3.connect(db_path)
+    
+    try:
+        # Get all records ordered by added_at (oldest first)
+        rows = conn.execute(
+            """
+            SELECT id, file_path, pdf_url
+            FROM papers 
+            WHERE file_path IS NOT NULL
+            ORDER BY added_at ASC, id ASC
+            """
+        ).fetchall()
+        
+        if len(rows) <= max_pdfs:
+            return 0  # No cleanup needed
+            
+        # Keep only the most recent max_pdfs
+        to_remove = rows[:-max_pdfs]
+        removed_count = 0
+        
+        for row in to_remove:
+            file_path = row[1]
+            if file_path and os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                    removed_count += 1
+                except OSError:
+                    pass  # File might be in use
+            
+            # Remove from database
+            conn.execute("DELETE FROM papers WHERE id = ?", (row[0],))
+        
+        conn.commit()
+        return removed_count
     finally:
         conn.close()

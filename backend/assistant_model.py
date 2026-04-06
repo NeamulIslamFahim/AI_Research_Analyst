@@ -13,7 +13,6 @@ from typing import Any
 
 from rank_bm25 import BM25Okapi
 
-from .chains import assistant_answer_chain
 from .helpers import append_chat_log_entry, ensure_directory, load_env_var
 from .pdf_utils import chunk_text, extract_text
 from .retriever import load_vector_store
@@ -22,9 +21,11 @@ from .storage import list_paper_records
 
 DEFAULT_ASSISTANT_MODEL = "trained-local-corpus"
 _MODEL_CACHE: dict[str, Any] | None = None
+_VECTOR_STORE_CACHE: Any | None = None
 _TRAINING_LOCK = threading.Lock()
 _TRAINING_THREAD: threading.Thread | None = None
 _TRAINING_REQUESTS = 0
+_ASSISTANT_WARMUP_STARTED = False
 
 
 def _artifact_dir() -> str:
@@ -346,6 +347,38 @@ def _ensure_model_loaded() -> dict[str, Any]:
     return _MODEL_CACHE
 
 
+def _get_vector_store_cached() -> Any:
+    global _VECTOR_STORE_CACHE
+    if _VECTOR_STORE_CACHE is None:
+        try:
+            _VECTOR_STORE_CACHE = load_vector_store()
+        except Exception:
+            _VECTOR_STORE_CACHE = None
+    return _VECTOR_STORE_CACHE
+
+
+def _warm_assistant_runtime() -> None:
+    """Preload the assistant cache in the background."""
+    try:
+        train_assistant_model(force=False)
+    except Exception:
+        pass
+    try:
+        _get_vector_store_cached()
+    except Exception:
+        pass
+
+
+def _start_assistant_warmup() -> None:
+    global _ASSISTANT_WARMUP_STARTED
+    if _ASSISTANT_WARMUP_STARTED:
+        return
+    _ASSISTANT_WARMUP_STARTED = True
+    if (load_env_var("WARM_ASSISTANT_CACHE", "true") or "true").lower() != "true":
+        return
+    threading.Thread(target=_warm_assistant_runtime, daemon=True).start()
+
+
 def _bm25_hits(model: dict[str, Any], prompt: str, limit: int) -> list[dict[str, Any]]:
     bm25 = model.get("bm25")
     chunks = model.get("chunks", [])
@@ -373,10 +406,7 @@ def _bm25_hits(model: dict[str, Any], prompt: str, limit: int) -> list[dict[str,
 
 def _vector_hits(prompt: str, limit: int) -> list[dict[str, Any]]:
     hits: list[dict[str, Any]] = []
-    try:
-        store = load_vector_store()
-    except Exception:
-        store = None
+    store = _get_vector_store_cached()
     if store is None:
         return hits
     try:
@@ -577,23 +607,6 @@ def _extractive_grounded_answer(prompt: str, hits: list[dict[str, Any]]) -> str:
     )
 
 
-def _build_context(hits: list[dict[str, Any]]) -> str:
-    parts: list[str] = []
-    for idx, hit in enumerate(hits, start=1):
-        meta = hit.get("metadata", {}) or {}
-        parts.append(
-            (
-                f"[Source {idx}]\n"
-                f"Title: {meta.get('title', 'Untitled')}\n"
-                f"Source: {meta.get('source', 'unknown')}\n"
-                f"URL: {meta.get('url', '') or meta.get('pdf_url', '')}\n"
-                f"Chunk: {meta.get('chunk', '')}\n"
-                f"Text: {hit.get('text', '')}"
-            )
-        )
-    return "\n\n".join(parts)
-
-
 def _fallback_answer(prompt: str, hits: list[dict[str, Any]]) -> str:
     return _extractive_grounded_answer(prompt, hits)
 
@@ -617,10 +630,6 @@ def _has_relevant_local_answer(hits: list[dict[str, Any]], prompt: str) -> bool:
             strong_hits += 1
 
     return strong_hits >= 1
-
-
-def _external_sources(result: dict[str, Any]) -> list[dict[str, Any]]:
-    return _external_sources_filtered(result)
 
 
 def _generic_follow_up(prompt: str) -> bool:
@@ -655,6 +664,39 @@ def _previous_source_titles(chat_history: str | None) -> set[str]:
     return titles
 
 
+def _source_query_variants(prompt: str) -> list[str]:
+    base = _normalize_whitespace(prompt)
+    if not base:
+        return []
+
+    variants = [base]
+    tokens = _query_tokens(base)
+    if tokens:
+        variants.append(tokens[0])
+        variants.append(f"{tokens[0]} networking")
+        variants.append(f"{tokens[0]} ai")
+    if len(tokens) > 1:
+        variants.append(" ".join(tokens[:2]))
+    variants.extend(
+        [
+            "networking",
+            "network optimization",
+            "artificial intelligence",
+            "ai networking",
+            "ai applications",
+        ]
+    )
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for query in variants:
+        normalized = _normalize_whitespace(query).lower()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        deduped.append(query)
+    return deduped
+
+
 def _topic_from_history(chat_history: str | None) -> str | None:
     if not chat_history:
         return None
@@ -665,86 +707,6 @@ def _topic_from_history(chat_history: str | None) -> str | None:
             if candidate and not _generic_follow_up(candidate):
                 return candidate
     return None
-
-
-def _external_sources_filtered(result: dict[str, Any], excluded_titles: set[str] | None = None, limit: int = 5) -> list[dict[str, Any]]:
-    sources: list[dict[str, Any]] = []
-    table = result.get("table")
-    if not isinstance(table, list):
-        return sources
-
-    excluded_titles = {title.lower() for title in (excluded_titles or set())}
-    seen: set[tuple[str, str]] = set()
-    for row in table:
-        if not isinstance(row, dict):
-            continue
-        title = row.get("paper_name", "Untitled")
-        url = row.get("paper_url", "")
-        if str(title).strip().lower() in excluded_titles:
-            continue
-        key = (title, url)
-        if key in seen:
-            continue
-        seen.add(key)
-        sources.append(
-            {
-                "title": title,
-                "source": row.get("source", "external"),
-                "url": url,
-                "chunk": "",
-                "snippet": (row.get("summary_full_paper", "") or "")[:280].strip(),
-            }
-        )
-        if len(sources) >= limit:
-            break
-    return sources
-
-
-def _filter_external_result(result: dict[str, Any], excluded_titles: set[str]) -> dict[str, Any]:
-    if not isinstance(result, dict):
-        return result
-    table = result.get("table")
-    if not isinstance(table, list):
-        return result
-
-    filtered_table = []
-    for row in table:
-        if not isinstance(row, dict):
-            continue
-        title = str(row.get("paper_name", "")).strip().lower()
-        if title and title in excluded_titles:
-            continue
-        filtered_table.append(row)
-
-    if filtered_table:
-        result = dict(result)
-        result["table"] = filtered_table[:5]
-    return result
-
-
-def _external_answer(result: dict[str, Any]) -> str:
-    if not isinstance(result, dict):
-        return "I could not generate an external research answer."
-
-    parts: list[str] = []
-    assistant_reply = (result.get("assistant_reply") or "").strip()
-    if assistant_reply:
-        parts.append(assistant_reply)
-
-    idea = (result.get("generated_idea") or "").strip()
-    if idea:
-        parts.append(f"Suggested direction: {idea}")
-
-    gaps = result.get("research_gaps")
-    if isinstance(gaps, list) and gaps:
-        selected = [str(g).strip() for g in gaps[:3] if str(g).strip()]
-        if selected:
-            parts.append("Key gaps:\n- " + "\n- ".join(selected))
-
-    if parts:
-        return "\n\n".join(parts)
-
-    return "I found relevant external research results, but the response body was empty."
 
 
 def _background_incremental_learning(topic: str) -> None:
@@ -788,6 +750,54 @@ def _record_chat_interaction(
         pass
 
 
+def get_assistant_sources(prompt: str, chat_history: str | None = None, limit: int = 5) -> list[dict[str, Any]]:
+    """Return paper-like sources from the trained local corpus for fallback use."""
+    if not prompt or not prompt.strip():
+        return []
+
+    clean_prompt = prompt.strip()
+    effective_topic = clean_prompt
+    if _generic_follow_up(clean_prompt):
+        effective_topic = _topic_from_history(chat_history) or clean_prompt
+
+    excluded_titles = _previous_source_titles(chat_history)
+    sources: list[dict[str, Any]] = []
+    seen_source_keys: set[tuple[str, str]] = set()
+    for query in _source_query_variants(effective_topic):
+        if len(sources) >= limit:
+            break
+        try:
+            hits = _hybrid_retrieve(query, limit=max(limit * 2, 8))
+        except Exception:
+            continue
+        for hit in _diverse_hits_for_answer(hits, limit=max(limit * 2, 8)):
+            metadata = hit.get("metadata", {}) or {}
+            title = _normalize_whitespace(metadata.get("title", "") or "Untitled")
+            if title.lower() in excluded_titles:
+                continue
+            url = metadata.get("url", "") or metadata.get("pdf_url", "")
+            if not url or str(url).strip().lower().endswith(".json"):
+                continue
+            source_key = (title, str(url))
+            if source_key in seen_source_keys:
+                continue
+            seen_source_keys.add(source_key)
+            sources.append(
+                {
+                    "title": title,
+                    "source": metadata.get("source", "unknown"),
+                    "url": url,
+                    "pdf_url": metadata.get("pdf_url", "") or url,
+                    "authors": metadata.get("authors", ""),
+                    "snippet": hit.get("text", "")[:280].strip(),
+                    "chunk": metadata.get("chunk", ""),
+                }
+            )
+            if len(sources) >= limit:
+                break
+    return sources
+
+
 def assistant_chat(prompt: str, chat_history: str | None = None) -> dict[str, Any]:
     """Answer the user's prompt using the trained local corpus as the default model."""
     if not prompt or not prompt.strip():
@@ -826,54 +836,15 @@ def assistant_chat(prompt: str, chat_history: str | None = None) -> dict[str, An
         return response_payload
     wants_more_papers = _generic_follow_up(clean_prompt)
     local_relevant = (not wants_more_papers) and _has_relevant_local_answer(hits, effective_topic)
-    context = _build_context(hits)
     answer = ""
 
     assistant_only = (load_env_var("ASSISTANT_MODEL_ONLY", "false") or "false").lower() == "true"
 
     if local_relevant:
-        try:
-            if assistant_only:
-                raise RuntimeError("Assistant model only mode is enabled.")
+        # Keep the general assistant fast and local. Deeper paper work belongs in Research Explorer.
+        answer = _fallback_answer(clean_prompt, hits)
 
-            from .main import _invoke_with_fallback
-
-            raw = _invoke_with_fallback(
-                assistant_answer_chain,
-                {
-                    "prompt": clean_prompt,
-                    "chat_history": (chat_history or "").strip() or "No prior chat history.",
-                    "context": context or "No relevant context found.",
-                },
-            )
-            answer = getattr(raw, "content", str(raw)).strip()
-        except Exception:
-            answer = _fallback_answer(clean_prompt, hits)
-
-        sources = []
-        seen_source_keys: set[tuple[str, str]] = set()
-        for hit in _diverse_hits_for_answer(hits, limit=10):
-            metadata = hit.get("metadata", {}) or {}
-            if str(metadata.get("title", "Untitled")).strip().lower() in excluded_titles:
-                continue
-            source_key = (
-                metadata.get("title", "Untitled"),
-                metadata.get("url", "") or metadata.get("pdf_url", ""),
-            )
-            if source_key in seen_source_keys:
-                continue
-            seen_source_keys.add(source_key)
-            sources.append(
-                {
-                    "title": metadata.get("title", "Untitled"),
-                    "source": metadata.get("source", "unknown"),
-                    "url": metadata.get("url", "") or metadata.get("pdf_url", ""),
-                    "chunk": metadata.get("chunk", ""),
-                    "snippet": hit.get("text", "")[:280].strip(),
-                }
-            )
-            if len(sources) >= 5:
-                break
+        sources = get_assistant_sources(clean_prompt, chat_history=chat_history, limit=5)
 
         status = get_assistant_status()
         response_payload = {
@@ -894,54 +865,23 @@ def assistant_chat(prompt: str, chat_history: str | None = None) -> dict[str, An
         )
         return response_payload
 
-    try:
-        from .main import run_research_explorer
-
-        external = run_research_explorer(topic=effective_topic, chat_history=chat_history, use_live=True)
-    except Exception as exc:
-        external = {"error": f"External fallback failed: {exc}"}
-
-    if not isinstance(external, dict) or external.get("error"):
-        status = get_assistant_status()
-        fallback_answer = _fallback_answer(clean_prompt, hits)
-        response_payload = {
-            "model": status.get("model", DEFAULT_ASSISTANT_MODEL),
-            "assistant_only": assistant_only,
-            "trained_at": status.get("trained_at"),
-            "answer": fallback_answer,
-            "sources": [],
-            "answer_source": "vectordb_fallback",
-            "incremental_learning_started": False,
-            "message": external.get("error") if isinstance(external, dict) else None,
-        }
-        _record_chat_interaction(
-            prompt=clean_prompt,
-            response=fallback_answer,
-            chat_history=chat_history,
-            answer_source="vectordb_fallback",
-            extra={"error": external.get("error") if isinstance(external, dict) else None},
-        )
-        return response_payload
-
-    external = _filter_external_result(external, excluded_titles)
-    _start_incremental_learning(effective_topic)
     status = get_assistant_status()
-    external_answer = _external_answer(external)
-    external_sources = _external_sources_filtered(external, excluded_titles=excluded_titles, limit=5)
     response_payload = {
         "model": status.get("model", DEFAULT_ASSISTANT_MODEL),
         "assistant_only": assistant_only,
         "trained_at": status.get("trained_at"),
-        "answer": external_answer,
-        "sources": external_sources,
-        "answer_source": "external_search",
-        "incremental_learning_started": True,
+        "answer": answer,
+        "sources": [],
+        "answer_source": "vectordb_fallback",
+        "incremental_learning_started": False,
     }
     _record_chat_interaction(
         prompt=clean_prompt,
-        response=external_answer,
+        response=answer,
         chat_history=chat_history,
-        answer_source="external_search",
-        extra={"sources": external_sources},
+        answer_source="vectordb_fallback",
     )
     return response_payload
+
+
+_start_assistant_warmup()

@@ -8,32 +8,20 @@ from typing import Any, Dict, Optional
 from pydantic import ValidationError
 
 
-def validate_research_result(result: Dict[str, Any], topic: str = "") -> Dict[str, Any]:
+def validate_research_result(result: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(result, dict):
         return {"error": "Invalid research result."}
     if result.get("error"):
         return result
-    original_table = result.get("table") if isinstance(result.get("table"), list) else None
-    tokens = [t for t in (topic or "").lower().replace("-", " ").split() if len(t) > 2]
-    if tokens and isinstance(result.get("table"), list):
-        filtered = []
-        for row in result.get("table", []):
-            if not isinstance(row, dict):
-                continue
-            hay = f"{row.get('paper_name','')} {row.get('summary_full_paper','')}".lower()
-            if any(tok in hay for tok in tokens):
-                filtered.append(row)
-        result["table"] = filtered
-        if not filtered:
-            if original_table:
-                result["table"] = original_table
-                return broaden_research_result(result, topic)
-            return {"error": "No relevant papers found for the topic."}
     result.setdefault("table", [])
-    result.setdefault("research_gaps", [])
-    result.setdefault("assistant_reply", "Research summary prepared.")
-    result.setdefault("generated_idea", "Not provided.")
-    result.setdefault("generated_idea_steps", [])
+    if not result.get("research_gaps"):
+        result["research_gaps"] = []
+    if not result.get("assistant_reply"):
+        result["assistant_reply"] = "Research summary prepared."
+    if not result.get("generated_idea"):
+        result["generated_idea"] = "Not provided."
+    if not result.get("generated_idea_steps"):
+        result["generated_idea_steps"] = []
     return result
 
 
@@ -73,22 +61,6 @@ def validate_qa_result(result: Dict[str, Any]) -> Dict[str, Any]:
         return result
     result.setdefault("answer", "No answer found.")
     return result
-
-
-def broaden_research_result(result: Dict[str, Any], topic: str = "") -> Dict[str, Any]:
-    if not isinstance(result, dict):
-        return {"table": [], "research_gaps": [], "assistant_reply": "Research summary prepared.", "generated_idea": "Not provided.", "generated_idea_steps": []}
-    broadened = dict(result)
-    table = broadened.get("table")
-    if isinstance(table, list):
-        broadened["table"] = table[:12]
-    reply = (broadened.get("assistant_reply") or "").strip()
-    broadened["assistant_reply"] = reply or "Research summary prepared."
-    broadened.setdefault("research_gaps", [])
-    broadened.setdefault("generated_idea", "Not provided.")
-    broadened.setdefault("generated_idea_steps", [])
-    broadened["used_broader_fallback"] = True
-    return broadened
 
 
 def score_research_result(result: Dict[str, Any], topic: str) -> Dict[str, Any]:

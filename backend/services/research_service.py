@@ -44,12 +44,28 @@ class ResearchService:
         previously_returned_titles: Optional[List[str]] = None,
         force_refresh: bool = False,
     ) -> Dict[str, Any]:
-        from backend.main import _run_research_explorer_impl_legacy
+        from backend.main import _run_research_explorer_impl_legacy, should_use_live_research_sources
+
+        resolved_topic = self.resolve_topic_from_history(topic, chat_history)
+        follow_up = self.is_generic_explorer_prompt(topic) or resolved_topic != topic
+        if follow_up:
+            force_refresh = True
+            if not focus_topic:
+                focus_topic = resolved_topic
+
+        if use_live is None:
+            use_live = should_use_live_research_sources(
+                resolved_topic,
+                chat_history=chat_history,
+                focus_topic=focus_topic,
+                force_refresh=force_refresh,
+            )
 
         return _run_research_explorer_impl_legacy(
-            topic=topic,
+            topic=resolved_topic,
             chat_history=chat_history,
             focus_topic=focus_topic,
             use_live_sources=use_live,
             previously_returned_titles=previously_returned_titles,
+            force_refresh=force_refresh,
         )

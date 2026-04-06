@@ -14,9 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .assistant_model import train_assistant_model
 from .explorer_cache import ExplorerCache
 from .explorer_utils import (
-    fallback_broader_result,
     fallback_error_result,
-    filter_result_by_topic,
     fix_explorer_links,
     format_review_reply, 
     relevant_to_topic,
@@ -116,11 +114,21 @@ def review_qa(payload: ReviewQARequest) -> Dict[str, Any]:
 
 @app.post("/api/research/explore")
 def research_explore(payload: ResearchExplorerRequest) -> Dict[str, Any]:
-    key = _explorer_cache.make_key(payload.topic, payload.focus_topic, payload.use_live)
     # Force refresh if the user is asking for "more" or other generic follow-ups
     # to ensure they don't just get the same cached results.
     is_follow_up = ResearchService.is_generic_explorer_prompt(payload.topic)
-    force_refresh = payload.force_refresh or is_follow_up
+    resolved_topic = ResearchService.resolve_topic_from_history(payload.topic, payload.chat_history)
+    force_refresh = payload.force_refresh or is_follow_up or resolved_topic != payload.topic
+    backend_main = _backend_main()
+    effective_use_live = payload.use_live
+    if effective_use_live is None:
+        effective_use_live = backend_main.should_use_live_research_sources(
+            resolved_topic,
+            chat_history=payload.chat_history,
+            focus_topic=payload.focus_topic,
+            force_refresh=force_refresh,
+        )
+    key = _explorer_cache.make_key(resolved_topic, payload.focus_topic, effective_use_live)
 
     if not force_refresh:
         now = time.time()
@@ -139,25 +147,21 @@ def research_explore(payload: ResearchExplorerRequest) -> Dict[str, Any]:
 
     # Ensure the current topic is part of the history for context resolution on follow-ups.
     history = payload.chat_history or ""
-    if payload.topic not in history:
-        history = f"User: {payload.topic}\n\n{history}"
+    if resolved_topic not in history:
+        history = f"User: {resolved_topic}\n\n{history}"
 
-    backend_main = _backend_main()
     result = backend_main.run_research_explorer(
-        topic=payload.topic,
+        topic=resolved_topic,
         chat_history=history,
         focus_topic=payload.focus_topic,
-        use_live=payload.use_live,
-        force_refresh=payload.force_refresh or False,
+        use_live=effective_use_live,
+        force_refresh=force_refresh,
         previously_returned_titles=payload.previously_returned_titles,
     )
     if isinstance(result, dict) and result.get("error"):
-        return fallback_error_result(payload.topic, str(result.get("error", "")))
+        return fallback_error_result(resolved_topic, str(result.get("error", "")))
     now = time.time()
-    fixed = fix_explorer_links(result)
-    cleaned = filter_result_by_topic(fixed, payload.topic)
-    if isinstance(cleaned, dict) and isinstance(cleaned.get("table"), list) and len(cleaned.get("table")) == 0:
-        cleaned = fallback_broader_result(fixed, payload.topic)
+    cleaned = fix_explorer_links(result)
     if isinstance(cleaned, dict) and isinstance(cleaned.get("table"), list):
         cleaned["table"] = cleaned.get("table", [])[:5]
     entry = {"ts": now, "data": cleaned}

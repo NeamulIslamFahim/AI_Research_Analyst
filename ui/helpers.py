@@ -34,11 +34,6 @@ def format_chat_history(messages: list[dict[str, Any]], max_messages: int = 100)
     return "\n".join(lines)
 
 
-def format_chat_history_up_to(messages: list[dict[str, Any]], idx: int, max_messages: int = 100) -> str:
-    """Like format_chat_history, but only up to a chosen message index."""
-    return format_chat_history(messages[: idx + 1], max_messages=max_messages)
-
-
 def save_uploaded_pdf(uploaded_file: Any) -> str:
     """Store an uploaded Streamlit file in a temporary PDF path."""
     suffix = Path(uploaded_file.name).suffix or ".pdf"

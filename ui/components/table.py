@@ -22,8 +22,9 @@ class PaperTableRenderer:
                     "Paper Name": title,
                     "Paper URL": safe_paper_url(row.get("paper_url", ""), title),
                     "Authors": TextPreviewer.preview(row.get("authors_name", ""), max_chars=140),
-                    "Summary": TextPreviewer.preview(row.get("summary_full_paper", ""), max_chars=520),
-                    "Approach": TextPreviewer.preview(row.get("proposed_model_or_approach", ""), max_chars=420),
+                    # Show the full extracted text so the table reflects the PDF summary rather than a teaser.
+                    "Summary": str(row.get("summary_full_paper", "") or ""),
+                    "Approach": str(row.get("proposed_model_or_approach", "") or ""),
                     "Source": row.get("source", ""),
                 }
             )
@@ -33,4 +34,3 @@ class PaperTableRenderer:
             hide_index=True,
             column_config={"Paper URL": st.column_config.LinkColumn("Paper URL", display_text="Open paper")},
         )
-
