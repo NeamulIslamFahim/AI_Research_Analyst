@@ -310,6 +310,7 @@ class ResearchResponseComposer:
                 f"The source metadata does not expose a clear methodology for {title}.",
                 420,
             )
+
         def _normalize(text: str) -> str:
             text = re.sub(r"(?is)^.*?\babstract\b\s*[:-]?\s*", "", text)
             text = re.sub(r"\s+", " ", text).strip()
@@ -337,64 +338,112 @@ class ResearchResponseComposer:
                         return normalized
             return ""
 
+        def _sanitize_candidate(text: str) -> str:
+            cleaned = _compact(text, max_words=40)
+            cleaned = re.sub(r"^(?:this paper|the paper|this study|the study)\s+(?:is|was)\s+about\s+", "", cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(
+                r"^(?:the source metadata does not expose|the paper describes|the paper studies|it proposes or applies)\s+",
+                "",
+                cleaned,
+                flags=re.IGNORECASE,
+            )
+            cleaned = cleaned.strip(" ,;:-")
+            return cleaned
+
+        def _is_generic(text: str) -> bool:
+            lowered = text.lower()
+            generic_phrases = [
+                "source metadata",
+                "paper describes its empirical setting",
+                "methodology should be read cautiously",
+                "the methodology described in the paper text",
+                "this paper is about",
+                "the paper studies",
+            ]
+            return any(phrase in lowered for phrase in generic_phrases)
+
+        def _methods_block(text: str) -> str:
+            cleaned = re.sub(r"\s+", " ", text).strip()
+            patterns = [
+                r"(?is)\b(?:methodology|materials and methods|methods?|approach|proposed method|proposed approach|system overview)\b\s*[:\-]?\s*(.*?)(?=\b(?:experiments?|results?|discussion|evaluation|conclusion|conclusions|references)\b|$)",
+                r"(?is)\b(?:we propose|we present|we introduce|in this paper, we propose|in this work, we propose)\b\s*(.*?)(?=\b(?:experiments?|results?|discussion|evaluation|conclusion|conclusions|references)\b|$)",
+            ]
+            for pattern in patterns:
+                match = re.search(pattern, cleaned)
+                if match and match.group(1).strip():
+                    return match.group(1).strip()
+            return cleaned
+
         method_source = strip_front_matter(source_text, title) or source_text
-        sentence_list = _sentences(method_source) or _sentences(source_text)
+        method_focus = _methods_block(method_source)
+        sentence_list = _sentences(method_focus) or _sentences(method_source) or _sentences(source_text)
         abstract_sentences = _sentences(abstract_text)
 
-        approach_text = ""
-        for candidate in [method_source, abstract_text, source_text]:
-            extracted = _compact(extract_proposed_approach(candidate))
+        survey_like = any(
+            term in f"{title} {method_source} {abstract_text}".lower()
+            for term in ["systematic review", "survey", "literature review", "scoping review", "meta-analysis", "overview"]
+        )
+
+        candidates: list[str] = []
+        for candidate in [method_focus, method_source, abstract_text, source_text]:
+            if not candidate:
+                continue
+            extracted = _sanitize_candidate(extract_proposed_approach(candidate))
             extracted_low = extracted.lower()
             if extracted and len(extracted.split()) >= 6 and any(
-                cue in extracted_low for cue in ["propose", "present", "introduce", "develop", "design", "framework", "method", "approach", "algorithm", "system"]
+                cue in extracted_low for cue in ["propose", "present", "introduce", "develop", "design", "framework", "method", "approach", "algorithm", "system", "review"]
             ):
-                approach_text = extracted
-                break
-        if not approach_text:
-            approach_text = _pick(
+                candidates.append(extracted)
+
+        for keyword_group in [
+            ["we propose", "we present", "we introduce", "we develop", "we design"],
+            ["framework", "method", "approach", "algorithm", "system", "pipeline"],
+            ["review", "survey", "systematic review", "literature review"],
+        ]:
+            picked = _pick(sentence_list or abstract_sentences, keyword_group, min_words=6)
+            if picked:
+                candidates.append(_sanitize_candidate(picked))
+
+        named_model_sentence = ""
+        model_hits = extract_models(f"{title} {method_focus} {method_source} {abstract_text} {fulltext}")
+        if model_hits:
+            model_sentence = _pick(
                 sentence_list or abstract_sentences,
-                ["propose", "present", "introduce", "develop", "design", "framework", "method", "approach", "algorithm", "system"],
-                min_words=6,
+                [hit.lower() for hit in model_hits],
+                min_words=5,
             )
+            if model_sentence:
+                named_model_sentence = _sanitize_candidate(model_sentence)
 
-        dataset_text = _pick(
-            sentence_list,
-            ["dataset", "data set", "corpus", "benchmark", "samples", "sample", "collection", "experiment"],
-            min_words=5,
-        ) or _pick(
-            abstract_sentences,
-            ["dataset", "data set", "corpus", "benchmark", "samples", "sample", "collection", "experiment"],
-            min_words=5,
-        )
+        if named_model_sentence:
+            candidates.append(named_model_sentence)
 
-        model_hits = extract_models(f"{title} {method_source} {abstract_text} {fulltext}")
-        model_phrase = model_hits[0] if model_hits else ""
-
-        dataset_sentence = (
-            f"The paper studies the dataset or experimental setting described as {_compact(dataset_text)}."
-            if dataset_text
-            else "The paper describes its empirical setting in the source text."
-        )
-        model_sentence = (
-            f"It uses {model_phrase} as a central model component."
-            if model_phrase
-            else "The source metadata does not expose a distinct named model."
-        )
-        approach_sentence = (
-            f"It proposes or applies {_compact(approach_text, max_words=30)}."
-            if approach_text
-            else "The source metadata does not expose a distinct new method, so the methodology should be read cautiously from the paper text."
-        )
-
-        parts: list[str] = []
-        seen_parts: set[str] = set()
-        for piece in [dataset_sentence, model_sentence, approach_sentence]:
-            key = re.sub(r"\s+", " ", piece).strip().lower()
-            if not key or key in seen_parts:
+        approach_text = ""
+        seen_candidates: set[str] = set()
+        for candidate in candidates:
+            key = re.sub(r"\s+", " ", candidate).strip().lower()
+            if not key or key in seen_candidates or _is_generic(candidate):
                 continue
-            seen_parts.add(key)
-            parts.append(piece)
-        return collapse_text(" ".join(parts), 1200 if fulltext else 850)
+            seen_candidates.add(key)
+            approach_text = candidate
+            break
+
+        if survey_like and approach_text:
+            return collapse_text(
+                f"The paper takes a survey-based approach: {approach_text}.",
+                1200 if fulltext else 850,
+            )
+        if survey_like:
+            return collapse_text(
+                "The paper is a survey or systematic review that synthesizes prior work from the paper text rather than introducing a single new executable method.",
+                1200 if fulltext else 850,
+            )
+        if approach_text:
+            return collapse_text(approach_text, 1200 if fulltext else 850)
+        return collapse_text(
+            "The paper text does not clearly expose one distinct proposed method, but the approach should be read from the methods and experiment sections of the source PDF.",
+            1200 if fulltext else 850,
+        )
 
         def _normalize(text: str) -> str:
             text = re.sub(r"(?is)^.*?\babstract\b\s*[–-]\s*", "", text)

@@ -183,6 +183,84 @@ def setup_page() -> None:
         div[data-testid="stChatInput"] {
             border-radius: 16px;
         }
+        .result-table-scroll {
+            width: 100%;
+            overflow-x: auto;
+            overflow-y: visible;
+            -webkit-overflow-scrolling: touch;
+            touch-action: pan-x pan-y;
+            border: 1px solid rgba(31, 47, 40, 0.10);
+            border-radius: 20px;
+            background: rgba(255, 251, 245, 0.82);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+        }
+        .result-table {
+            width: 100%;
+            min-width: 1200px;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        .result-table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: #f3eadc;
+            color: #213228;
+            text-align: left;
+            font-weight: 700;
+        }
+        .result-table th,
+        .result-table td {
+            padding: 0.9rem 0.95rem;
+            border-bottom: 1px solid rgba(31, 47, 40, 0.08);
+            vertical-align: top;
+            white-space: normal;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+            line-height: 1.55;
+            color: #24362b;
+        }
+        .result-table tbody tr:nth-child(even) td {
+            background: rgba(255, 255, 255, 0.42);
+        }
+        .result-table .paper-col {
+            min-width: 240px;
+        }
+        .result-table .url-col {
+            min-width: 120px;
+        }
+        .result-table .authors-col {
+            min-width: 220px;
+        }
+        .result-table .summary-col,
+        .result-table .approach-col {
+            min-width: 360px;
+        }
+        .result-table .source-col {
+            min-width: 120px;
+        }
+        .result-table a {
+            color: #0f6d64;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .result-table a:hover {
+            text-decoration: underline;
+        }
+        @media (max-width: 768px) {
+            .result-table {
+                min-width: 1380px;
+            }
+            .result-table th,
+            .result-table td {
+                padding: 0.8rem 0.85rem;
+                font-size: 0.95rem;
+            }
+            .result-table .summary-col,
+            .result-table .approach-col {
+                min-width: 420px;
+            }
+        }
         </style>
         """,
         unsafe_allow_html=True,
