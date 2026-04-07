@@ -871,6 +871,142 @@ class ResearchResponseComposer:
         cleaned_steps = [collapse_text(step, 220) for step in steps if step]
         return cleaned_steps[:6]
 
+    def _metadata_limited(self, row: dict) -> bool:
+        return len(clean_text(row.get("abstract", "")).split()) < 25
+
+    def _domain_gap(self, row: dict) -> str:
+        blob = f"{clean_text(row.get('title', ''))} {clean_text(row.get('abstract', ''))}".lower()
+        if any(term in blob for term in ["protocol", "systematic review", "survey", "viewpoint", "framework", "overview"]):
+            return (
+                "the next step is to turn the conceptual contribution into a comparative empirical study with a shared evaluation setup, "
+                "so readers can see how the proposed ideas perform in practice"
+            )
+        if any(term in blob for term in ["chatbot", "llm", "chatgpt", "assistant", "conversational agent"]):
+            return (
+                "a strong follow-up would test the system in a real user workflow, measure sustained behavior change, and report safety, "
+                "reliability, and human-AI interaction outcomes together"
+            )
+        if any(term in blob for term in ["diet", "nutrition", "physical activity", "exercise", "lifestyle"]):
+            return (
+                "the evidence would be stronger with longitudinal evaluation across more diverse populations, clearer adherence measures, "
+                "and direct comparison against non-AI intervention baselines"
+            )
+        return (
+            "the paper would benefit from stronger empirical comparison, clearer evaluation criteria, and a more explicit account of where the proposed approach succeeds or fails"
+        )
+
+    def _summary(self, row: dict, fulltext_snippet: str = "", abstract: str = "") -> str:
+        title = clean_text(row.get("title", "")) or "Untitled paper"
+        fulltext = clean_text(fulltext_snippet)
+        abstract_text = clean_text(abstract or row.get("abstract", ""))
+        source_text = fulltext or abstract_text
+        if fulltext and abstract_text and (len(fulltext.split()) < 80 or len(abstract_text.split()) > len(fulltext.split()) * 1.2):
+            source_text = abstract_text
+        if not source_text:
+            return collapse_text(
+                (
+                    f"{title} appears relevant to {self._topic_theme()}, but the available metadata is too limited to support a trustworthy paper-level summary. "
+                    "The source does not clearly expose the problem setting, the concrete method, or the main findings, so this row should be treated as metadata-only evidence."
+                ),
+                1200,
+            )
+
+        def _sentences(text: str) -> list[str]:
+            cleaned = re.sub(r"(\w)-\s+(\w)", r"\1\2", text.strip())
+            cleaned = re.sub(r"\s+", " ", cleaned).strip()
+            return [piece.strip() for piece in re.split(r"(?<=[.!?])\s+", cleaned) if len(piece.split()) >= 6]
+
+        def _pick(sentences: list[str], keywords: list[str]) -> str:
+            for sentence in sentences:
+                lowered = sentence.lower()
+                if any(keyword in lowered for keyword in keywords):
+                    candidate = re.sub(r"\s+", " ", sentence).strip()
+                    if len(candidate.split()) >= 6:
+                        return candidate
+            return ""
+
+        sentence_list = _unique_sentences(_sentences(strip_front_matter(source_text, title) or source_text))
+        if not sentence_list:
+            sentence_list = _unique_sentences(_sentences(source_text))
+
+        overview = sentence_list[0] if sentence_list else source_text
+        problem = _pick(sentence_list, ["problem", "challenge", "gap", "need", "barrier", "promote", "improve", "support", "address"])
+        approach = clean_text(extract_proposed_approach(source_text))
+        if len(approach.split()) < 6:
+            approach = _pick(sentence_list, ["propose", "present", "introduce", "framework", "model", "approach", "protocol", "review", "survey", "method"])
+        impact = _pick(sentence_list, ["result", "find", "show", "suggest", "improve", "effective", "feasible", "impact", "outperform", "performance"])
+
+        parts = [collapse_text(overview if overview.endswith((".", "!", "?")) else f"{overview}.", 340)]
+        if problem and problem.lower() not in overview.lower():
+            parts.append(collapse_text(f"The paper frames its core problem as {problem[0].lower() + problem[1:]}.", 340))
+        if approach:
+            parts.append(collapse_text(f"The authors address that problem by {approach[0].lower() + approach[1:]}.", 360))
+        else:
+            parts.append("The available text indicates that the paper uses a concrete method or study design, but the extraction is not precise enough to restate it in more detail without risking fabrication.")
+        if impact:
+            parts.append(collapse_text(f"The reported takeaway is that {impact[0].lower() + impact[1:]}.", 360))
+        else:
+            parts.append("The available text does not expose a precise quantitative finding clearly enough, so the safest reading is that the paper contributes directionally rather than through a fully specified result in this metadata view.")
+        return collapse_text(" ".join(parts), 1600 if fulltext else 1000)
+
+    def _gaps(self, rows: list[dict]) -> list[str]:
+        gaps: list[str] = []
+        for row in rows[:5]:
+            title = clean_text(row.get("title", "")) or "Paper"
+            if self._metadata_limited(row):
+                gap = (
+                    f"{title}: the available metadata is not rich enough to support a paper-specific gap with high confidence, "
+                    "so the safest next step is to inspect the full text before turning this source into a concrete design recommendation."
+                )
+            else:
+                gap = f"{title}: {self._domain_gap(row)}."
+            gaps.append(collapse_text(gap, 500))
+        return gaps
+
+    def _idea(self, gaps: list[str]) -> str:
+        theme = self._topic_theme()
+        if not gaps:
+            return (
+                f"Build a stronger research pipeline for {theme} that combines focused retrieval, paper-level evidence tracking, "
+                "and evaluation on real workflows so the final recommendation is grounded in comparable studies rather than generic summaries."
+            )
+        gap_summary = " ".join(dict.fromkeys(self._gap_focus(g) for g in gaps[:3]))
+        return collapse_text(
+            f"Build a stronger {theme} pipeline that addresses the recurring weaknesses across these papers, especially {gap_summary}. "
+            "The study design should compare directly relevant methods on the same task, keep the evaluation population and metrics explicit, "
+            "and separate evidence-supported conclusions from metadata-only guesses.",
+            900,
+        )
+
+    def _implementation_steps(self, gaps: list[str], rows: list[dict], idea: str) -> list[str]:
+        titles = [self._paper_label(row.get("paper_name", "")) for row in rows if clean_text(row.get("paper_name", ""))]
+        primary_title = titles[0] if titles else self._topic_theme().title()
+        secondary_title = titles[1] if len(titles) > 1 else primary_title
+        gap_focus = list(dict.fromkeys(self._gap_focus(g) for g in gaps[:3] if self._gap_focus(g)))
+
+        steps: list[str] = []
+        if len(titles) >= 2:
+            steps.append(f"Use {primary_title} and {secondary_title} as the first comparison anchors, then add the remaining selected papers only if they still match the same task and population.")
+        elif titles:
+            steps.append(f"Use {primary_title} as the main comparison anchor and keep every later comparison tied to the same problem setting.")
+        else:
+            steps.append(f"Use the selected papers as the initial comparison set for {self._topic_theme()}, but remove any paper that is only loosely related before drawing conclusions.")
+
+        if gap_focus:
+            steps.append(f"Target the main weakness explicitly: {gap_focus[0]}.")
+        else:
+            steps.append("Target the main weakness shared across the selected papers and define it in measurable terms before implementation starts.")
+
+        if len(gap_focus) > 1:
+            steps.append(f"Design the first experiment to test whether the proposed method still holds when {gap_focus[1]}.")
+        else:
+            steps.append("Design the first experiment on a harder and more diverse evaluation set so the results are useful beyond one narrow setting.")
+
+        steps.append("Add strong baselines from the same problem area and compare every system under one shared evaluation setup with the same metrics, population, and reporting rules.")
+        steps.append("Run an ablation or sensitivity study so the contribution of each component is clear and the final paper can explain which part of the pipeline is actually responsible for any gain.")
+        steps.append("Finish with an error analysis that explains where the approach fails, which users or cases are most affected, and what the next refinement should be.")
+        return [collapse_text(step, 360) for step in steps[:6]]
+
     def build(self, rows: list[dict], fulltext_map: dict[tuple[str, str], str], fulltext_by_title: dict[str, str]) -> dict[str, Any]:
         selected = self.select_rows(rows, limit=5)
         if not selected:
@@ -904,7 +1040,7 @@ class ResearchResponseComposer:
                 f"I found {len(table)} papers related to {self.topic}. "
                 f"The common thread is {self._topic_theme()}, and the main open problems are "
                 f"{' '.join(dict.fromkeys(self._gap_focus(g) for g in gaps[:2]))}. "
-                "A good next step is to test whether these methods still hold up on harder, more diverse data."
+                "The most reliable next step is to keep only tightly relevant papers, compare them under one shared evaluation frame, and avoid turning thin metadata into stronger claims than the sources can support."
             ),
             "generated_idea": idea,
             "generated_idea_steps": self._implementation_steps(gaps, table, idea),

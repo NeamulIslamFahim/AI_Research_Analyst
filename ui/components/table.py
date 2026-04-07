@@ -8,7 +8,6 @@ from typing import Any
 import streamlit as st
 
 from ..helpers import safe_paper_url
-from .text import TextPreviewer
 
 
 class PaperTableRenderer:
@@ -18,7 +17,7 @@ class PaperTableRenderer:
         for row in table:
             title = row.get("paper_name", "Untitled")
             paper_url = safe_paper_url(row.get("paper_url", ""), title)
-            authors = TextPreviewer.preview(row.get("authors_name", ""), max_chars=140)
+            authors = str(row.get("authors_name", "") or "")
             summary = str(row.get("summary_full_paper", "") or "")
             approach = str(row.get("proposed_model_or_approach", "") or "")
             source = str(row.get("source", "") or "")

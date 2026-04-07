@@ -57,7 +57,7 @@ def render_research_result(result: dict[str, Any]) -> None:
         NumberedStepsRenderer.render(steps, max_chars=320)
 
     if result.get("assistant_reply"):
-        st.caption(TextPreviewer.preview(result["assistant_reply"], max_chars=420))
+        st.caption(str(result["assistant_reply"]))
 
 
 def render_assistant_result(result: dict[str, Any]) -> None:
