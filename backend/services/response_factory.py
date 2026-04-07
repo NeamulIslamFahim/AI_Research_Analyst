@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from backend.explorer_utils import fix_paper_url
-from backend.helpers import authors_to_str, extract_models, extract_proposed_approach
+from backend.helpers import authors_to_str, extract_datasets, extract_models, extract_proposed_approach
 
 from .text_utils import (
     _unique_sentences,
@@ -936,18 +936,210 @@ class ResearchResponseComposer:
             approach = _pick(sentence_list, ["propose", "present", "introduce", "framework", "model", "approach", "protocol", "review", "survey", "method"])
         impact = _pick(sentence_list, ["result", "find", "show", "suggest", "improve", "effective", "feasible", "impact", "outperform", "performance"])
 
-        parts = [collapse_text(overview if overview.endswith((".", "!", "?")) else f"{overview}.", 340)]
-        if problem and problem.lower() not in overview.lower():
-            parts.append(collapse_text(f"The paper frames its core problem as {problem[0].lower() + problem[1:]}.", 340))
-        if approach:
-            parts.append(collapse_text(f"The authors address that problem by {approach[0].lower() + approach[1:]}.", 360))
+        def _ensure_sentence(text: str) -> str:
+            text = re.sub(r"\s+", " ", str(text or "")).strip()
+            if not text:
+                return ""
+            if text[-1] not in ".!?":
+                text += "."
+            return text
+
+        def _compact_phrase(text: str, max_words: int = 24) -> str:
+            text = re.sub(r"\s+", " ", str(text or "")).strip(" ,;:-")
+            text = re.split(r"(?<=[.!?])\s+", text, maxsplit=1)[0].strip(" ,;:-")
+            text = re.sub(
+                r"^(?:this paper|the paper|this study|the study|the authors|authors|it)\s+(?:is about|addresses|focuses on|proposes|presents|introduces|argues that|shows that|suggests that|reports that)\s+",
+                "",
+                text,
+                flags=re.IGNORECASE,
+            )
+            words = text.split()
+            if len(words) > max_words:
+                text = " ".join(words[:max_words]).rstrip(" ,;:-")
+            return text
+
+        def _sentence_about() -> str:
+            short_title = title.split(":", 1)[0].strip() or title
+            return _ensure_sentence(f"This paper is about {short_title}")
+
+        def _sentence_problem() -> str:
+            if problem:
+                normalized = _compact_phrase(problem)
+                return _ensure_sentence(f"The problem it addresses is {normalized}")
+            return _ensure_sentence("The problem it addresses is improving or clarifying the target task described in the paper")
+
+        def _sentence_approach() -> str:
+            if approach:
+                normalized = _compact_phrase(approach)
+                return _ensure_sentence(f"To solve that problem, the paper uses {normalized}")
+            return _ensure_sentence("To solve that problem, the paper uses the methodology described in the available paper text")
+
+        def _sentence_impact() -> str:
+            impact_candidate = impact
+            if not impact_candidate or impact_candidate.strip().lower() == problem.strip().lower():
+                impact_candidate = _pick(sentence_list, ["guide", "future", "evaluation", "effective", "intervention", "support"])
+            if impact_candidate:
+                normalized = _compact_phrase(impact_candidate)
+                return _ensure_sentence(f"The impact of the approach is that {normalized}")
+            return _ensure_sentence("The impact of the approach is not stated quantitatively in the available text, but the paper presents it as a meaningful contribution")
+
+        def _sentence_close() -> str:
+            if fulltext:
+                return "Overall, the paper provides a reasonably grounded account of the topic, the addressed problem, the proposed solution, and the reported effect."
+            return "Overall, the summary is based on the abstract or metadata view, so it should be read as a concise paper overview rather than a full-text reconstruction."
+
+        parts = [
+            _sentence_about(),
+            _sentence_problem(),
+            _sentence_approach(),
+            _sentence_impact(),
+            _ensure_sentence(_sentence_close()),
+        ]
+        parts = [part for part in parts if part]
+        return collapse_text(" ".join(parts[:5]), 1600 if fulltext else 1100)
+
+    def _approach(self, row: dict, fulltext_snippet: str = "", abstract: str = "") -> str:
+        title = clean_text(row.get("title", "")) or "Untitled paper"
+        fulltext = clean_text(fulltext_snippet)
+        abstract_text = clean_text(abstract or row.get("abstract", ""))
+        source_text = fulltext or abstract_text
+        if fulltext and abstract_text and len(abstract_text.split()) > len(fulltext.split()) * 1.2:
+            source_text = abstract_text
+        if not source_text:
+            return collapse_text(
+                f"The source metadata does not expose a clear methodology for {title}. The available record does not identify a concrete model, dataset, or evaluation setup. The approach therefore cannot be described confidently beyond the title-level topic.",
+                900,
+            )
+
+        def _sentences(text: str) -> list[str]:
+            cleaned = re.sub(r"(\w)-\s+(\w)", r"\1\2", text.strip())
+            cleaned = re.sub(r"\s+", " ", cleaned).strip()
+            return [piece.strip() for piece in re.split(r"(?<=[.!?])\s+", cleaned) if len(piece.split()) >= 6]
+
+        def _pick(sentence_list: list[str], keywords: list[str]) -> str:
+            for sentence in sentence_list:
+                lowered = sentence.lower()
+                if any(keyword in lowered for keyword in keywords):
+                    return re.sub(r"\s+", " ", sentence).strip()
+            return ""
+
+        def _ensure_sentence(text: str) -> str:
+            text = re.sub(r"\s+", " ", str(text or "")).strip()
+            if not text:
+                return ""
+            if text[-1] not in ".!?":
+                text += "."
+            return text
+
+        def _compact_phrase(text: str, max_words: int = 24) -> str:
+            text = re.sub(r"\s+", " ", str(text or "")).strip(" ,;:-")
+            text = re.split(r"(?<=[.!?])\s+", text, maxsplit=1)[0].strip(" ,;:-")
+            text = re.sub(
+                r"^(?:we|this paper|the paper|this study|the study|the authors|authors|it)\s+(?:propose|present|introduce|develop|design|apply|use|uses|describe|evaluate)\s+",
+                "",
+                text,
+                flags=re.IGNORECASE,
+            )
+            text = re.sub(
+                r"^(?:the paper|this paper|the study|this study)\s+(?:argues that|reports that|suggests that|shows that)\s+",
+                "",
+                text,
+                flags=re.IGNORECASE,
+            )
+            words = text.split()
+            if len(words) > max_words:
+                text = " ".join(words[:max_words]).rstrip(" ,;:-")
+            return text
+
+        method_text = strip_front_matter(source_text, title) or source_text
+        sentence_list = _unique_sentences(_sentences(method_text))
+        if not sentence_list:
+            sentence_list = _unique_sentences(_sentences(source_text))
+
+        model_hits = extract_models(f"{title} {method_text} {abstract_text}")
+        dataset_hits = extract_datasets(f"{title} {method_text} {abstract_text}")
+        explicit_approach = clean_text(extract_proposed_approach(method_text))
+        cue_match = re.search(
+            r"(?:this paper|the paper|this study|the study)\s+(?:proposes|presents|introduces|develops|designs|applies|uses)\s+(.*)",
+            explicit_approach,
+            flags=re.IGNORECASE,
+        )
+        if cue_match:
+            explicit_approach = cue_match.group(1).strip(" ,;:-")
+        explicit_approach = re.sub(
+            r"^(?:we|this paper|the paper|this study|the study)\s+(?:propose|present|introduce|develop|design|apply|use|uses)\s+",
+            "",
+            explicit_approach,
+            flags=re.IGNORECASE,
+        ).strip(" ,;:-")
+        if len(explicit_approach.split()) < 6:
+            explicit_approach = _pick(sentence_list, ["propose", "present", "introduce", "framework", "model", "approach", "method", "pipeline", "protocol", "review", "survey"])
+            cue_match = re.search(
+                r"(?:this paper|the paper|this study|the study)\s+(?:proposes|presents|introduces|develops|designs|applies|uses)\s+(.*)",
+                explicit_approach,
+                flags=re.IGNORECASE,
+            )
+            if cue_match:
+                explicit_approach = cue_match.group(1).strip(" ,;:-")
+            explicit_approach = re.sub(
+                r"^(?:we|this paper|the paper|this study|the study)\s+(?:propose|present|introduce|develop|design|apply|use|uses)\s+",
+                "",
+                explicit_approach,
+                flags=re.IGNORECASE,
+            ).strip(" ,;:-")
+        setup_sentence = _pick(sentence_list, ["dataset", "data set", "corpus", "sample", "participants", "trial", "benchmark", "evaluation"])
+        eval_sentence = _pick(sentence_list, ["evaluate", "evaluation", "experiment", "results", "performance", "accuracy", "effectiveness", "feasible"])
+
+        survey_like = any(
+            term in f"{title} {method_text} {abstract_text}".lower()
+            for term in ["systematic review", "survey", "literature review", "scoping review", "meta-analysis", "viewpoint", "protocol"]
+        )
+
+        sentences_out: list[str] = []
+        if explicit_approach:
+            normalized = _compact_phrase(explicit_approach)
+            sentences_out.append(_ensure_sentence(f"The main methodology described in the paper is {normalized}"))
+        elif survey_like:
+            sentences_out.append("The paper uses a review-style or framework-building methodology rather than introducing a fully specified predictive model.")
         else:
-            parts.append("The available text indicates that the paper uses a concrete method or study design, but the extraction is not precise enough to restate it in more detail without risking fabrication.")
-        if impact:
-            parts.append(collapse_text(f"The reported takeaway is that {impact[0].lower() + impact[1:]}.", 360))
+            sentences_out.append("The paper describes a concrete methodology, but the available text does not expose enough detail to restate every step precisely.")
+
+        if model_hits:
+            if len(model_hits) == 1:
+                sentences_out.append(_ensure_sentence(f"The main model or methodological family mentioned in the paper is {model_hits[0]}"))
+            else:
+                sentences_out.append(_ensure_sentence(f"The paper mentions the following core models or methodological families: {', '.join(model_hits[:4])}"))
         else:
-            parts.append("The available text does not expose a precise quantitative finding clearly enough, so the safest reading is that the paper contributes directionally rather than through a fully specified result in this metadata view.")
-        return collapse_text(" ".join(parts), 1600 if fulltext else 1000)
+            sentences_out.append("The available text does not clearly name a distinct model family beyond the general methodology described in the paper.")
+
+        if dataset_hits:
+            if len(dataset_hits) == 1:
+                sentences_out.append(_ensure_sentence(f"The dataset explicitly mentioned in the available text is {dataset_hits[0]}"))
+            else:
+                sentences_out.append(_ensure_sentence(f"The datasets explicitly mentioned in the available text are {', '.join(dataset_hits[:4])}"))
+        elif survey_like:
+            sentences_out.append("The available text does not identify a benchmark dataset and instead presents the work as a conceptual, framework-building, review, or protocol-oriented study.")
+        elif setup_sentence:
+            normalized = _compact_phrase(setup_sentence)
+            sentences_out.append(_ensure_sentence(f"The data or evaluation setup is described as {normalized}"))
+        else:
+            sentences_out.append("The dataset is not clearly named in the available text, so the safest summary is that the paper uses the study setting described in its abstract or extracted sections.")
+
+        if eval_sentence and not survey_like:
+            normalized = _compact_phrase(eval_sentence)
+            sentences_out.append(_ensure_sentence(f"The methodology is evaluated through {normalized}"))
+        elif survey_like:
+            sentences_out.append("The evaluation is framed at the level of future design guidance or review synthesis rather than as a benchmark comparison on a named dataset.")
+        else:
+            sentences_out.append("The methodology is presented together with an evaluation process, but the extracted text does not expose all of the experimental details clearly.")
+
+        if survey_like:
+            sentences_out.append("Because the paper is review-oriented or protocol-oriented, the methodology should be read as a synthesis or study plan rather than as a single deployable model.")
+        else:
+            sentences_out.append("Overall, the approach section indicates how the authors connect the method, the model family, the data, and the evaluation into one workflow.")
+
+        cleaned = [sentence for sentence in sentences_out if sentence]
+        return collapse_text(" ".join(cleaned[:5]), 1400 if fulltext else 1100)
 
     def _gaps(self, rows: list[dict]) -> list[str]:
         gaps: list[str] = []
