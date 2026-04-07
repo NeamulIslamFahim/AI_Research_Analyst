@@ -1,6 +1,6 @@
 fastapi
 uvicorn
-streamlit
+streamlit==1.37.0
 python-multipart
 langchain-core
 langchain-community
