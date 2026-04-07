@@ -46,7 +46,7 @@ def _ensure_model_cache_dirs() -> None:
         path = os.getenv(var)
         if path:
             os.makedirs(path, exist_ok=True)
-    if (os.getenv("ASSISTANT_TRAIN_ON_STARTUP", "true") or "true").lower() == "true":
+    if (os.getenv("ASSISTANT_TRAIN_ON_STARTUP", "false") or "false").lower() == "true":
         def _background_train() -> None:
             try:
                 train_assistant_model(force=False)

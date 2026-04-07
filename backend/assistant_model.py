@@ -374,7 +374,7 @@ def _start_assistant_warmup() -> None:
     if _ASSISTANT_WARMUP_STARTED:
         return
     _ASSISTANT_WARMUP_STARTED = True
-    if (load_env_var("WARM_ASSISTANT_CACHE", "true") or "true").lower() != "true":
+    if (load_env_var("WARM_ASSISTANT_CACHE", "false") or "false").lower() != "true":
         return
     threading.Thread(target=_warm_assistant_runtime, daemon=True).start()
 

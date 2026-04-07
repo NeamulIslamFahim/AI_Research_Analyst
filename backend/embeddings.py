@@ -13,6 +13,8 @@ from .helpers import load_env_var, ensure_directory
 
 
 EMBEDDING_MODEL = load_env_var("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L3-v2") or "sentence-transformers/all-MiniLM-L3-v2"
+_EMBEDDINGS_SINGLETON: Embeddings | None = None
+_DUMMY_EMBEDDINGS_SINGLETON: Embeddings | None = None
 
 
 class _SafeEmbeddings(Embeddings):
@@ -94,21 +96,29 @@ class _DummyEmbeddings(Embeddings):
 
 def create_embeddings() -> Embeddings:
     """Create a HuggingFaceEmbeddings instance with a reliable default model."""
+    global _EMBEDDINGS_SINGLETON
+    if _EMBEDDINGS_SINGLETON is not None:
+        return _EMBEDDINGS_SINGLETON
     try:
         base = HuggingFaceEmbeddings(
             model_name=EMBEDDING_MODEL,
             model_kwargs={"device": "cpu", "local_files_only": True},
             encode_kwargs={"normalize_embeddings": True},
         )
-        return _SafeEmbeddings(base)
+        _EMBEDDINGS_SINGLETON = _SafeEmbeddings(base)
+        return _EMBEDDINGS_SINGLETON
     except Exception as exc:  # Defensive: surface embedding init failures clearly.
         # Fallback to dummy embeddings to keep the app running on Windows handle errors.
-        return _DummyEmbeddings(dim=384)
+        _EMBEDDINGS_SINGLETON = _DummyEmbeddings(dim=384)
+        return _EMBEDDINGS_SINGLETON
 
 
 def create_dummy_embeddings(dim: int = 384) -> Embeddings:
     """Create a dummy embeddings instance to keep FAISS operational."""
-    return _DummyEmbeddings(dim=dim)
+    global _DUMMY_EMBEDDINGS_SINGLETON
+    if _DUMMY_EMBEDDINGS_SINGLETON is None:
+        _DUMMY_EMBEDDINGS_SINGLETON = _DummyEmbeddings(dim=dim)
+    return _DUMMY_EMBEDDINGS_SINGLETON
 
 
 def get_faiss_persist_dir() -> str:

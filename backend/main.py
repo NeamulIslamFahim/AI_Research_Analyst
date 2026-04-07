@@ -374,7 +374,7 @@ def _start_research_warmup() -> None:
     if _WARMUP_STARTED:
         return
     _WARMUP_STARTED = True
-    if (load_env_var("WARM_RESEARCH_CACHE", "true") or "true").lower() != "true":
+    if (load_env_var("WARM_RESEARCH_CACHE", "false") or "false").lower() != "true":
         return
     threading.Thread(target=_warm_research_runtime, daemon=True).start()
 

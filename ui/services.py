@@ -10,14 +10,6 @@ from typing import Any
 import streamlit as st
 from fastapi import HTTPException
 
-from backend.app import writer_step
-from backend.assistant_model import schedule_assistant_retrain
-from backend.main import (
-    download_papers_for_topic,
-    run_paper_reviewer_followup,
-    run_paper_reviewer,
-    run_research_explorer,
-)
 from backend.pdf_utils import extract_text
 from backend.schemas import ResearchExplorerRequest, WriterStepRequest
 from backend.services.response_templates import build_research_error_response
@@ -31,12 +23,35 @@ from .state import (
 )
 
 
+def _backend_main():
+    from backend import main as backend_main
+
+    return backend_main
+
+
+def _writer_step(request: WriterStepRequest):
+    from backend.app import writer_step
+
+    return writer_step(request)
+
+
+def _maybe_schedule_assistant_retrain() -> None:
+    if (os.getenv("ASSISTANT_AUTO_RETRAIN", "false") or "false").lower() != "true":
+        return
+    try:
+        from backend.assistant_model import schedule_assistant_retrain
+
+        schedule_assistant_retrain()
+    except Exception:
+        pass
+
+
 def start_background_download(topic: str) -> None:
     """Download and index papers without blocking the UI."""
 
     def _worker() -> None:
         try:
-            download_papers_for_topic(topic)
+            _backend_main().download_papers_for_topic(topic)
         except Exception:
             pass
 
@@ -83,7 +98,7 @@ def assistant_response_for_prompt(
                 None,
             )
 
-        result = run_paper_reviewer_followup(prompt, paper_text)
+        result = _backend_main().run_paper_reviewer_followup(prompt, paper_text)
         answer = result.get("answer") or "No answer found."
         return (
             {"role": "assistant", "content": answer, "type": "text", "display_text": answer},
@@ -99,7 +114,7 @@ def assistant_response_for_prompt(
         if force_refresh and not is_follow_up:
             previously_returned_titles = []
         try:
-            result = run_research_explorer(
+            result = _backend_main().run_research_explorer(
                 topic=resolved_topic,
                 chat_history=history,
                 use_live=None,
@@ -144,7 +159,7 @@ def ensure_writer_intro(session: dict[str, Any]) -> None:
     if session["messages"] or session.get("writer_intro_shown"):
         return
 
-    response = writer_step(WriterStepRequest(user_text="", state=session.get("writer_state") or {"phase": "start"}))
+    response = _writer_step(WriterStepRequest(user_text="", state=session.get("writer_state") or {"phase": "start"}))
     update_current_session(
         messages=[
             {"role": "assistant", "content": message, "type": "text", "display_text": message}
@@ -175,7 +190,7 @@ def handle_upload(uploaded_file: Any) -> bool:
     tmp_path = save_uploaded_pdf(uploaded_file)
     try:
         paper_text = extract_text(tmp_path)
-        result = run_paper_reviewer(paper_text)
+        result = _backend_main().run_paper_reviewer(paper_text)
     finally:
         try:
             os.remove(tmp_path)
@@ -185,7 +200,7 @@ def handle_upload(uploaded_file: Any) -> bool:
     if result.get("error"):
         final_msg = {"role": "assistant", "content": result["error"], "type": "text", "display_text": result["error"]}
         update_current_session(messages=replace_or_append_assistant(current_session()["messages"], final_msg))
-        schedule_assistant_retrain()
+        _maybe_schedule_assistant_retrain()
         return False
 
     review_text = "\n\n".join(
@@ -205,7 +220,7 @@ def handle_upload(uploaded_file: Any) -> bool:
         messages=replace_or_append_assistant(current_session()["messages"], final_msg),
         paper_text=paper_text,
     )
-    schedule_assistant_retrain()
+    _maybe_schedule_assistant_retrain()
     return True
 
 
@@ -256,7 +271,7 @@ def handle_send(prompt: str) -> None:
     try:
         with st.spinner(spinner_text):
             if mode == "Research Paper Writer":
-                response = writer_step(WriterStepRequest(user_text=trimmed, state=session.get("writer_state") or {"phase": "start"}))
+                response = _writer_step(WriterStepRequest(user_text=trimmed, state=session.get("writer_state") or {"phase": "start"}))
                 replies = [
                     {"role": "assistant", "content": message, "type": "text", "display_text": message}
                     for message in response.messages
@@ -265,7 +280,7 @@ def handle_send(prompt: str) -> None:
                     messages=[*session["messages"][:-1], *replies],
                     writer_state=response.next_state or {"phase": "start"},
                 )
-                schedule_assistant_retrain()
+                _maybe_schedule_assistant_retrain()
                 return
 
             if mode == "Research Paper Reviewer":
@@ -273,11 +288,11 @@ def handle_send(prompt: str) -> None:
                 if not paper_text:
                     final_msg = {"role": "assistant", "content": "Please upload a PDF first.", "type": "text", "display_text": "Please upload a PDF first."}
                 else:
-                    result = run_paper_reviewer_followup(trimmed, paper_text)
+                    result = _backend_main().run_paper_reviewer_followup(trimmed, paper_text)
                     answer = result.get("answer") or "No answer found."
                     final_msg = {"role": "assistant", "content": answer, "type": "text", "display_text": answer}
                 update_current_session(messages=replace_or_append_assistant(session["messages"], final_msg))
-                schedule_assistant_retrain()
+                _maybe_schedule_assistant_retrain()
                 return
 
             if mode == "Research Explorer":
@@ -287,7 +302,7 @@ def handle_send(prompt: str) -> None:
                 force_refresh = is_follow_up
                 focus_topic = resolved_topic if is_follow_up else (trimmed if len(trimmed.split()) > 8 else None)
                 try:
-                    result = run_research_explorer(
+                    result = _backend_main().run_research_explorer(
                         topic=resolved_topic,
                         chat_history=history,
                         use_live=None,
@@ -303,12 +318,12 @@ def handle_send(prompt: str) -> None:
                 final_msg = {"role": "assistant", "content": result, "type": "research", "display_text": result.get("assistant_reply", "Research result")}
                 update_current_session(messages=replace_or_append_assistant(session["messages"], final_msg))
                 start_background_download(resolved_topic)
-                schedule_assistant_retrain()
+                _maybe_schedule_assistant_retrain()
                 return
 
     except Exception as exc:
         final_msg = {"role": "assistant", "content": str(exc), "type": "text", "display_text": str(exc)}
         update_current_session(messages=replace_or_append_assistant(session["messages"], final_msg))
-        schedule_assistant_retrain()
+        _maybe_schedule_assistant_retrain()
     finally:
         notice.empty()
