@@ -14,6 +14,7 @@ class ResearchExplorerRequest(BaseModel):
     use_live: Optional[bool] = None
     force_refresh: Optional[bool] = None
     previously_returned_titles: Optional[List[str]] = None
+    previously_returned_papers: Optional[List[Dict[str, Any]]] = None
 
 
 class ReviewQARequest(BaseModel):

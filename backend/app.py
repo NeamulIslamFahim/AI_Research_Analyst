@@ -114,11 +114,10 @@ def review_qa(payload: ReviewQARequest) -> Dict[str, Any]:
 
 @app.post("/api/research/explore")
 def research_explore(payload: ResearchExplorerRequest) -> Dict[str, Any]:
-    # Force refresh if the user is asking for "more" or other generic follow-ups
-    # to ensure they don't just get the same cached results.
-    is_follow_up = ResearchService.is_generic_explorer_prompt(payload.topic)
+    # Only refresh the local index when the user explicitly asks for more/extended results.
+    is_follow_up = ResearchService.is_expansion_request(payload.topic)
     resolved_topic = ResearchService.resolve_topic_from_history(payload.topic, payload.chat_history)
-    force_refresh = payload.force_refresh or is_follow_up or resolved_topic != payload.topic
+    force_refresh = bool(payload.force_refresh or is_follow_up)
     backend_main = _backend_main()
     effective_use_live = payload.use_live
     if effective_use_live is None:
@@ -157,6 +156,7 @@ def research_explore(payload: ResearchExplorerRequest) -> Dict[str, Any]:
         use_live=effective_use_live,
         force_refresh=force_refresh,
         previously_returned_titles=payload.previously_returned_titles,
+        previously_returned_papers=payload.previously_returned_papers,
     )
     if isinstance(result, dict) and result.get("error"):
         return fallback_error_result(resolved_topic, str(result.get("error", "")))
@@ -164,11 +164,12 @@ def research_explore(payload: ResearchExplorerRequest) -> Dict[str, Any]:
     cleaned = fix_explorer_links(result)
     if isinstance(cleaned, dict) and isinstance(cleaned.get("table"), list):
         cleaned["table"] = cleaned.get("table", [])[:5]
-    entry = {"ts": now, "data": cleaned}
-    _explorer_cache.memory_cache[key] = entry
-    disk_cache = _explorer_cache.load_disk_cache()
-    disk_cache[key] = entry
-    _explorer_cache.save_disk_cache(disk_cache)
+    if not force_refresh:
+        entry = {"ts": now, "data": cleaned}
+        _explorer_cache.memory_cache[key] = entry
+        disk_cache = _explorer_cache.load_disk_cache()
+        disk_cache[key] = entry
+        _explorer_cache.save_disk_cache(disk_cache)
     return cleaned
 
 

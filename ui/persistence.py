@@ -68,6 +68,8 @@ def _serialize_session(session: dict[str, Any]) -> dict[str, Any]:
         "last_uploaded_pdf_signature": session.get("last_uploaded_pdf_signature", ""),
         "writer_state": session.get("writer_state") or {"phase": "start"},
         "writer_intro_shown": bool(session.get("writer_intro_shown")),
+        "research_last_topic": session.get("research_last_topic", "") or "",
+        "research_seen_papers": list(session.get("research_seen_papers") or []),
         "updated_at": _utc_now(),
         "messages": [],
     }
@@ -94,6 +96,8 @@ def _deserialize_session(record: dict[str, Any], default_mode: str) -> dict[str,
         "last_uploaded_pdf_signature": record.get("last_uploaded_pdf_signature", "") or "",
         "writer_state": record.get("writer_state") or {"phase": "start"},
         "writer_intro_shown": bool(record.get("writer_intro_shown")),
+        "research_last_topic": record.get("research_last_topic", "") or "",
+        "research_seen_papers": list(record.get("research_seen_papers") or []),
     }
 
 

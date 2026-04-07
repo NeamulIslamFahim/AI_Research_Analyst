@@ -16,6 +16,7 @@ from .text_utils import (
     normalize_output_text,
     row_matches_topic,
     strip_front_matter,
+    titles_look_equivalent,
     topic_is_specific,
     topic_tokens,
 )
@@ -45,22 +46,82 @@ class ResearchResponseComposer:
         self.topic = topic.strip()
         self.policy = TopicPolicy(self.topic)
 
-    def select_rows(self, rows: list[dict], limit: int = 5) -> list[dict]:
+    def _ensure_sentence(self, text: str) -> str:
+        text = re.sub(r"\s+", " ", str(text or "")).strip()
+        if not text:
+            return ""
+        if text[-1] not in ".!?":
+            text += "."
+        return text
+
+    def _lower_first(self, text: str) -> str:
+        text = str(text or "").strip()
+        if not text:
+            return ""
+        return text[0].lower() + text[1:] if text[0].isalpha() else text
+
+    def _clean_fragment(self, text: str, title: str = "", max_words: int = 28) -> str:
+        cleaned = re.sub(r"(\w)-\s+(\w)", r"\1\2", clean_text(text))
+        if title:
+            title_clean = re.escape(clean_text(title))
+            cleaned = re.sub(rf"^{title_clean}\s*[:\-\u2013\u2014]?\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.split(r"(?<=[.!?])\s+", cleaned, maxsplit=1)[0].strip(" ,;:-")
+        cleaned = re.sub(
+            r"^(?:this paper|the paper|this study|the study|the authors|authors|it)\s+"
+            r"(?:is about|focuses on|addresses|examines|explores|studies|proposes|presents|introduces|develops|designs|uses|shows|reports|finds|suggests|argues that)\s+",
+            "",
+            cleaned,
+            flags=re.IGNORECASE,
+        )
+        words = cleaned.split()
+        if len(words) > max_words:
+            cleaned = " ".join(words[:max_words]).rstrip(" ,;:-")
+        return cleaned.strip(" ,;:-")
+
+    def _natural_list(self, items: list[str], limit: int = 3) -> str:
+        cleaned_items: list[str] = []
+        seen: set[str] = set()
+        for item in items:
+            cleaned = re.sub(r"\s+", " ", str(item or "")).strip(" ,;:-.")
+            key = cleaned.lower()
+            if not cleaned or key in seen:
+                continue
+            seen.add(key)
+            cleaned_items.append(cleaned)
+            if len(cleaned_items) >= limit:
+                break
+        if not cleaned_items:
+            return ""
+        if len(cleaned_items) == 1:
+            return cleaned_items[0]
+        if len(cleaned_items) == 2:
+            return f"{cleaned_items[0]} and {cleaned_items[1]}"
+        return f"{', '.join(cleaned_items[:-1])}, and {cleaned_items[-1]}"
+
+    def select_rows(self, rows: list[dict], limit: int = 5, excluded_titles: list[str] | None = None) -> list[dict]:
         matched = [r for r in rows if self.policy.matches_row(r)]
         # Prefer the strict match set whenever it exists. Only fall back to the full
         # pool when no rows match at all, so follow-ups stay on-topic instead of
         # filling the table with unrelated papers.
         pool = matched if matched else rows
-        seen: set[tuple[str, str]] = set()
+        excluded = [clean_text(title) for title in (excluded_titles or []) if clean_text(title)]
+        seen_urls: set[str] = set()
+        seen_titles: list[str] = []
         selected: list[dict] = []
         for row in pool:
-            title = str(row.get("title", "")).strip().lower()
-            url = str(row.get("url", "")).strip().lower()
-            key = (title, url)
-            if key in seen:
+            title = clean_text(row.get("title", ""))
+            url = str(row.get("url", "") or row.get("pdf_url", "") or row.get("doi", "")).strip().lower()
+            if excluded and any(titles_look_equivalent(title, old_title) for old_title in excluded):
                 continue
-            seen.add(key)
+            if url and url in seen_urls:
+                continue
+            if title and any(titles_look_equivalent(title, seen_title) for seen_title in seen_titles):
+                continue
             selected.append(row)
+            if url:
+                seen_urls.add(url)
+            if title:
+                seen_titles.append(title)
             if len(selected) >= limit:
                 break
         return selected
@@ -292,10 +353,28 @@ class ResearchResponseComposer:
     def _problem(self, row: dict, fulltext_snippet: str = "", abstract: str = "") -> str:
         title = clean_text(row.get("title", "")) or "Untitled paper"
         text = clean_text(fulltext_snippet or abstract or row.get("abstract", ""))
-        if text:
-            first = re.split(r"(?<=[.!?])\s+", text)[0].strip()
-            return collapse_text(first, 360)
-        return collapse_text(f"The paper addresses the topic suggested by its title: {title}.", 360)
+        if not text:
+            return collapse_text(f"The paper centers on the question suggested by its title, {title}.", 360)
+
+        sentences = [
+            piece.strip()
+            for piece in re.split(r"(?<=[.!?])\s+", text)
+            if len(piece.strip().split()) >= 6
+        ]
+        keywords = ["problem", "challenge", "gap", "need", "barrier", "issue", "limitation", "address", "improve", "support"]
+        candidate = ""
+        for sentence in sentences:
+            lowered = sentence.lower()
+            if any(keyword in lowered for keyword in keywords):
+                candidate = sentence
+                break
+        if not candidate and sentences:
+            candidate = sentences[0]
+
+        fragment = self._clean_fragment(candidate or text, title=title, max_words=26)
+        if not fragment:
+            return collapse_text(f"The paper focuses on {title}.", 360)
+        return collapse_text(self._ensure_sentence(f"The paper focuses on {self._lower_first(fragment)}"), 360)
 
     def _approach(self, row: dict, fulltext_snippet: str = "", abstract: str = "") -> str:
         title = clean_text(row.get("title", "")) or "Untitled paper"
@@ -789,6 +868,13 @@ class ResearchResponseComposer:
 
     def _gap_focus(self, gap: str) -> str:
         focus = gap.rsplit(":", 1)[-1].strip() if ":" in gap else gap.strip()
+        focus = re.sub(r"^(?:in|for)\s+.+?,\s*", "", focus, flags=re.IGNORECASE)
+        focus = re.sub(
+            r"^(?:the paper would benefit from|the safest next step is to|the next step would be to|the next step is to|a strong follow-up would)\s+",
+            "",
+            focus,
+            flags=re.IGNORECASE,
+        )
         focus = focus.rstrip(".")
         focus = re.sub(r"\s+", " ", focus).strip()
         return focus
@@ -936,64 +1022,56 @@ class ResearchResponseComposer:
             approach = _pick(sentence_list, ["propose", "present", "introduce", "framework", "model", "approach", "protocol", "review", "survey", "method"])
         impact = _pick(sentence_list, ["result", "find", "show", "suggest", "improve", "effective", "feasible", "impact", "outperform", "performance"])
 
-        def _ensure_sentence(text: str) -> str:
-            text = re.sub(r"\s+", " ", str(text or "")).strip()
-            if not text:
-                return ""
-            if text[-1] not in ".!?":
-                text += "."
-            return text
-
-        def _compact_phrase(text: str, max_words: int = 24) -> str:
-            text = re.sub(r"\s+", " ", str(text or "")).strip(" ,;:-")
-            text = re.split(r"(?<=[.!?])\s+", text, maxsplit=1)[0].strip(" ,;:-")
-            text = re.sub(
-                r"^(?:this paper|the paper|this study|the study|the authors|authors|it)\s+(?:is about|addresses|focuses on|proposes|presents|introduces|argues that|shows that|suggests that|reports that)\s+",
-                "",
-                text,
-                flags=re.IGNORECASE,
-            )
-            words = text.split()
-            if len(words) > max_words:
-                text = " ".join(words[:max_words]).rstrip(" ,;:-")
-            return text
-
-        def _sentence_about() -> str:
-            short_title = title.split(":", 1)[0].strip() or title
-            return _ensure_sentence(f"This paper is about {short_title}")
-
-        def _sentence_problem() -> str:
-            if problem:
-                normalized = _compact_phrase(problem)
-                return _ensure_sentence(f"The problem it addresses is {normalized}")
-            return _ensure_sentence("The problem it addresses is improving or clarifying the target task described in the paper")
-
-        def _sentence_approach() -> str:
-            if approach:
-                normalized = _compact_phrase(approach)
-                return _ensure_sentence(f"To solve that problem, the paper uses {normalized}")
-            return _ensure_sentence("To solve that problem, the paper uses the methodology described in the available paper text")
-
         def _sentence_impact() -> str:
             impact_candidate = impact
             if not impact_candidate or impact_candidate.strip().lower() == problem.strip().lower():
                 impact_candidate = _pick(sentence_list, ["guide", "future", "evaluation", "effective", "intervention", "support"])
             if impact_candidate:
-                normalized = _compact_phrase(impact_candidate)
-                return _ensure_sentence(f"The impact of the approach is that {normalized}")
-            return _ensure_sentence("The impact of the approach is not stated quantitatively in the available text, but the paper presents it as a meaningful contribution")
+                normalized = self._clean_fragment(impact_candidate, title=title, max_words=26)
+                return self._ensure_sentence(f"In the reported results, {self._lower_first(normalized)}")
+            return self._ensure_sentence("The paper frames the method as a meaningful contribution, even though the visible text does not give a precise quantitative result")
 
         def _sentence_close() -> str:
             if fulltext:
-                return "Overall, the paper provides a reasonably grounded account of the topic, the addressed problem, the proposed solution, and the reported effect."
-            return "Overall, the summary is based on the abstract or metadata view, so it should be read as a concise paper overview rather than a full-text reconstruction."
+                return "Overall, the paper gives a grounded account of the problem, the method, and the reported outcome."
+            return "Overall, this reads as a concise overview from the abstract or metadata rather than a full reconstruction of the paper."
+
+        about_fragment = self._clean_fragment(overview or title, title=title, max_words=24)
+        if not about_fragment:
+            short_title = title.split(":", 1)[0].strip() or title
+            about_sentence = self._ensure_sentence(f"The paper looks at {short_title}")
+        elif len(about_fragment.split()) < 6:
+            about_sentence = self._ensure_sentence(f"The paper looks at {self._lower_first(about_fragment)}")
+        else:
+            about_sentence = self._ensure_sentence(about_fragment)
+
+        problem_fragment = self._clean_fragment(problem, title=title, max_words=26) if problem else ""
+        if problem_fragment:
+            problem_sentence = self._ensure_sentence(
+                f"More specifically, it focuses on {self._lower_first(problem_fragment)}"
+            )
+        else:
+            problem_sentence = self._ensure_sentence(
+                "More specifically, it focuses on the core challenge described in the paper"
+            )
+
+        approach_fragment = self._clean_fragment(approach, title=title, max_words=28) if approach else ""
+        about_key = re.sub(r"\s+", " ", about_fragment).strip().lower()
+        problem_key = re.sub(r"\s+", " ", problem_fragment).strip().lower()
+        approach_key = re.sub(r"\s+", " ", approach_fragment).strip().lower()
+        if approach_fragment and approach_key not in {about_key, problem_key} and approach_key not in about_key:
+            approach_sentence = self._ensure_sentence(
+                f"The central idea is {self._lower_first(approach_fragment)}"
+            )
+        else:
+            approach_sentence = ""
 
         parts = [
-            _sentence_about(),
-            _sentence_problem(),
-            _sentence_approach(),
+            about_sentence,
+            problem_sentence,
+            approach_sentence,
             _sentence_impact(),
-            _ensure_sentence(_sentence_close()),
+            self._ensure_sentence(_sentence_close()),
         ]
         parts = [part for part in parts if part]
         return collapse_text(" ".join(parts[:5]), 1600 if fulltext else 1100)
@@ -1018,48 +1096,28 @@ class ResearchResponseComposer:
                     return re.sub(r"\s+", " ", sentence).strip()
             return ""
 
-        def _ensure_sentence(text: str) -> str:
-            text = re.sub(r"\s+", " ", str(text or "")).strip()
-            if not text:
-                return ""
-            if text[-1] not in ".!?":
-                text += "."
-            return text
-
-        def _compact_phrase(text: str, max_words: int = 24) -> str:
-            text = re.sub(r"\s+", " ", str(text or "")).strip(" ,;:-")
-            text = re.split(r"(?<=[.!?])\s+", text, maxsplit=1)[0].strip(" ,;:-")
-            text = re.sub(
-                r"^(?:we|this paper|the paper|this study|the study|the authors|authors|it)\s+(?:propose|present|introduce|develop|design|apply|use|uses|describe|evaluate)\s+",
-                "",
-                text,
-                flags=re.IGNORECASE,
-            )
-            text = re.sub(
-                r"^(?:the paper|this paper|the study|this study)\s+(?:argues that|reports that|suggests that|shows that)\s+",
-                "",
-                text,
-                flags=re.IGNORECASE,
-            )
-            words = text.split()
-            if len(words) > max_words:
-                text = " ".join(words[:max_words]).rstrip(" ,;:-")
-            return text
-
         def _title_method_hint() -> str:
             short_title = title.split(":", 1)[0].strip() or title
             return re.sub(r"\s+", " ", short_title).strip(" ,;:-")
 
         if not source_text:
             title_hint = _title_method_hint()
-            fallback_sentences = [
-                _ensure_sentence(f"The available metadata suggests that the paper focuses on {title_hint[0].lower() + title_hint[1:] if title_hint else title}"),
-                _ensure_sentence("The visible record implies that the approach is tied to the method or model named in the title, but it does not expose the full methodological pipeline"),
-                _ensure_sentence("The dataset, benchmark, or study sample is not identified in the available metadata"),
-                _ensure_sentence("The evaluation setup is also not clearly described in the visible record"),
-                _ensure_sentence("Overall, the approach can only be summarized cautiously from the title and metadata that are currently available"),
-            ]
-            return collapse_text(" ".join(fallback_sentences[:5]), 1000)
+            return collapse_text(
+                " ".join(
+                    [
+                        self._ensure_sentence(
+                            f"The available metadata suggests a method centered on {self._lower_first(title_hint) if title_hint else title}"
+                        ),
+                        self._ensure_sentence(
+                            "However, the visible record does not expose enough detail to reconstruct the full pipeline with confidence"
+                        ),
+                        self._ensure_sentence(
+                            "The dataset, benchmark, and evaluation setup are also unclear from the metadata alone"
+                        ),
+                    ]
+                ),
+                1000,
+            )
 
         method_text = strip_front_matter(source_text, title) or source_text
         sentence_list = _unique_sentences(_sentences(method_text))
@@ -1108,54 +1166,89 @@ class ResearchResponseComposer:
         sentences_out: list[str] = []
         missing_sentences: list[str] = []
         if explicit_approach:
-            normalized = _compact_phrase(explicit_approach)
-            sentences_out.append(_ensure_sentence(f"The main methodology described in the paper is {normalized}"))
+            normalized = self._clean_fragment(explicit_approach, title=title, max_words=30)
+            sentences_out.append(self._ensure_sentence(f"The paper's main idea is {self._lower_first(normalized)}"))
         elif survey_like:
-            sentences_out.append("The paper uses a review-style or framework-building methodology rather than introducing a fully specified predictive model.")
+            sentences_out.append(
+                self._ensure_sentence(
+                    "Rather than introducing a single predictive model, the paper mainly synthesizes prior work into a review or framework-style contribution"
+                )
+            )
         else:
             title_hint = _title_method_hint()
-            sentences_out.append(_ensure_sentence(f"The available text suggests that the paper uses the method or technical direction implied by {title_hint}"))
-            missing_sentences.append("The extracted text does not expose enough detail to restate every methodological step precisely.")
+            sentences_out.append(
+                self._ensure_sentence(
+                    f"The available text points to a method built around {self._lower_first(title_hint)}"
+                )
+            )
+            missing_sentences.append(
+                "The extracted text does not expose enough detail to restate every methodological step precisely"
+            )
 
         if model_hits:
-            if len(model_hits) == 1:
-                sentences_out.append(_ensure_sentence(f"The main model or methodological family mentioned in the paper is {model_hits[0]}"))
-            else:
-                sentences_out.append(_ensure_sentence(f"The paper mentions the following core models or methodological families: {', '.join(model_hits[:4])}"))
+            normalized_explicit = explicit_approach.lower()
+            if len(model_hits) == 1 and model_hits[0].lower() not in normalized_explicit:
+                sentences_out.append(self._ensure_sentence(f"It is framed around {model_hits[0]}"))
+            elif len(model_hits) > 1:
+                model_list = self._natural_list(model_hits[:4])
+                sentences_out.append(self._ensure_sentence(f"It brings together {model_list}"))
         else:
-            missing_sentences.append("The available text does not clearly name a more specific model family beyond the general methodology described in the paper.")
+            missing_sentences.append(
+                "The available text does not clearly name a more specific model family beyond the general methodology described in the paper"
+            )
 
         if dataset_hits:
             if len(dataset_hits) == 1:
-                sentences_out.append(_ensure_sentence(f"The dataset explicitly mentioned in the available text is {dataset_hits[0]}"))
+                sentences_out.append(self._ensure_sentence(f"The reported evaluation uses {dataset_hits[0]}"))
             else:
-                sentences_out.append(_ensure_sentence(f"The datasets explicitly mentioned in the available text are {', '.join(dataset_hits[:4])}"))
+                dataset_list = self._natural_list(dataset_hits[:4])
+                sentences_out.append(self._ensure_sentence(f"The reported evaluation draws on {dataset_list}"))
         elif survey_like:
-            sentences_out.append("The available text does not identify a benchmark dataset and instead presents the work as a conceptual, framework-building, review, or protocol-oriented study.")
+            sentences_out.append(
+                self._ensure_sentence(
+                    "The paper does not revolve around a named benchmark dataset and instead reads as a conceptual or review-oriented study"
+                )
+            )
         elif setup_sentence:
-            normalized = _compact_phrase(setup_sentence)
-            sentences_out.append(_ensure_sentence(f"The data or evaluation setup is described as {normalized}"))
+            normalized = self._clean_fragment(setup_sentence, title=title, max_words=26)
+            sentences_out.append(self._ensure_sentence(f"The evaluation setup is described around {self._lower_first(normalized)}"))
         else:
-            missing_sentences.append("The dataset is not clearly named in the available text, so the safest summary is that the paper uses the study setting described in its abstract or extracted sections.")
+            missing_sentences.append(
+                "The dataset is not clearly named in the available text, so the safest summary is that the paper uses the study setting described in its abstract or extracted sections"
+            )
 
         if eval_sentence and not survey_like:
-            normalized = _compact_phrase(eval_sentence)
-            sentences_out.append(_ensure_sentence(f"The methodology is evaluated through {normalized}"))
+            normalized = self._clean_fragment(eval_sentence, title=title, max_words=26)
+            sentences_out.append(self._ensure_sentence(f"The reported evaluation suggests that {self._lower_first(normalized)}"))
         elif survey_like:
-            sentences_out.append("The evaluation is framed at the level of future design guidance or review synthesis rather than as a benchmark comparison on a named dataset.")
+            sentences_out.append(
+                self._ensure_sentence(
+                    "Its contribution is framed more as synthesis and design guidance than as a benchmark-style comparison on one fixed dataset"
+                )
+            )
         else:
-            missing_sentences.append("The methodology is presented together with an evaluation process, but the extracted text does not expose all of the experimental details clearly.")
+            missing_sentences.append(
+                "The methodology is presented together with an evaluation process, but the extracted text does not expose all of the experimental details clearly"
+            )
 
         if survey_like:
-            sentences_out.append("Because the paper is review-oriented or protocol-oriented, the methodology should be read as a synthesis or study plan rather than as a single deployable model.")
+            sentences_out.append(
+                self._ensure_sentence(
+                    "Taken together, the method should be read as a synthesis or study plan rather than as a single deployable model"
+                )
+            )
         else:
-            sentences_out.append("Overall, the approach section indicates how the authors connect the method, the model family, the data, and the evaluation into one workflow.")
+            sentences_out.append(
+                self._ensure_sentence(
+                    "Taken together, the method links the modeling choice, the data, and the evaluation into one coherent workflow"
+                )
+            )
 
         cleaned = [sentence for sentence in sentences_out if sentence]
         for sentence in missing_sentences:
             if len(cleaned) >= 3:
                 break
-            cleaned.append(_ensure_sentence(sentence))
+            cleaned.append(self._ensure_sentence(sentence))
         return collapse_text(" ".join(cleaned[:5]), 1400 if fulltext else 1100)
 
     def _gaps(self, rows: list[dict]) -> list[str]:
@@ -1164,11 +1257,11 @@ class ResearchResponseComposer:
             title = clean_text(row.get("title", "")) or "Paper"
             if self._metadata_limited(row):
                 gap = (
-                    f"{title}: the available metadata is not rich enough to support a paper-specific gap with high confidence, "
-                    "so the safest next step is to inspect the full text before turning this source into a concrete design recommendation."
+                    f"For {title}, the metadata is still too thin to state a paper-specific gap confidently, "
+                    "so the safest next step is to inspect the full text before turning it into a concrete design recommendation."
                 )
             else:
-                gap = f"{title}: {self._domain_gap(row)}."
+                gap = f"In {title}, {self._domain_gap(row)}."
             gaps.append(collapse_text(gap, 500))
         return gaps
 
@@ -1176,14 +1269,13 @@ class ResearchResponseComposer:
         theme = self._topic_theme()
         if not gaps:
             return (
-                f"Build a stronger research pipeline for {theme} that combines focused retrieval, paper-level evidence tracking, "
-                "and evaluation on real workflows so the final recommendation is grounded in comparable studies rather than generic summaries."
+                f"A promising next step would be to build a stronger research pipeline for {theme} that combines focused retrieval, "
+                "paper-level evidence tracking, and evaluation in real workflows, so the final recommendation rests on comparable studies rather than generic summaries."
             )
-        gap_summary = " ".join(dict.fromkeys(self._gap_focus(g) for g in gaps[:3]))
         return collapse_text(
-            f"Build a stronger {theme} pipeline that addresses the recurring weaknesses across these papers, especially {gap_summary}. "
-            "The study design should compare directly relevant methods on the same task, keep the evaluation population and metrics explicit, "
-            "and separate evidence-supported conclusions from metadata-only guesses.",
+            f"A strong follow-up project would be a {theme} pipeline that directly addresses the recurring weaknesses shared across these papers. "
+            "The study design should compare closely related methods on the same task, keep the evaluation population and metrics explicit, "
+            "and separate evidence-backed conclusions from metadata-only guesses.",
             900,
         )
 
@@ -1216,8 +1308,14 @@ class ResearchResponseComposer:
         steps.append("Finish with an error analysis that explains where the approach fails, which users or cases are most affected, and what the next refinement should be.")
         return [collapse_text(step, 360) for step in steps[:6]]
 
-    def build(self, rows: list[dict], fulltext_map: dict[tuple[str, str], str], fulltext_by_title: dict[str, str]) -> dict[str, Any]:
-        selected = self.select_rows(rows, limit=5)
+    def build(
+        self,
+        rows: list[dict],
+        fulltext_map: dict[tuple[str, str], str],
+        fulltext_by_title: dict[str, str],
+        excluded_titles: list[str] | None = None,
+    ) -> dict[str, Any]:
+        selected = self.select_rows(rows, limit=5, excluded_titles=excluded_titles)
         if not selected:
             return self.build_insufficient()
 
@@ -1246,10 +1344,14 @@ class ResearchResponseComposer:
             "table": table,
             "research_gaps": gaps,
             "assistant_reply": (
-                f"I found {len(table)} papers related to {self.topic}. "
-                f"The common thread is {self._topic_theme()}, and the main open problems are "
-                f"{' '.join(dict.fromkeys(self._gap_focus(g) for g in gaps[:2]))}. "
-                "The most reliable next step is to keep only tightly relevant papers, compare them under one shared evaluation frame, and avoid turning thin metadata into stronger claims than the sources can support."
+                f"I found {len(table)} papers on {self.topic}. "
+                f"Across them, the main thread is {self._topic_theme()}."
+                + (
+                    " The papers point to similar weaknesses around evaluation depth, comparison quality, and how confidently the results can be interpreted."
+                    if gaps
+                    else ""
+                )
+                + " A sensible next step is to keep only the closest papers, compare them under one shared evaluation frame, and avoid making strong claims when a source exposes only thin metadata."
             ),
             "generated_idea": idea,
             "generated_idea_steps": self._implementation_steps(gaps, table, idea),
@@ -1261,11 +1363,11 @@ class ResearchResponseComposer:
             "table": [],
             "research_gaps": [],
             "assistant_reply": (
-                f"I could not find five closely relevant papers for '{self.topic}'. "
-                "Try a narrower topic or more concrete domain terms so the retrieval can stay focused."
+                f"I couldn't find five closely relevant papers for '{self.topic}'. "
+                "Try a narrower topic or add one concrete domain term so the retrieval can stay focused."
             ),
             "generated_idea": (
-                "Narrow the topic, retrieve five close matches, then derive the research gaps from those papers before proposing a new idea."
+                "A better next move is to narrow the topic, retrieve a tighter paper set, and derive the research gaps from those papers before proposing a new idea."
             ),
             "generated_idea_steps": [
                 f"Add one concrete keyword that narrows the topic to {self._topic_theme()}.",

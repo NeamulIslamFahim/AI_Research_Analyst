@@ -64,6 +64,8 @@ from .services.text_utils import (
     human_summary_from_text,
     normalize_output_text,
     strip_front_matter,
+    title_key,
+    titles_look_equivalent,
     topic_tokens,
 )
 from .retriever import (
@@ -163,52 +165,8 @@ def should_use_live_research_sources(
     focus_topic: str | None = None,
     force_refresh: bool = False,
 ) -> bool:
-    """Decide whether the explorer should go live or stay on the local vector store."""
-    from .services.research_service import ResearchService
-
-    if force_refresh or ResearchService.is_generic_explorer_prompt(topic):
-        return True
-
-    query = (focus_topic or topic or "").strip()
-    if not query:
-        return True
-
-    try:
-        vector_store = _get_vector_store()
-    except Exception:
-        vector_store = None
-    if vector_store is None:
-        return True
-
-    try:
-        docs = vector_store.similarity_search(query, k=6)
-    except Exception:
-        return True
-    if not docs:
-        return True
-
-    tokens = [
-        token
-        for token in query.lower().replace("-", " ").split()
-        if len(token) >= 2 and token not in {"means", "paper", "research", "using", "approach", "results", "study"}
-    ]
-    if not tokens:
-        return False
-
-    matched = 0
-    for doc in docs:
-        meta = doc.metadata or {}
-        hay = " ".join(
-            [
-                str(meta.get("title", "")),
-                str(meta.get("abstract", "")),
-                str(doc.page_content or ""),
-            ]
-        ).lower()
-        if any(token in hay for token in tokens):
-            matched += 1
-
-    return matched < 2
+    """Keep explorer answers on the local vector store by default."""
+    return False
 
 
 def _follow_up_query_variants(topic: str, prior_titles: list[str] | None = None) -> list[str]:
@@ -721,20 +679,49 @@ def _download_external_fulltext(rows: List[dict], limit: int = 5) -> List[Docume
     return fulltext_docs
 
 
-def download_papers_for_topic(topic: str, excluded_titles: Optional[List[str]] = None) -> Dict[str, Any]:
+def download_papers_for_topic(
+    topic: str,
+    excluded_titles: Optional[List[str]] = None,
+    excluded_papers: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
     """Download and cache PDFs for a topic without generating an answer."""
     if not topic:
         return {"error": "Topic is required."}
 
     def _title_key(value: Any) -> str:
-        text = clean_text(value or "")
-        text = re.sub(r"\s+", " ", text).strip().lower()
-        return text.strip(" \t\r\n-_:;,.!?")
+        return title_key(value).strip(" \t\r\n-_:;,.!?")
 
-    excluded_keys = {_title_key(t) for t in (excluded_titles or []) if _title_key(t)}
+    excluded_title_values = [clean_text(t) for t in (excluded_titles or []) if clean_text(t)]
+    excluded_title_values.extend(
+        clean_text(paper.get("title", ""))
+        for paper in (excluded_papers or [])
+        if isinstance(paper, dict) and clean_text(paper.get("title", ""))
+    )
+    excluded_keys = {_title_key(t) for t in excluded_title_values if _title_key(t)}
+    excluded_url_values = {
+        _normalize_url(str(url))
+        for paper in (excluded_papers or [])
+        if isinstance(paper, dict)
+        for url in [paper.get("url", ""), paper.get("paper_url", ""), paper.get("pdf_url", "")]
+        if str(url or "").strip()
+    }
+
+    def _matches_excluded_title(value: Any) -> bool:
+        key = _title_key(value)
+        if key and key in excluded_keys:
+            return True
+        return any(titles_look_equivalent(value, excluded) for excluded in excluded_title_values)
+
+    def _matches_excluded_url(value: Any) -> bool:
+        normalized = _normalize_url(str(value or ""))
+        return bool(normalized and normalized in excluded_url_values)
 
     def _keep_row(row: dict) -> bool:
-        return _title_key(row.get("title", "")) not in excluded_keys
+        return not (
+            _matches_excluded_title(row.get("title", ""))
+            or _matches_excluded_url(row.get("url", ""))
+            or _matches_excluded_url(row.get("pdf_url", ""))
+        )
 
     docs = arxiv_search(topic, max_results=12)
     sem_rows, _ = _normalize_search_rows_output(semantic_scholar_search(topic, max_results=10))
@@ -792,7 +779,11 @@ def download_papers_for_topic(topic: str, excluded_titles: Optional[List[str]] =
                         },
                     )
                     for src in fallback_sources
-                    if src.get("title") and (src.get("snippet") or src.get("url"))
+                    if src.get("title")
+                    and (
+                        str(src.get("pdf_url", "")).strip()
+                        or str(src.get("url", "")).strip().lower().endswith(".pdf")
+                    )
                 ]
             )
     if len(fulltext_docs) < 5:
@@ -840,7 +831,22 @@ def download_papers_for_topic(topic: str, excluded_titles: Optional[List[str]] =
             _ensure_vector_store_with_docs(fulltext_docs)
         except Exception:
             pass
-    return {"downloaded_chunks": len(fulltext_docs)}
+    downloaded_papers: list[dict[str, Any]] = []
+    seen_download_keys: set[str] = set()
+    for doc in fulltext_docs:
+        meta = doc.metadata or {}
+        paper_ref = {
+            "title": str(meta.get("title", "")).strip(),
+            "url": str(meta.get("url", "")).strip(),
+            "pdf_url": str(meta.get("pdf_url", "")).strip(),
+            "source": str(meta.get("source", "")).strip(),
+        }
+        key = _normalize_url(paper_ref["url"]) or _normalize_url(paper_ref["pdf_url"]) or _title_key(paper_ref["title"])
+        if not key or key in seen_download_keys:
+            continue
+        seen_download_keys.add(key)
+        downloaded_papers.append(paper_ref)
+    return {"downloaded_chunks": len(fulltext_docs), "downloaded_papers": downloaded_papers}
 
 def _run_research_explorer_impl(
     topic: str,
@@ -848,6 +854,7 @@ def _run_research_explorer_impl(
     focus_topic: str | None = None,
     use_live_sources: bool | None = None,
     previously_returned_titles: Optional[List[str]] = None,
+    previously_returned_papers: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """Run arXiv retrieval + RAG generation for the given topic."""
     workflow = _build_research_graph()
@@ -857,6 +864,7 @@ def _run_research_explorer_impl(
         "focus_topic": focus_topic,
         "use_live": use_live_sources,
         "previously_returned_titles": previously_returned_titles,
+        "previously_returned_papers": previously_returned_papers,
         "result": None,
         "retries": 0,
         "validation_error": None,
@@ -870,37 +878,82 @@ def _run_research_explorer_impl_legacy(
     focus_topic: str | None = None,
     use_live_sources: bool | None = None,
     previously_returned_titles: Optional[List[str]] = None,
+    previously_returned_papers: Optional[List[Dict[str, Any]]] = None,
     force_refresh: bool = False,
 ) -> Dict[str, Any]:
     if not topic:
         return {"error": "Topic is required."}
 
-    is_more_request = ResearchService.is_generic_explorer_prompt(topic)
-    # Resolve generic prompts like "more" into the actual research topic
+    is_more_request = ResearchService.is_expansion_request(topic)
+    # Resolve generic prompts like "more" into the actual research topic.
     topic = ResearchService.resolve_topic_from_history(topic, chat_history)
 
     follow_up_request = is_more_request or force_refresh
-
-    # Force live search for "more" or refresh requests to bypass stale cache/fallbacks
-    if follow_up_request:
-        use_live_sources = True
     
     def _title_key(value: Any) -> str:
-        text = clean_text(value or "")
-        text = re.sub(r"\s+", " ", text).strip().lower()
-        return text.strip(" \t\r\n-_:;,.!?")
+        return title_key(value).strip(" \t\r\n-_:;,.!?")
 
     # Normalize previously returned titles for case-insensitive comparison.
     # Keep them available for follow-up expansion so "more" can skip papers already shown.
-    excluded_titles_lower = {
-        _title_key(t)
+    excluded_title_values = [
+        clean_text(t)
         for t in ((previously_returned_titles or []) + _titles_from_chat_history(chat_history))
-        if _title_key(t)
+        if clean_text(t)
+    ]
+    excluded_title_values.extend(
+        clean_text(paper.get("title", ""))
+        for paper in (previously_returned_papers or [])
+        if isinstance(paper, dict) and clean_text(paper.get("title", ""))
+    )
+    excluded_titles_lower = {_title_key(t) for t in excluded_title_values if _title_key(t)}
+    excluded_url_values = {
+        _normalize_url(str(url))
+        for paper in (previously_returned_papers or [])
+        if isinstance(paper, dict)
+        for url in [paper.get("url", ""), paper.get("paper_url", ""), paper.get("pdf_url", "")]
+        if str(url or "").strip()
     }
 
+    def _matches_excluded_title(value: Any) -> bool:
+        key = _title_key(value)
+        if key and key in excluded_titles_lower:
+            return True
+        return any(titles_look_equivalent(value, excluded) for excluded in excluded_title_values)
+
+    def _matches_excluded_url(value: Any) -> bool:
+        normalized = _normalize_url(str(value or ""))
+        return bool(normalized and normalized in excluded_url_values)
+
+    def _matches_excluded_paper(value: Any) -> bool:
+        if isinstance(value, dict):
+            return (
+                _matches_excluded_title(value.get("title", ""))
+                or _matches_excluded_url(value.get("url", ""))
+                or _matches_excluded_url(value.get("paper_url", ""))
+                or _matches_excluded_url(value.get("pdf_url", ""))
+            )
+        return _matches_excluded_title(value)
+
+    def _seen_title_match(value: Any, seen_values: list[str]) -> bool:
+        key = _title_key(value)
+        if key and any(_title_key(seen) == key for seen in seen_values):
+            return True
+        return any(titles_look_equivalent(value, seen) for seen in seen_values)
+
+    fresh_downloaded_papers: list[dict[str, Any]] = []
     if follow_up_request:
         try:
-            download_papers_for_topic(topic, excluded_titles=list(excluded_titles_lower))
+            download_result = download_papers_for_topic(
+                topic,
+                excluded_titles=excluded_title_values,
+                excluded_papers=previously_returned_papers,
+            )
+            if isinstance(download_result, dict):
+                fresh_downloaded_papers = [
+                    paper
+                    for paper in download_result.get("downloaded_papers", []) or []
+                    if isinstance(paper, dict) and not _matches_excluded_paper(paper)
+                ]
         except Exception:
             pass
 
@@ -939,18 +992,34 @@ def _run_research_explorer_impl_legacy(
         return recovered_rows
 
     def _deterministic_fallback_response(source_rows: List[dict], reason: str = "") -> Dict[str, Any]:
-        response = response_composer.build(source_rows or rows_sorted or rows, fulltext_map, fulltext_by_title)
+        response = response_composer.build(
+            source_rows or rows_sorted or rows,
+            fulltext_map,
+            fulltext_by_title,
+            excluded_titles=excluded_title_values if follow_up_request else None,
+        )
         if reason:
             response["assistant_reply"] = "Research summary prepared from the retrieved papers."
+        return _finalize_follow_up_response(response)
+
+    def _finalize_follow_up_response(response: Dict[str, Any]) -> Dict[str, Any]:
+        if not (follow_up_request and excluded_title_values):
+            return response
+        if response.get("table"):
+            return response
+        response = dict(response)
+        response["assistant_reply"] = (
+            f"I couldn't find additional new papers for '{topic}' in the current VectorDB without repeating papers you've already seen. "
+            "Try asking for a narrower extension, or index more papers for this topic first."
+        )
         return response
     try:
-        local_only = (load_env_var("LOCAL_ONLY", "false") or "false").lower() == "true"
         fast_mode = (load_env_var("FAST_MODE", "true") or "true").lower() == "true"
         max_primary = int(load_env_var("FAST_MAX_PRIMARY", "5") or "5")
         max_secondary = int(load_env_var("FAST_MAX_SECONDARY", "4") or "4")
         warnings: List[str] = []
         if use_live_sources is None:
-            use_live_sources = not local_only
+            use_live_sources = False
         skip_fulltext_download = fast_mode
 
         if not use_live_sources:
@@ -978,23 +1047,94 @@ def _run_research_explorer_impl_legacy(
                 ).lower()
                 return any(tok in hay for tok in query_tokens)
 
+            preferred_follow_up_titles = [
+                clean_text(paper.get("title", ""))
+                for paper in fresh_downloaded_papers
+                if clean_text(paper.get("title", ""))
+            ]
+            preferred_follow_up_urls = {
+                _normalize_url(str(url))
+                for paper in fresh_downloaded_papers
+                for url in [paper.get("url", ""), paper.get("pdf_url", "")]
+                if str(url or "").strip()
+            }
+
+            def _doc_matches_preferred(doc: Document) -> bool:
+                meta = doc.metadata or {}
+                title_value = clean_text(meta.get("title", ""))
+                if title_value and any(titles_look_equivalent(title_value, preferred) for preferred in preferred_follow_up_titles):
+                    return True
+                for url in [meta.get("url", ""), meta.get("pdf_url", "")]:
+                    normalized = _normalize_url(str(url or ""))
+                    if normalized and normalized in preferred_follow_up_urls:
+                        return True
+                return False
+
             def _local_rows_from_store(store: Any) -> tuple[list[dict], list[Document]]:
                 if store is None:
                     return [], []
-                try:
-                    docs_local = store.similarity_search(topic, k=8)
-                except Exception:
-                    return [], []
-                docs_local = [d for d in docs_local if _match(d) or not query_tokens]
+
+                def _search_store(query: str, k: int) -> list[Document]:
+                    try:
+                        return list(store.similarity_search(query, k=k))
+                    except Exception:
+                        return []
+
+                search_k = int(load_env_var("FOLLOW_UP_VECTOR_SEARCH_K", "80") or "80") if (follow_up_request or excluded_titles_lower) else 8
+                docs_local: list[Document] = []
+                if follow_up_request and preferred_follow_up_titles:
+                    for preferred_title in preferred_follow_up_titles[:10]:
+                        docs_local.extend(_search_store(preferred_title, k=8))
+                docs_local.extend(_search_store(topic, k=search_k))
+
+                deduped_docs_local: list[Document] = []
+                seen_doc_keys: set[str] = set()
+                for doc in docs_local:
+                    meta = doc.metadata or {}
+                    doc_key = "|".join(
+                        [
+                            clean_text(meta.get("title", "")),
+                            _normalize_url(str(meta.get("url", ""))),
+                            _normalize_url(str(meta.get("pdf_url", ""))),
+                            str(meta.get("chunk", "")),
+                        ]
+                    ).strip("|")
+                    if not doc_key or doc_key in seen_doc_keys:
+                        continue
+                    seen_doc_keys.add(doc_key)
+                    deduped_docs_local.append(doc)
+
+                docs_local = [
+                    d
+                    for d in deduped_docs_local
+                    if _doc_matches_preferred(d) or _match(d) or not query_tokens
+                ]
                 rows_local: list[dict] = []
                 selected_docs: list[Document] = []
-                seen_titles: set[str] = set()
+                seen_titles: list[str] = []
                 for d in docs_local:
                     meta = d.metadata or {}
-                    title = str(meta.get("title", "") or "").strip().lower()
-                    if title and title in seen_titles:
+                    title_value = clean_text(meta.get("title", ""))
+                    if _matches_excluded_paper(meta):
                         continue
-                    seen_titles.add(title)
+                    normalized_url = _normalize_url(str(meta.get("url", "")))
+                    normalized_pdf_url = _normalize_url(str(meta.get("pdf_url", "")))
+                    if any(
+                        (
+                            normalized_url
+                            and normalized_url == _normalize_url(str((doc.metadata or {}).get("url", "")))
+                        )
+                        or (
+                            normalized_pdf_url
+                            and normalized_pdf_url == _normalize_url(str((doc.metadata or {}).get("pdf_url", "")))
+                        )
+                        for doc in selected_docs
+                    ):
+                        continue
+                    if title_value and _seen_title_match(title_value, seen_titles):
+                        continue
+                    if title_value:
+                        seen_titles.append(title_value)
                     rows_local.append(
                         {
                             "title": meta.get("title", ""),
@@ -1010,20 +1150,43 @@ def _run_research_explorer_impl_legacy(
                     selected_docs.append(d)
                     if len(rows_local) >= 5:
                         break
+
+                if follow_up_request and fresh_downloaded_papers and len(rows_local) < 5:
+                    seen_urls = {
+                        _normalize_url(str(row.get("url", ""))) or _normalize_url(str(row.get("pdf_url", "")))
+                        for row in rows_local
+                        if str(row.get("url", "") or row.get("pdf_url", "")).strip()
+                    }
+                    for paper in fresh_downloaded_papers:
+                        if _matches_excluded_paper(paper):
+                            continue
+                        title_value = clean_text(paper.get("title", ""))
+                        url_value = _normalize_url(str(paper.get("url", ""))) or _normalize_url(str(paper.get("pdf_url", "")))
+                        if title_value and _seen_title_match(title_value, seen_titles):
+                            continue
+                        if url_value and url_value in seen_urls:
+                            continue
+                        rows_local.append(
+                            {
+                                "title": paper.get("title", ""),
+                                "authors": authors_to_str(paper.get("authors", "")),
+                                "year": paper.get("year", ""),
+                                "url": paper.get("url", ""),
+                                "pdf_url": paper.get("pdf_url", ""),
+                                "doi": paper.get("doi", ""),
+                                "abstract": paper.get("abstract", ""),
+                                "source": paper.get("source", ""),
+                            }
+                        )
+                        if title_value:
+                            seen_titles.append(title_value)
+                        if url_value:
+                            seen_urls.add(url_value)
+                        if len(rows_local) >= 5:
+                            break
                 return rows_local, selected_docs
 
             rows, selected_docs = _local_rows_from_store(vector_store)
-            if len(rows) < 5:
-                if not fast_mode:
-                    try:
-                        download_papers_for_topic(topic)
-                    except Exception:
-                        pass
-                    vector_store = _get_vector_store()
-                    rows, selected_docs = _local_rows_from_store(vector_store)
-                    if len(rows) >= 5:
-                        all_docs = list(selected_docs)
-                        fulltext_docs = list(selected_docs)
             if len(rows) >= 5:
                 all_docs = list(selected_docs)
                 fulltext_docs = list(selected_docs)
@@ -1186,13 +1349,17 @@ def _run_research_explorer_impl_legacy(
 
         if use_live_sources:
             def _append_unique_rows(target: List[dict], new_rows: List[dict], excluded: set[str]) -> None:
-                seen_keys = {_title_key(r.get("title", "")) for r in target}
+                seen_titles = [clean_text(r.get("title", "")) for r in target if clean_text(r.get("title", ""))]
                 for row in new_rows:
-                    key = _title_key(row.get("title", ""))
-                    if not key or key in seen_keys or key in excluded:
+                    title_value = clean_text(row.get("title", ""))
+                    key = _title_key(title_value)
+                    if not key or key in excluded or _matches_excluded_paper(row):
+                        continue
+                    if title_value and _seen_title_match(title_value, seen_titles):
                         continue
                     target.append(row)
-                    seen_keys.add(key)
+                    if title_value:
+                        seen_titles.append(title_value)
 
             # Increase retrieval depth for follow-up requests to find new papers.
             depth_multiplier = 2 if follow_up_request else 1
@@ -1333,7 +1500,7 @@ def _run_research_explorer_impl_legacy(
             all_docs = docs + rows_to_docs(all_rows)
 
             if not skip_fulltext_download:
-                # Requirement: Download 5 papers for each response to ground the result
+                # Explicit live mode: download up to five papers to ground the result.
                 arxiv_to_download = [d for d in docs if "arxiv.org" in (d.metadata or {}).get("url", "")]
                 fulltext_docs.extend(_download_arxiv_fulltext(arxiv_to_download, limit=5))
 
@@ -1365,8 +1532,10 @@ def _run_research_explorer_impl_legacy(
                         for src in local_sources
                     ]
                 if recovery_rows:
-                    return response_composer.build(recovery_rows, fulltext_map, fulltext_by_title)
-                return response_composer.build_insufficient()
+                    return _finalize_follow_up_response(
+                        response_composer.build(recovery_rows, fulltext_map, fulltext_by_title)
+                    )
+            return _finalize_follow_up_response(response_composer.build_insufficient())
         # Build a lookup for full-text snippets by (title, url) and by title.
         if fulltext_docs:
             tmp_map: Dict[tuple[str, str], List[str]] = {}
@@ -1408,7 +1577,9 @@ def _run_research_explorer_impl_legacy(
                     for src in local_sources
                 ]
             if recovery_rows:
-                return response_composer.build(recovery_rows, fulltext_map, fulltext_by_title)
+                return _finalize_follow_up_response(
+                    response_composer.build(recovery_rows, fulltext_map, fulltext_by_title)
+                )
             return {"error": "No documents found or vector store unavailable."}
 
         # Build retrieval context explicitly for the prompt.
@@ -1479,20 +1650,20 @@ def _run_research_explorer_impl_legacy(
                 filtered_rows = focus_rows
 
         def _row_is_excluded(row: dict) -> bool:
-            return _title_key(row.get("title", "")) in excluded_titles_lower
+            return _matches_excluded_paper(row)
 
         # Filter out previously returned titles for follow-up requests.
         if follow_up_request and excluded_titles_lower:
             filtered_rows = [r for r in filtered_rows if not _row_is_excluded(r)]
             if len(filtered_rows) < 5:
                 broader_pool = [r for r in rows if not _row_is_excluded(r)]
-                seen_keys = {_title_key(r.get("title", "")) for r in filtered_rows}
+                seen_titles = [clean_text(r.get("title", "")) for r in filtered_rows if clean_text(r.get("title", ""))]
                 for r in broader_pool:
-                    key = _title_key(r.get("title", ""))
-                    if not key or key in seen_keys:
+                    title_value = clean_text(r.get("title", ""))
+                    if not title_value or _seen_title_match(title_value, seen_titles):
                         continue
                     filtered_rows.append(r)
-                    seen_keys.add(key)
+                    seen_titles.append(title_value)
                     if len(filtered_rows) >= 8:
                         break
             if len(filtered_rows) < 5:
@@ -1502,13 +1673,13 @@ def _run_research_explorer_impl_legacy(
                         if len(filtered_rows) >= 8:
                             break
                         extension_rows = _simple_fallback_source_rows(extension_query)
-                        seen_keys = {_title_key(r.get("title", "")) for r in filtered_rows}
+                        seen_titles = [clean_text(r.get("title", "")) for r in filtered_rows if clean_text(r.get("title", ""))]
                         for r in extension_rows:
-                            key = _title_key(r.get("title", ""))
-                            if not key or key in seen_keys or key in excluded_titles_lower:
+                            title_value = clean_text(r.get("title", ""))
+                            if not title_value or _matches_excluded_paper(r) or _seen_title_match(title_value, seen_titles):
                                 continue
                             filtered_rows.append(r)
-                            seen_keys.add(key)
+                            seen_titles.append(title_value)
                             if len(filtered_rows) >= 8:
                                 break
                 except Exception:
@@ -1523,13 +1694,25 @@ def _run_research_explorer_impl_legacy(
 
         # Build the final research response directly from the retrieved papers.
         # This keeps the output grounded in paper text instead of LLM-generated filler.
-        return response_composer.build(rows_sorted, fulltext_map, fulltext_by_title)
+        return _finalize_follow_up_response(
+            response_composer.build(
+                rows_sorted,
+                fulltext_map,
+                fulltext_by_title,
+                excluded_titles=excluded_title_values if follow_up_request else None,
+            )
+        )
     except Exception as exc:
         fallback_source_rows = rows_sorted or rows
         if not fallback_source_rows:
             fallback_source_rows = _simple_fallback_source_rows(topic)
         if fallback_source_rows:
-            return _deterministic_fallback_response(fallback_source_rows, str(exc))
+            filtered_fallback_rows = (
+                [row for row in fallback_source_rows if not _matches_excluded_title(row.get("title", ""))]
+                if follow_up_request and excluded_title_values
+                else fallback_source_rows
+            )
+            return _deterministic_fallback_response(filtered_fallback_rows, str(exc))
         return {"error": f"Research Explorer failed: {exc}"}
 
 
@@ -2002,7 +2185,7 @@ def _build_research_graph():
     graph = StateGraph(ResearchState)
 
     def run_node(state: ResearchState) -> dict:
-        use_live_sources = True if (state.get("retries", 0) or 0) > 0 else state.get("use_live")
+        use_live_sources = state.get("use_live")
         if use_live_sources is None:
             use_live_sources = should_use_live_research_sources(
                 state["topic"],
@@ -2010,8 +2193,6 @@ def _build_research_graph():
                 focus_topic=state.get("focus_topic"),
                 force_refresh=bool(state.get("force_refresh")),
             )
-        if state.get("force_refresh"):
-            use_live_sources = True
 
         res = _run_research_explorer_impl_legacy(
             state["topic"],
@@ -2019,6 +2200,7 @@ def _build_research_graph():
             focus_topic=state.get("focus_topic"),
             use_live_sources=use_live_sources,
             previously_returned_titles=state.get("previously_returned_titles"),
+            previously_returned_papers=state.get("previously_returned_papers"),
             force_refresh=bool(state.get("force_refresh")),
         )
         return {"result": res}

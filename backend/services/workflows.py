@@ -43,6 +43,7 @@ class ResearchExplorer:
         focus_topic: str | None = None,
         use_live: bool | None = None,
         previously_returned_titles: Optional[List[str]] = None,
+        previously_returned_papers: Optional[List[Dict[str, Any]]] = None,
         force_refresh: bool = False,
     ) -> Dict[str, Any]:
         from backend.main import should_use_live_research_sources
@@ -71,6 +72,7 @@ class ResearchExplorer:
             "retries": 0,
             "validation_error": None,
             "previously_returned_titles": previously_returned_titles,
+            "previously_returned_papers": previously_returned_papers,
             "force_refresh": force_refresh,
         }
         out = self.graph.invoke(state)
@@ -196,6 +198,7 @@ def run_research_explorer(
     focus_topic: str | None = None,
     use_live: bool | None = None,
     previously_returned_titles: Optional[List[str]] = None,
+    previously_returned_papers: Optional[List[Dict[str, Any]]] = None,
     force_refresh: bool = False,
 ) -> Dict[str, Any]:
     result = _get_research_explorer().run(
@@ -204,6 +207,7 @@ def run_research_explorer(
         focus_topic=focus_topic,
         use_live=use_live,
         previously_returned_titles=previously_returned_titles,
+        previously_returned_papers=previously_returned_papers,
         force_refresh=force_refresh,
     )
     if isinstance(result, dict) and result.get("error"):

@@ -20,6 +20,8 @@ def default_sessions(default_mode: str) -> list[dict[str, Any]]:
             "last_uploaded_pdf_signature": "",
             "writer_state": {"phase": "start"},
             "writer_intro_shown": False,
+            "research_last_topic": "",
+            "research_seen_papers": [],
         }
     ]
 
@@ -88,6 +90,8 @@ def new_chat(mode: str) -> None:
         "last_uploaded_pdf_signature": "",
         "writer_state": {"phase": "start"},
         "writer_intro_shown": False,
+        "research_last_topic": "",
+        "research_seen_papers": [],
     }
     save_sessions([session, *sessions])
     st.session_state.current_session_id = new_id

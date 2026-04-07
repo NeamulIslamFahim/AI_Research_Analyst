@@ -16,6 +16,7 @@ class ResearchState(TypedDict):
     retries: int
     validation_error: Optional[str]
     previously_returned_titles: Optional[List[str]]
+    previously_returned_papers: Optional[List[Dict[str, Any]]]
     force_refresh: Optional[bool]
 
 

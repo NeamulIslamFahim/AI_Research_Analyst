@@ -55,9 +55,69 @@ GENERIC_STOPWORDS = {
     "intelligence",
 }
 
+TITLE_STOPWORDS = GENERIC_STOPWORDS | {
+    "based",
+    "toward",
+    "towards",
+    "via",
+    "paper",
+    "study",
+    "model",
+    "models",
+    "method",
+    "methods",
+    "framework",
+    "frameworks",
+    "system",
+    "systems",
+    "review",
+    "survey",
+}
+
 
 def clean_text(value: Any) -> str:
     return strip_html(value or "").replace("\n", " ").strip()
+
+
+def title_key(value: Any) -> str:
+    cleaned = clean_text(value).lower()
+    cleaned = re.sub(r"[^a-z0-9]+", " ", cleaned)
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
+def title_tokens(value: Any) -> list[str]:
+    return [
+        token
+        for token in title_key(value).split()
+        if len(token) >= 3 and token not in TITLE_STOPWORDS
+    ]
+
+
+def titles_look_equivalent(left: Any, right: Any) -> bool:
+    left_key = title_key(left)
+    right_key = title_key(right)
+    if not left_key or not right_key:
+        return False
+    if left_key == right_key:
+        return True
+
+    left_tokens = set(title_tokens(left))
+    right_tokens = set(title_tokens(right))
+    overlap = left_tokens & right_tokens
+    min_size = min(len(left_tokens), len(right_tokens))
+
+    shorter, longer = (left_key, right_key) if len(left_key) <= len(right_key) else (right_key, left_key)
+    if len(shorter) >= 24 and shorter in longer:
+        if min_size == 0:
+            return True
+        if len(overlap) / max(1, min_size) >= 0.75:
+            return True
+
+    if min_size == 0:
+        return False
+    if min_size <= 3:
+        return min_size >= 2 and len(overlap) == min_size
+    return len(overlap) >= 4 and (len(overlap) / min_size) >= 0.8
 
 
 def collapse_text(text: str, max_chars: int) -> str:

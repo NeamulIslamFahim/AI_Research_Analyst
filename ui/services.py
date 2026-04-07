@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import os
-import threading
+import re
 from typing import Any
 
 import streamlit as st
@@ -46,30 +46,111 @@ def _maybe_schedule_assistant_retrain() -> None:
         pass
 
 
-def start_background_download(topic: str) -> None:
-    """Download and index papers without blocking the UI."""
-
-    def _worker() -> None:
-        try:
-            _backend_main().download_papers_for_topic(topic)
-        except Exception:
-            pass
-
-    threading.Thread(target=_worker, daemon=True).start()
+def _normalize_title(value: Any) -> str:
+    text = re.sub(r"\s+", " ", str(value or "")).strip().lower()
+    text = re.sub(r"[^a-z0-9]+", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
 
 
-def _extract_previously_returned_titles(session: dict[str, Any]) -> list[str]:
-    """Collect titles from the last research response to avoid duplicates in refresh/regeneration."""
-    for msg in reversed(session.get("messages", [])):
-        if msg.get("role") == "assistant" and msg.get("type") == "research":
-            content = msg.get("content") or {}
-            if isinstance(content, dict):
-                return [
-                    str(row.get("paper_name", "")).strip()
-                    for row in content.get("table", [])
-                    if isinstance(row, dict) and row.get("paper_name")
-                ]
-    return []
+def _normalize_url(value: Any) -> str:
+    text = re.sub(r"\s+", "", str(value or "").strip().lower())
+    return text.rstrip("/")
+
+
+def _paper_memory_key(ref: dict[str, Any]) -> str:
+    url = _normalize_url(ref.get("url") or ref.get("paper_url") or ref.get("pdf_url"))
+    if url:
+        return f"url:{url}"
+    title = _normalize_title(ref.get("title") or ref.get("paper_name"))
+    if title:
+        return f"title:{title}"
+    return ""
+
+
+def _paper_ref_from_row(row: dict[str, Any], topic: str = "") -> dict[str, Any] | None:
+    if not isinstance(row, dict):
+        return None
+    title = str(row.get("paper_name", "") or row.get("title", "")).strip()
+    url = str(row.get("paper_url", "") or row.get("url", "")).strip()
+    pdf_url = str(row.get("pdf_url", "")).strip()
+    if not title and not url and not pdf_url:
+        return None
+    ref = {
+        "title": title,
+        "url": url,
+        "pdf_url": pdf_url,
+        "source": str(row.get("source", "")).strip(),
+        "topic": topic,
+    }
+    return ref if _paper_memory_key(ref) else None
+
+
+def _extract_result_paper_refs(result: dict[str, Any], topic: str = "") -> list[dict[str, Any]]:
+    refs: list[dict[str, Any]] = []
+    for row in result.get("table", []) or []:
+        ref = _paper_ref_from_row(row, topic=topic)
+        if ref:
+            refs.append(ref)
+    return refs
+
+
+def _legacy_seen_papers_from_messages(session: dict[str, Any]) -> list[dict[str, Any]]:
+    refs: list[dict[str, Any]] = []
+    for msg in session.get("messages", []):
+        if msg.get("role") != "assistant" or msg.get("type") != "research":
+            continue
+        content = msg.get("content") or {}
+        if not isinstance(content, dict):
+            continue
+        refs.extend(_extract_result_paper_refs(content))
+    return refs
+
+
+def _session_seen_papers(session: dict[str, Any]) -> list[dict[str, Any]]:
+    merged: list[dict[str, Any]] = []
+    seen_keys: set[str] = set()
+    for ref in list(session.get("research_seen_papers") or []) + _legacy_seen_papers_from_messages(session):
+        if not isinstance(ref, dict):
+            continue
+        key = _paper_memory_key(ref)
+        if not key or key in seen_keys:
+            continue
+        seen_keys.add(key)
+        merged.append(
+            {
+                "title": str(ref.get("title", "") or ref.get("paper_name", "")).strip(),
+                "url": str(ref.get("url", "") or ref.get("paper_url", "")).strip(),
+                "pdf_url": str(ref.get("pdf_url", "")).strip(),
+                "source": str(ref.get("source", "")).strip(),
+                "topic": str(ref.get("topic", "")).strip(),
+            }
+        )
+    return merged
+
+
+def _session_seen_titles(session: dict[str, Any]) -> list[str]:
+    return [str(ref.get("title", "")).strip() for ref in _session_seen_papers(session) if str(ref.get("title", "")).strip()]
+
+
+def _merge_session_seen_papers(session: dict[str, Any], result: dict[str, Any], topic: str) -> list[dict[str, Any]]:
+    merged: list[dict[str, Any]] = []
+    seen_keys: set[str] = set()
+    for ref in _session_seen_papers(session) + _extract_result_paper_refs(result, topic=topic):
+        key = _paper_memory_key(ref)
+        if not key or key in seen_keys:
+            continue
+        seen_keys.add(key)
+        merged.append(ref)
+    return merged[-250:]
+
+
+def _resolve_research_topic(prompt: str, history: str | None, session: dict[str, Any]) -> str:
+    resolved = ResearchService.resolve_topic_from_history(prompt, history)
+    if ResearchService.is_expansion_request(prompt) and ResearchService.should_resolve_topic_from_history(prompt):
+        memory_topic = str(session.get("research_last_topic", "")).strip()
+        if memory_topic:
+            return memory_topic
+    return resolved
 
 
 def research_error_result(detail: str) -> dict[str, Any]:
@@ -106,13 +187,17 @@ def assistant_response_for_prompt(
         )
 
     if mode == "Research Explorer":
-        resolved_topic = ResearchService.resolve_topic_from_history(prompt, history)
-        is_follow_up = ResearchService.is_generic_explorer_prompt(prompt) or resolved_topic != prompt
-        force_refresh = force_refresh or is_follow_up
-        focus_topic = resolved_topic if is_follow_up else (prompt if len(prompt.split()) > 8 else None)
-        previously_returned_titles = previously_returned_titles or _extract_previously_returned_titles(session)
-        if force_refresh and not is_follow_up:
-            previously_returned_titles = []
+        resolved_topic = _resolve_research_topic(prompt, history, session)
+        is_expansion_request = ResearchService.is_expansion_request(prompt)
+        history_resolved_expansion = is_expansion_request and ResearchService.should_resolve_topic_from_history(prompt)
+        force_refresh = force_refresh or is_expansion_request
+        focus_topic = resolved_topic if is_expansion_request else (prompt if len(prompt.split()) > 8 else None)
+        previously_returned_papers = _session_seen_papers(session) if is_expansion_request else []
+        previously_returned_titles = (
+            previously_returned_titles
+            if previously_returned_titles is not None
+            else (_session_seen_titles(session) if is_expansion_request else [])
+        )
         try:
             result = _backend_main().run_research_explorer(
                 topic=resolved_topic,
@@ -120,6 +205,7 @@ def assistant_response_for_prompt(
                 use_live=None,
                 focus_topic=focus_topic,
                 previously_returned_titles=previously_returned_titles,
+                previously_returned_papers=previously_returned_papers,
                 force_refresh=force_refresh,
             )
         except HTTPException as exc:
@@ -129,7 +215,7 @@ def assistant_response_for_prompt(
             result = research_error_result(str(result.get("error", "")))
 
         display_text = result.get("assistant_reply", "Research result")
-        if is_follow_up and isinstance(display_text, str) and not display_text.lower().startswith("here are additional papers on"):
+        if history_resolved_expansion and isinstance(display_text, str) and not display_text.lower().startswith("here are additional papers on"):
             display_text = f"Here are additional papers on {resolved_topic}. {display_text}"
 
         return (
@@ -139,7 +225,10 @@ def assistant_response_for_prompt(
                 "type": "research",
                 "display_text": display_text,
             },
-            {"background_download_topic": resolved_topic},
+            {
+                "research_last_topic": resolved_topic,
+                "research_seen_papers": _merge_session_seen_papers(session, result, resolved_topic),
+            },
         )
 
     raise RuntimeError(f"Unsupported mode: {mode}")
@@ -246,7 +335,7 @@ def handle_send(prompt: str) -> None:
     }
     loading_text = "Working on your request..."
     if mode == "Research Explorer":
-        loading_text = "Searching papers, comparing sources, and generating a research summary..."
+        loading_text = "Searching the local VectorDB and generating a research summary..."
     elif mode == "Research Paper Reviewer":
         loading_text = "Reading the uploaded paper and preparing an answer..."
     elif mode == "Research Paper Writer":
@@ -265,7 +354,7 @@ def handle_send(prompt: str) -> None:
     history = format_chat_history(session["messages"], 100)
     spinner_text = "Processing request..."
     if mode == "Research Explorer":
-        spinner_text = "Research Explorer is working. This can take a bit while papers are retrieved and summarized."
+        spinner_text = "Research Explorer is working. This can take a bit while the local paper index is searched and summarized."
     notice = _show_running_notice(spinner_text)
 
     try:
@@ -296,11 +385,13 @@ def handle_send(prompt: str) -> None:
                 return
 
             if mode == "Research Explorer":
-                resolved_topic = ResearchService.resolve_topic_from_history(trimmed, history)
-                is_follow_up = ResearchService.is_generic_explorer_prompt(trimmed) or resolved_topic != trimmed
-                previously_returned_titles = _extract_previously_returned_titles(session)
-                force_refresh = is_follow_up
-                focus_topic = resolved_topic if is_follow_up else (trimmed if len(trimmed.split()) > 8 else None)
+                resolved_topic = _resolve_research_topic(trimmed, history, session)
+                is_expansion_request = ResearchService.is_expansion_request(trimmed)
+                history_resolved_expansion = is_expansion_request and ResearchService.should_resolve_topic_from_history(trimmed)
+                previously_returned_papers = _session_seen_papers(session) if is_expansion_request else []
+                previously_returned_titles = _session_seen_titles(session) if is_expansion_request else []
+                force_refresh = is_expansion_request
+                focus_topic = resolved_topic if is_expansion_request else (trimmed if len(trimmed.split()) > 8 else None)
                 try:
                     result = _backend_main().run_research_explorer(
                         topic=resolved_topic,
@@ -308,6 +399,7 @@ def handle_send(prompt: str) -> None:
                         use_live=None,
                         focus_topic=focus_topic,
                         previously_returned_titles=previously_returned_titles,
+                        previously_returned_papers=previously_returned_papers,
                         force_refresh=force_refresh,
                     )
                 except HTTPException as exc:
@@ -315,9 +407,15 @@ def handle_send(prompt: str) -> None:
                     result = research_error_result(str(detail))
                 if isinstance(result, dict) and result.get("error"):
                     result = research_error_result(str(result.get("error", "")))
-                final_msg = {"role": "assistant", "content": result, "type": "research", "display_text": result.get("assistant_reply", "Research result")}
-                update_current_session(messages=replace_or_append_assistant(session["messages"], final_msg))
-                start_background_download(resolved_topic)
+                display_text = result.get("assistant_reply", "Research result")
+                if history_resolved_expansion and isinstance(display_text, str) and not display_text.lower().startswith("here are additional papers on"):
+                    display_text = f"Here are additional papers on {resolved_topic}. {display_text}"
+                final_msg = {"role": "assistant", "content": result, "type": "research", "display_text": display_text}
+                update_current_session(
+                    messages=replace_or_append_assistant(session["messages"], final_msg),
+                    research_last_topic=resolved_topic,
+                    research_seen_papers=_merge_session_seen_papers(session, result, resolved_topic),
+                )
                 _maybe_schedule_assistant_retrain()
                 return
 

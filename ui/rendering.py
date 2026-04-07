@@ -135,7 +135,14 @@ def render_sidebar() -> None:
             if session["messages"]:
                 new_chat(mode)
             else:
-                update_current_session(mode=mode, paper_text="", writer_state={"phase": "start"}, writer_intro_shown=False)
+                update_current_session(
+                    mode=mode,
+                    paper_text="",
+                    writer_state={"phase": "start"},
+                    writer_intro_shown=False,
+                    research_last_topic="",
+                    research_seen_papers=[],
+                )
             st.rerun()
 
         st.markdown("#### Workspaces")
