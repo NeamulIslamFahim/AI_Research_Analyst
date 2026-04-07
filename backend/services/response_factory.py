@@ -1005,11 +1005,6 @@ class ResearchResponseComposer:
         source_text = fulltext or abstract_text
         if fulltext and abstract_text and len(abstract_text.split()) > len(fulltext.split()) * 1.2:
             source_text = abstract_text
-        if not source_text:
-            return collapse_text(
-                f"The source metadata does not expose a clear methodology for {title}. The available record does not identify a concrete model, dataset, or evaluation setup. The approach therefore cannot be described confidently beyond the title-level topic.",
-                900,
-            )
 
         def _sentences(text: str) -> list[str]:
             cleaned = re.sub(r"(\w)-\s+(\w)", r"\1\2", text.strip())
@@ -1050,6 +1045,21 @@ class ResearchResponseComposer:
             if len(words) > max_words:
                 text = " ".join(words[:max_words]).rstrip(" ,;:-")
             return text
+
+        def _title_method_hint() -> str:
+            short_title = title.split(":", 1)[0].strip() or title
+            return re.sub(r"\s+", " ", short_title).strip(" ,;:-")
+
+        if not source_text:
+            title_hint = _title_method_hint()
+            fallback_sentences = [
+                _ensure_sentence(f"The available metadata suggests that the paper focuses on {title_hint[0].lower() + title_hint[1:] if title_hint else title}"),
+                _ensure_sentence("The visible record implies that the approach is tied to the method or model named in the title, but it does not expose the full methodological pipeline"),
+                _ensure_sentence("The dataset, benchmark, or study sample is not identified in the available metadata"),
+                _ensure_sentence("The evaluation setup is also not clearly described in the visible record"),
+                _ensure_sentence("Overall, the approach can only be summarized cautiously from the title and metadata that are currently available"),
+            ]
+            return collapse_text(" ".join(fallback_sentences[:5]), 1000)
 
         method_text = strip_front_matter(source_text, title) or source_text
         sentence_list = _unique_sentences(_sentences(method_text))
@@ -1096,13 +1106,16 @@ class ResearchResponseComposer:
         )
 
         sentences_out: list[str] = []
+        missing_sentences: list[str] = []
         if explicit_approach:
             normalized = _compact_phrase(explicit_approach)
             sentences_out.append(_ensure_sentence(f"The main methodology described in the paper is {normalized}"))
         elif survey_like:
             sentences_out.append("The paper uses a review-style or framework-building methodology rather than introducing a fully specified predictive model.")
         else:
-            sentences_out.append("The paper describes a concrete methodology, but the available text does not expose enough detail to restate every step precisely.")
+            title_hint = _title_method_hint()
+            sentences_out.append(_ensure_sentence(f"The available text suggests that the paper uses the method or technical direction implied by {title_hint}"))
+            missing_sentences.append("The extracted text does not expose enough detail to restate every methodological step precisely.")
 
         if model_hits:
             if len(model_hits) == 1:
@@ -1110,7 +1123,7 @@ class ResearchResponseComposer:
             else:
                 sentences_out.append(_ensure_sentence(f"The paper mentions the following core models or methodological families: {', '.join(model_hits[:4])}"))
         else:
-            sentences_out.append("The available text does not clearly name a distinct model family beyond the general methodology described in the paper.")
+            missing_sentences.append("The available text does not clearly name a more specific model family beyond the general methodology described in the paper.")
 
         if dataset_hits:
             if len(dataset_hits) == 1:
@@ -1123,7 +1136,7 @@ class ResearchResponseComposer:
             normalized = _compact_phrase(setup_sentence)
             sentences_out.append(_ensure_sentence(f"The data or evaluation setup is described as {normalized}"))
         else:
-            sentences_out.append("The dataset is not clearly named in the available text, so the safest summary is that the paper uses the study setting described in its abstract or extracted sections.")
+            missing_sentences.append("The dataset is not clearly named in the available text, so the safest summary is that the paper uses the study setting described in its abstract or extracted sections.")
 
         if eval_sentence and not survey_like:
             normalized = _compact_phrase(eval_sentence)
@@ -1131,7 +1144,7 @@ class ResearchResponseComposer:
         elif survey_like:
             sentences_out.append("The evaluation is framed at the level of future design guidance or review synthesis rather than as a benchmark comparison on a named dataset.")
         else:
-            sentences_out.append("The methodology is presented together with an evaluation process, but the extracted text does not expose all of the experimental details clearly.")
+            missing_sentences.append("The methodology is presented together with an evaluation process, but the extracted text does not expose all of the experimental details clearly.")
 
         if survey_like:
             sentences_out.append("Because the paper is review-oriented or protocol-oriented, the methodology should be read as a synthesis or study plan rather than as a single deployable model.")
@@ -1139,6 +1152,10 @@ class ResearchResponseComposer:
             sentences_out.append("Overall, the approach section indicates how the authors connect the method, the model family, the data, and the evaluation into one workflow.")
 
         cleaned = [sentence for sentence in sentences_out if sentence]
+        for sentence in missing_sentences:
+            if len(cleaned) >= 3:
+                break
+            cleaned.append(_ensure_sentence(sentence))
         return collapse_text(" ".join(cleaned[:5]), 1400 if fulltext else 1100)
 
     def _gaps(self, rows: list[dict]) -> list[str]:
