@@ -175,7 +175,7 @@ def _follow_up_query_variants(topic: str, prior_titles: list[str] | None = None)
     if not base:
         return []
 
-    broad_topic = not topic_tokens(base) or len(base.split()) <= 2
+    broad_topic = not topic_tokens(base) or len(base.split()) <= 1
     if broad_topic:
         broad_variants = [
             base,
