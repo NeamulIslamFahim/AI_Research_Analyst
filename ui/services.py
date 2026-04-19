@@ -29,6 +29,29 @@ def _backend_main():
     return backend_main
 
 
+def ensure_writer_intro(session: dict[str, Any]) -> None:
+    """Show the initial writer message if it's the first run for the session."""
+    if session.get("mode") != "Research Paper Writer" or session.get("writer_intro_shown"):
+        return
+
+    from backend.app import writer_step
+
+    try:
+        response = writer_step(WriterStepRequest(user_text="", state={"phase": "start"}))
+        intro_messages = [
+            {"role": "assistant", "content": message, "type": "text", "display_text": message}
+            for message in response.messages
+        ]
+        update_current_session(
+            messages=[*session.get("messages", []), *intro_messages],
+            writer_state=response.next_state,
+            writer_intro_shown=True,
+        )
+    except Exception:
+        # If the backend isn't ready, we can skip this and let the user initiate.
+        pass
+
+
 def _writer_step(request: WriterStepRequest):
     from backend.app import writer_step
 
@@ -133,9 +156,14 @@ def _session_seen_titles(session: dict[str, Any]) -> list[str]:
 
 
 def _merge_session_seen_papers(session: dict[str, Any], result: dict[str, Any], topic: str) -> list[dict[str, Any]]:
-    merged: list[dict[str, Any]] = []
+    current_seen = _session_seen_papers(session)
+    new_refs = _extract_result_paper_refs(result, topic=topic)
+    
     seen_keys: set[str] = set()
-    for ref in _session_seen_papers(session) + _extract_result_paper_refs(result, topic=topic):
+    merged = list(current_seen)
+    seen_keys.update(_paper_memory_key(ref) for ref in merged if _paper_memory_key(ref))
+
+    for ref in new_refs:
         key = _paper_memory_key(ref)
         if not key or key in seen_keys:
             continue
@@ -158,160 +186,54 @@ def research_error_result(detail: str) -> dict[str, Any]:
     return build_research_error_response(detail)
 
 
-def assistant_response_for_prompt(
-    mode: str,
-    prompt: str,
-    session: dict[str, Any],
-    history: str | None,
-    force_refresh: bool = False,
-    previously_returned_titles: list[str] | None = None,
-) -> tuple[dict[str, Any], dict[str, Any] | None]:
-    """Build one assistant reply for reviewer or explorer modes."""
-    if mode == "Research Paper Writer":
-        raise RuntimeError("Writer mode is not supported by this helper.")
+def handle_upload(uploaded_file: Any) -> bool:
+    """Process an uploaded PDF for the reviewer mode."""
+    session = current_session()
+    if not uploaded_file:
+        return False
 
-    if mode == "Research Paper Reviewer":
-        paper_text = session.get("paper_text") or ""
-        if not paper_text:
-            message = "Please upload a PDF first."
-            return (
-                {"role": "assistant", "content": message, "type": "text", "display_text": message},
-                None,
-            )
+    file_bytes = uploaded_file.getvalue()
+    signature = hashlib.sha256(file_bytes).hexdigest()
+    if signature == session.get("last_uploaded_pdf_signature"):
+        return False
 
-        result = _backend_main().run_paper_reviewer_followup(prompt, paper_text)
-        answer = result.get("answer") or "No answer found."
-        return (
-            {"role": "assistant", "content": answer, "type": "text", "display_text": answer},
-            None,
+    loading_message = {
+        "role": "assistant",
+        "content": "Processing PDF...",
+        "type": "loading",
+        "display_text": "Processing uploaded PDF...",
+    }
+    update_current_session(messages=[*session["messages"], loading_message])
+
+    try:
+        from backend.explorer_utils import format_review_reply
+
+        temp_path = save_uploaded_pdf(uploaded_file)
+        paper_text = extract_text(temp_path)
+        review_result = _backend_main().run_paper_reviewer(paper_text)
+
+        if isinstance(review_result, dict) and review_result.get("error"):
+            raise RuntimeError(str(review_result["error"]))
+
+        review_text = format_review_reply(review_result if isinstance(review_result, dict) else {})
+        final_msg = {"role": "assistant", "content": review_text, "type": "text", "display_text": review_text}
+        update_current_session(
+            messages=replace_or_append_assistant(session["messages"], final_msg),
+            paper_text=paper_text,
+            last_uploaded_pdf_signature=signature,
         )
-
-    if mode == "Research Explorer":
-        resolved_topic = _resolve_research_topic(prompt, history, session)
-        is_expansion_request = ResearchService.is_expansion_request(prompt)
-        history_resolved_expansion = is_expansion_request and ResearchService.should_resolve_topic_from_history(prompt)
-        force_refresh = force_refresh or is_expansion_request
-        focus_topic = resolved_topic if is_expansion_request else (prompt if len(prompt.split()) > 8 else None)
-        previously_returned_papers = _session_seen_papers(session) if is_expansion_request else []
-        previously_returned_titles = (
-            previously_returned_titles
-            if previously_returned_titles is not None
-            else (_session_seen_titles(session) if is_expansion_request else [])
-        )
-        try:
-            result = _backend_main().run_research_explorer(
-                topic=resolved_topic,
-                chat_history=history,
-                use_live=None,
-                focus_topic=focus_topic,
-                previously_returned_titles=previously_returned_titles,
-                previously_returned_papers=previously_returned_papers,
-                force_refresh=force_refresh,
-            )
-        except HTTPException as exc:
-            detail = exc.detail if hasattr(exc, "detail") else str(exc)
-            result = research_error_result(str(detail))
-        if isinstance(result, dict) and result.get("error"):
-            result = research_error_result(str(result.get("error", "")))
-
-        display_text = result.get("assistant_reply", "Research result")
-        if history_resolved_expansion and isinstance(display_text, str) and not display_text.lower().startswith("here are additional papers on"):
-            display_text = f"Here are additional papers on {resolved_topic}. {display_text}"
-
-        return (
-            {
-                "role": "assistant",
-                "content": result,
-                "type": "research",
-                "display_text": display_text,
-            },
-            {
-                "research_last_topic": resolved_topic,
-                "research_seen_papers": _merge_session_seen_papers(session, result, resolved_topic),
-            },
-        )
-
-    raise RuntimeError(f"Unsupported mode: {mode}")
-
+        return True
+    except Exception as exc:
+        final_msg = {"role": "assistant", "content": str(exc), "type": "text", "display_text": str(exc)}
+        update_current_session(messages=replace_or_append_assistant(session["messages"], final_msg))
+        return False
 
 def _show_running_notice(message: str):
     """Render a temporary visible notice while the assistant is working."""
     box = st.empty()
-    box.info(message)
+    with box.container():
+        st.info(message)
     return box
-
-
-def ensure_writer_intro(session: dict[str, Any]) -> None:
-    """Insert the initial writer assistant messages once per workspace."""
-    if session["mode"] != "Research Paper Writer":
-        return
-    if session["messages"] or session.get("writer_intro_shown"):
-        return
-
-    response = _writer_step(WriterStepRequest(user_text="", state=session.get("writer_state") or {"phase": "start"}))
-    update_current_session(
-        messages=[
-            {"role": "assistant", "content": message, "type": "text", "display_text": message}
-            for message in response.messages
-        ],
-        writer_state=response.next_state or {"phase": "start"},
-        writer_intro_shown=True,
-    )
-
-
-def handle_upload(uploaded_file: Any) -> bool:
-    """Process a PDF upload and insert the review into the conversation."""
-    if uploaded_file is None:
-        return False
-
-    session = current_session()
-    raw_bytes = uploaded_file.getvalue()
-    file_signature = hashlib.sha256(
-        (uploaded_file.name or "").encode("utf-8") + b"::" + raw_bytes
-    ).hexdigest()
-    if session.get("last_uploaded_pdf_signature") == file_signature:
-        return False
-
-    update_current_session(last_uploaded_pdf_signature=file_signature)
-    messages = [*session["messages"], {"role": "assistant", "content": "Loading...", "type": "loading"}]
-    update_current_session(messages=messages)
-
-    tmp_path = save_uploaded_pdf(uploaded_file)
-    try:
-        paper_text = extract_text(tmp_path)
-        result = _backend_main().run_paper_reviewer(paper_text)
-    finally:
-        try:
-            os.remove(tmp_path)
-        except OSError:
-            pass
-
-    if result.get("error"):
-        final_msg = {"role": "assistant", "content": result["error"], "type": "text", "display_text": result["error"]}
-        update_current_session(messages=replace_or_append_assistant(current_session()["messages"], final_msg))
-        _maybe_schedule_assistant_retrain()
-        return False
-
-    review_text = "\n\n".join(
-        [
-            "Here is a structured peer review of the paper:",
-            f"Strengths: {result.get('strengths', '')}",
-            f"Weaknesses: {result.get('weaknesses', '')}",
-            f"Novelty: {result.get('novelty', '')}",
-            f"Technical Correctness: {result.get('technical_correctness', '')}",
-            f"Reproducibility: {result.get('reproducibility', '')}",
-            f"Recommendation: {result.get('recommendation', '')}",
-            f"Suggested Venue: {result.get('suggested_venue', '')}",
-        ]
-    )
-    final_msg = {"role": "assistant", "content": review_text, "type": "review", "display_text": review_text}
-    update_current_session(
-        messages=replace_or_append_assistant(current_session()["messages"], final_msg),
-        paper_text=paper_text,
-    )
-    _maybe_schedule_assistant_retrain()
-    return True
-
 
 def handle_send(prompt: str) -> None:
     """Handle the main chat input for all workspace modes."""
@@ -393,9 +315,9 @@ def handle_send(prompt: str) -> None:
                 force_refresh = is_expansion_request
                 focus_topic = resolved_topic if is_expansion_request else (trimmed if len(trimmed.split()) > 8 else None)
                 try:
-                    result = _backend_main().run_research_explorer(
+                    result = _backend_main().run_research_explorer( # type: ignore
                         topic=resolved_topic,
-                        chat_history=history,
+                        chat_history="",
                         use_live=None,
                         focus_topic=focus_topic,
                         previously_returned_titles=previously_returned_titles,

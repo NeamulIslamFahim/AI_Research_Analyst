@@ -207,22 +207,22 @@ class ResearchResponseComposer:
             elif any(term in blob for term in ["retrieval", "search", "genir", "retriever", "retrieval-augmented"]):
                 gap = f"{title}: separate retrieval quality from generation quality and compare against stronger retrieval baselines."
             elif any(term in blob for term in ["survey", "review", "overview", "foundations", "framework"]):
-                gap = f"{title}: move beyond description and add stronger empirical comparisons or benchmark-style evaluation."
+                gap = f"{title}: the work is primarily descriptive; a valuable next step would be to add empirical comparisons or a benchmark-style evaluation."
             elif "multilingual" in blob or "low-resource" in blob:
-                gap = f"{title}: expand evaluation to more languages and report transfer clearly."
+                gap = f"{title}: the evaluation could be strengthened by expanding to more languages and reporting cross-lingual transfer performance."
             elif "space" in blob or "planet" in blob:
-                gap = f"{title}: connect the method to a concrete scientific or operational use case with clearer validation."
+                gap = f"{title}: the method's practical value would be clearer if connected to a concrete scientific or operational use case with more direct validation."
             elif "generative ai" in blob or "genai" in blob:
                 if idx == 0:
-                    gap = f"{title}: benchmark the approach against stronger baseline systems and report task-level error analysis."
+                    gap = f"{title}: the approach should be benchmarked against stronger baseline systems with a detailed task-level error analysis."
                 elif idx == 1:
-                    gap = f"{title}: test whether the claims hold across different user groups, prompts, or deployment settings."
+                    gap = f"{title}: the claims' robustness is unclear; testing across different user groups, prompts, or deployment settings is needed."
                 elif idx == 2:
-                    gap = f"{title}: add robustness checks for hallucination, safety, and prompt sensitivity."
+                    gap = f"{title}: the study needs robustness checks for hallucination, safety, and prompt sensitivity to be considered reliable."
                 else:
-                    gap = f"{title}: clarify which part of the pipeline contributes most to the reported gains."
+                    gap = f"{title}: an ablation study is needed to clarify which components of the pipeline contribute most to the reported gains."
             else:
-                gap = f"{title}: strengthen the evaluation with stronger baselines and clearer error analysis."
+                gap = f"{title}: the evaluation lacks strong baselines and a clear error analysis, making it difficult to assess the method's true performance."
             gaps.append(collapse_text(gap, 360))
         return gaps
 
@@ -231,10 +231,7 @@ class ResearchResponseComposer:
         if not gaps:
             return f"Build a stronger benchmark for {theme} that tests robustness, transfer, and interpretability."
         gap_summary = " ".join(dict.fromkeys(self._gap_focus(g) for g in gaps[:3]))
-        return collapse_text(
-            f"Build a stronger {theme} pipeline that addresses the recurring weaknesses across these papers, especially {gap_summary}.",
-            700,
-        )
+        return collapse_text(f"A promising research direction is to develop a more robust {theme} pipeline that directly addresses the recurring weaknesses identified, such as {gap_summary}.", 700)
 
     def _implementation_steps(self, gaps: list[str], rows: list[dict], idea: str) -> list[str]:
         titles = [self._paper_label(row.get("paper_name", "")) for row in rows if clean_text(row.get("paper_name", ""))]
@@ -276,7 +273,7 @@ class ResearchResponseComposer:
         if any(term in blob for term in ["protocol", "systematic review", "survey", "viewpoint", "framework", "overview"]):
             return (
                 "the next step is to turn the conceptual contribution into a comparative empirical study with a shared evaluation setup, "
-                "so readers can see how the proposed ideas perform in practice"
+                "so readers can assess how the proposed ideas perform in practice"
             )
         if any(term in blob for term in ["chatbot", "llm", "chatgpt", "assistant", "conversational agent"]):
             return (
@@ -289,7 +286,7 @@ class ResearchResponseComposer:
                 "and direct comparison against non-AI intervention baselines"
             )
         return (
-            "the paper would benefit from stronger empirical comparison, clearer evaluation criteria, and a more explicit account of where the proposed approach succeeds or fails"
+            "the paper's conclusions would be more credible with stronger empirical comparisons, clearer evaluation criteria, and a more explicit analysis of where the approach succeeds or fails"
         )
 
     def _summary(self, row: dict, fulltext_snippet: str = "", abstract: str = "") -> str:
@@ -302,7 +299,7 @@ class ResearchResponseComposer:
         if not source_text:
             return collapse_text(
                 (
-                    f"{title} appears relevant to {self._topic_theme()}, but the available metadata is too limited to support a trustworthy paper-level summary. "
+                    f"While '{title}' appears relevant to {self._topic_theme()}, the available metadata is too limited to support a trustworthy paper-level summary. "
                     "The source does not clearly expose the problem setting, the concrete method, or the main findings, so this row should be treated as metadata-only evidence."
                 ),
                 1200,
@@ -336,34 +333,34 @@ class ResearchResponseComposer:
         def _sentence_impact() -> str:
             impact_candidate = impact
             if not impact_candidate or impact_candidate.strip().lower() == problem.strip().lower():
-                impact_candidate = _pick(sentence_list, ["guide", "future", "evaluation", "effective", "intervention", "support"])
+                impact_candidate = _pick(sentence_list, ["guide", "future", "evaluation", "effective", "intervention", "support", "implication"])
             if impact_candidate:
                 normalized = self._clean_fragment(impact_candidate, title=title, max_words=26)
-                return self._ensure_sentence(f"In the reported results, {self._lower_first(normalized)}")
-            return self._ensure_sentence("The paper frames the method as a meaningful contribution, even though the visible text does not give a precise quantitative result")
+                return self._ensure_sentence(f"The analysis suggests that {self._lower_first(normalized)}")
+            return self._ensure_sentence("The paper frames its method as a meaningful contribution, though the visible text lacks precise quantitative results")
 
         def _sentence_close() -> str:
             if fulltext:
-                return "Overall, the paper gives a grounded account of the problem, the method, and the reported outcome."
-            return "Overall, this reads as a concise overview from the abstract or metadata rather than a full reconstruction of the paper."
+                return "Overall, the paper provides a grounded account of the problem, method, and reported outcomes."
+            return "Overall, this summary is based on the abstract and metadata, not a full reconstruction of the paper."
 
         about_fragment = self._clean_fragment(overview or title, title=title, max_words=24)
         if not about_fragment:
             short_title = title.split(":", 1)[0].strip() or title
             about_sentence = self._ensure_sentence(f"The paper looks at {short_title}")
         elif len(about_fragment.split()) < 6:
-            about_sentence = self._ensure_sentence(f"The paper looks at {self._lower_first(about_fragment)}")
+            about_sentence = self._ensure_sentence(f"This paper investigates {self._lower_first(about_fragment)}")
         else:
-            about_sentence = self._ensure_sentence(about_fragment)
+            about_sentence = self._ensure_sentence(f"This paper investigates {self._lower_first(about_fragment)}")
 
         problem_fragment = self._clean_fragment(problem, title=title, max_words=26) if problem else ""
         if problem_fragment:
             problem_sentence = self._ensure_sentence(
-                f"More specifically, it focuses on {self._lower_first(problem_fragment)}"
+                f"addressing the core challenge of {self._lower_first(problem_fragment)}"
             )
         else:
             problem_sentence = self._ensure_sentence(
-                "More specifically, it focuses on the core challenge described in the paper"
+                "addressing the core challenge described in the paper"
             )
 
         approach_fragment = self._clean_fragment(approach, title=title, max_words=28) if approach else ""
@@ -372,20 +369,21 @@ class ResearchResponseComposer:
         approach_key = re.sub(r"\s+", " ", approach_fragment).strip().lower()
         if approach_fragment and approach_key not in {about_key, problem_key} and approach_key not in about_key:
             approach_sentence = self._ensure_sentence(
-                f"The central idea is {self._lower_first(approach_fragment)}"
+                f"by proposing a method centered on {self._lower_first(approach_fragment)}"
             )
         else:
             approach_sentence = ""
 
         parts = [
-            about_sentence,
-            problem_sentence,
-            approach_sentence,
+            f"{about_sentence.rstrip('.')} {problem_sentence.rstrip('.')} {approach_sentence.rstrip('.') if approach_sentence else ''}.".replace("  ", " ").strip(),
             _sentence_impact(),
             self._ensure_sentence(_sentence_close()),
         ]
         parts = [part for part in parts if part]
-        return collapse_text(" ".join(parts[:5]), 1600 if fulltext else 1100)
+        final_summary = " ".join(parts)
+        # Final cleanup for flow
+        final_summary = final_summary.replace(" .", ".").replace("  ", " ")
+        return collapse_text(final_summary, 1600 if fulltext else 1100)
 
     def _approach(self, row: dict, fulltext_snippet: str = "", abstract: str = "") -> str:
         title = clean_text(row.get("title", "")) or "Untitled paper"
@@ -415,7 +413,7 @@ class ResearchResponseComposer:
             title_hint = _title_method_hint()
             return collapse_text(
                 " ".join(
-                    [
+                    _unique_sentences([
                         self._ensure_sentence(
                             f"The available metadata suggests a method centered on {self._lower_first(title_hint) if title_hint else title}"
                         ),
@@ -425,7 +423,7 @@ class ResearchResponseComposer:
                         self._ensure_sentence(
                             "The dataset, benchmark, and evaluation setup are also unclear from the metadata alone"
                         ),
-                    ]
+                    ])
                 ),
                 1000,
             )
@@ -478,7 +476,7 @@ class ResearchResponseComposer:
         missing_sentences: list[str] = []
         if explicit_approach:
             normalized = self._clean_fragment(explicit_approach, title=title, max_words=30)
-            sentences_out.append(self._ensure_sentence(f"The paper's main idea is {self._lower_first(normalized)}"))
+            sentences_out.append(self._ensure_sentence(f"The paper's core contribution is a method based on {self._lower_first(normalized)}"))
         elif survey_like:
             sentences_out.append(
                 self._ensure_sentence(
@@ -489,7 +487,7 @@ class ResearchResponseComposer:
             title_hint = _title_method_hint()
             sentences_out.append(
                 self._ensure_sentence(
-                    f"The available text points to a method built around {self._lower_first(title_hint)}"
+                    f"The methodology appears to be built around {self._lower_first(title_hint)}"
                 )
             )
             missing_sentences.append(
@@ -499,10 +497,10 @@ class ResearchResponseComposer:
         if model_hits:
             normalized_explicit = explicit_approach.lower()
             if len(model_hits) == 1 and model_hits[0].lower() not in normalized_explicit:
-                sentences_out.append(self._ensure_sentence(f"It is framed around {model_hits[0]}"))
+                sentences_out.append(self._ensure_sentence(f"This approach is framed around {model_hits[0]}"))
             elif len(model_hits) > 1:
                 model_list = self._natural_list(model_hits[:4])
-                sentences_out.append(self._ensure_sentence(f"It brings together {model_list}"))
+                sentences_out.append(self._ensure_sentence(f"It integrates several components, including {model_list}"))
         else:
             missing_sentences.append(
                 "The available text does not clearly name a more specific model family beyond the general methodology described in the paper"
@@ -510,10 +508,10 @@ class ResearchResponseComposer:
 
         if dataset_hits:
             if len(dataset_hits) == 1:
-                sentences_out.append(self._ensure_sentence(f"The reported evaluation uses {dataset_hits[0]}"))
+                sentences_out.append(self._ensure_sentence(f"The method is evaluated using the {dataset_hits[0]} dataset"))
             else:
                 dataset_list = self._natural_list(dataset_hits[:4])
-                sentences_out.append(self._ensure_sentence(f"The reported evaluation draws on {dataset_list}"))
+                sentences_out.append(self._ensure_sentence(f"The evaluation draws on several datasets, including {dataset_list}"))
         elif survey_like:
             sentences_out.append(
                 self._ensure_sentence(
@@ -522,7 +520,7 @@ class ResearchResponseComposer:
             )
         elif setup_sentence:
             normalized = self._clean_fragment(setup_sentence, title=title, max_words=26)
-            sentences_out.append(self._ensure_sentence(f"The evaluation setup is described around {self._lower_first(normalized)}"))
+            sentences_out.append(self._ensure_sentence(f"Its evaluation setup is centered on {self._lower_first(normalized)}"))
         else:
             missing_sentences.append(
                 "The dataset is not clearly named in the available text, so the safest summary is that the paper uses the study setting described in its abstract or extracted sections"
@@ -530,7 +528,7 @@ class ResearchResponseComposer:
 
         if eval_sentence and not survey_like:
             normalized = self._clean_fragment(eval_sentence, title=title, max_words=26)
-            sentences_out.append(self._ensure_sentence(f"The reported evaluation suggests that {self._lower_first(normalized)}"))
+            sentences_out.append(self._ensure_sentence(f"Analysis of the results suggests that {self._lower_first(normalized)}"))
         elif survey_like:
             sentences_out.append(
                 self._ensure_sentence(
@@ -545,13 +543,13 @@ class ResearchResponseComposer:
         if survey_like:
             sentences_out.append(
                 self._ensure_sentence(
-                    "Taken together, the method should be read as a synthesis or study plan rather than as a single deployable model"
+                    "Taken together, the methodology should be interpreted as a conceptual synthesis rather than a single deployable model"
                 )
             )
         else:
             sentences_out.append(
                 self._ensure_sentence(
-                    "Taken together, the method links the modeling choice, the data, and the evaluation into one coherent workflow"
+                    "Taken together, the methodology connects the modeling choice, data, and evaluation into a coherent workflow"
                 )
             )
 
@@ -560,7 +558,9 @@ class ResearchResponseComposer:
             if len(cleaned) >= 3:
                 break
             cleaned.append(self._ensure_sentence(sentence))
-        return collapse_text(" ".join(cleaned[:5]), 1400 if fulltext else 1100)
+        final_approach = " ".join(cleaned[:5])
+        final_approach = final_approach.replace(" .", ".").replace("  ", " ")
+        return collapse_text(final_approach, 1400 if fulltext else 1100)
 
     def _gaps(self, rows: list[dict]) -> list[str]:
         gaps: list[str] = []
@@ -580,12 +580,12 @@ class ResearchResponseComposer:
         theme = self._topic_theme()
         if not gaps:
             return (
-                f"A promising next step would be to build a stronger research pipeline for {theme} that combines focused retrieval, "
+                f"A promising research direction would be to construct a more rigorous research pipeline for {theme} that combines focused retrieval, "
                 "paper-level evidence tracking, and evaluation in real workflows, so the final recommendation rests on comparable studies rather than generic summaries."
             )
         return collapse_text(
-            f"A strong follow-up project would be a {theme} pipeline that directly addresses the recurring weaknesses shared across these papers. "
-            "The study design should compare closely related methods on the same task, keep the evaluation population and metrics explicit, "
+            f"A strong follow-up project would be to design a {theme} pipeline that directly addresses the recurring weaknesses shared across these papers. "
+            "This new study should compare closely related methods on the same task, keep the evaluation population and metrics explicit, "
             "and separate evidence-backed conclusions from metadata-only guesses.",
             900,
         )
@@ -656,13 +656,13 @@ class ResearchResponseComposer:
             "research_gaps": gaps,
             "assistant_reply": (
                 f"I found {len(table)} papers on {self.topic}. "
-                f"Across them, the main thread is {self._topic_theme()}."
+                f"The common thread across them is {self._topic_theme()}."
                 + (
-                    " The papers point to similar weaknesses around evaluation depth, comparison quality, and how confidently the results can be interpreted."
+                    " The papers point to recurring weaknesses around evaluation depth, the quality of baseline comparisons, and the confidence with which results can be interpreted."
                     if gaps
                     else ""
                 )
-                + " A sensible next step is to keep only the closest papers, compare them under one shared evaluation frame, and avoid making strong claims when a source exposes only thin metadata."
+                + " A sensible next step is to focus only on the most relevant papers, compare them within a shared evaluation framework, and avoid making strong claims based on thin metadata."
             ),
             "generated_idea": idea,
             "generated_idea_steps": self._implementation_steps(gaps, table, idea),

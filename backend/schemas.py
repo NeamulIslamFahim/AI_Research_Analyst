@@ -42,3 +42,8 @@ class WriterStepResponse(BaseModel):
 
 class AssistantTrainRequest(BaseModel):
     force: Optional[bool] = None
+
+
+class AssistantChatRequest(BaseModel):
+    prompt: str
+    chat_history: Optional[str] = None

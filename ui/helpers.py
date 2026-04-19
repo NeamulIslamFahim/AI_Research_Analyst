@@ -15,20 +15,22 @@ def format_chat_history(messages: list[dict[str, Any]], max_messages: int = 100)
     lines = []
     for msg in trimmed_messages:
         label = "User" if msg["role"] == "user" else "Assistant"
-        content = msg.get("effective_query") or msg.get("display_text") or msg.get("content") or ""
+        content_raw = msg.get("content") or ""
         extra_lines: list[str] = []
-        if isinstance(content, dict):
-            content = content.get("answer") or content.get("assistant_reply") or ""
-            sources = msg.get("content", {}).get("sources") or []
+        if isinstance(content_raw, dict):
+            content = content_raw.get("answer") or content_raw.get("assistant_reply") or ""
+            sources = content_raw.get("sources") or []
             if isinstance(sources, list) and sources:
                 titles = [str(item.get("title", "")).strip() for item in sources if isinstance(item, dict) and item.get("title")]
                 if titles:
                     extra_lines.append("Sources: " + " | ".join(titles[:8]))
-            table = msg.get("content", {}).get("table") or []
+            table = content_raw.get("table") or []
             if isinstance(table, list) and table:
                 titles = [str(item.get("paper_name", "")).strip() for item in table if isinstance(item, dict) and item.get("paper_name")]
                 if titles:
                     extra_lines.append("Papers: " + " | ".join(titles[:8]))
+        else:
+            content = msg.get("effective_query") or msg.get("display_text") or str(content_raw)
         lines.append(f"{label}: {content}")
         lines.extend(extra_lines)
     return "\n".join(lines)

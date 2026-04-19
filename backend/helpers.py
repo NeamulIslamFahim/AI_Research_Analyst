@@ -222,7 +222,15 @@ def append_chat_log_entry(entry: Dict[str, Any], path: str | None = None) -> Non
     directory = os.path.dirname(log_path) or "."
     try:
         os.makedirs(directory, exist_ok=True)
-        with open(log_path, "a", encoding="utf-8") as handle:
+        with open(log_path, "a+", encoding="utf-8") as handle:
+            handle.seek(0, os.SEEK_END)
+            if handle.tell() > 0:
+                handle.seek(handle.tell() - 1)
+                if handle.read(1) != "\n":
+                    handle.seek(0, os.SEEK_END)
+                    handle.write("\n")
+                else:
+                    handle.seek(0, os.SEEK_END)
             json.dump(entry, handle, ensure_ascii=False)
             handle.write("\n")
     except Exception:

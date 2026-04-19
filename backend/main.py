@@ -174,33 +174,29 @@ def _follow_up_query_variants(topic: str, prior_titles: list[str] | None = None)
     base = " ".join(str(topic or "").split())
     if not base:
         return []
-
-    broad_topic = not topic_tokens(base) or len(base.split()) <= 1
-    if broad_topic:
-        broad_variants = [
-            base,
-            f"{base} networking",
-            f"{base} network",
-            f"{base} communications",
-            "artificial intelligence",
-            "machine learning",
-            "deep learning",
-            "intelligent networking",
-            "network optimization",
-            "network traffic prediction",
-            "wireless networking AI",
-            "AI applications",
-            "AI ethics",
-            "AI prediction",
-            "AI healthcare",
-            "AI assistants",
-            "AI human collaboration",
-            "trustworthy AI",
-            "responsible AI",
-            "AI survey",
-            "AI review",
-            "AI benchmark",
+    
+    variants = [base]
+    variants.extend(
+        [
+            f"{base} research",
+            f"{base} methods",
+            f"{base} applications",
+            f"{base} survey",
+            f"{base} review",
+            f"{base} benchmark",
         ]
+    )
+
+    lower_base = base.lower()
+    # If the topic is very generic, add some broader AI/ML terms as a fallback,
+    # but only if it seems related to technology.
+    is_tech_topic = any(term in lower_base for term in ["ai", "ml", "network", "data", "code", "learning"])
+    is_very_broad = len(base.split()) <= 2 and not topic_tokens(base)
+
+    if is_tech_topic or is_very_broad:
+        variants.extend(["artificial intelligence", "machine learning", "deep learning"])
+
+    if prior_titles:
         for title in (prior_titles or []):
             clean_title = " ".join(str(title or "").split())
             if not clean_title:
@@ -213,66 +209,7 @@ def _follow_up_query_variants(topic: str, prior_titles: list[str] | None = None)
                     f"{clean_title} comparison benchmark",
                 ]
             )
-        seen: set[str] = set()
-        deduped: list[str] = []
-        for query in broad_variants:
-            normalized = " ".join(query.lower().split())
-            if normalized and normalized not in seen:
-                seen.add(normalized)
-                deduped.append(query)
-        return deduped
 
-    variants = [base]
-    variants.extend(
-        [
-            f"{base} recent papers",
-            f"{base} survey review",
-            f"{base} applications evaluation",
-            f"{base} comparison benchmark",
-        ]
-    )
-
-    lower_base = base.lower()
-    # If the original topic is sparse, misspelled, or overly narrow, keep broader
-    # recovery paths available only for AI-style topics so unrelated domains stay on-topic.
-    if broad_topic or any(
-        term in lower_base
-        for term in [
-            " ai ",
-            "artificial intelligence",
-            "machine learning",
-            "deep learning",
-            "llm",
-            "networking",
-            "gaming",
-            "code",
-            "coding",
-        ]
-    ):
-        variants.extend(
-            [
-                "artificial intelligence",
-                "machine learning",
-                "deep learning",
-                "ai applications",
-                "ai survey",
-                "ai review",
-                "ai benchmark",
-            ]
-        )
-
-    for title in (prior_titles or []):
-        clean_title = " ".join(str(title or "").split())
-        if not clean_title:
-            continue
-        variants.extend(
-            [
-                clean_title,
-                f"{clean_title} recent papers",
-                f"{clean_title} survey review",
-                f"{clean_title} comparison benchmark",
-            ]
-        )
 
     seen: set[str] = set()
     deduped: list[str] = []
@@ -1041,8 +978,8 @@ def _run_research_explorer_impl_legacy(
                 hay = " ".join(
                     [
                         str(meta.get("title", "")),
-                        _clean_row_text(meta.get("abstract", "")),
-                        _clean_row_text(doc.page_content or ""),
+                        clean_text(meta.get("abstract", "")),
+                        clean_text(doc.page_content or ""),
                     ]
                 ).lower()
                 return any(tok in hay for tok in query_tokens)
@@ -1080,12 +1017,30 @@ def _run_research_explorer_impl_legacy(
                     except Exception:
                         return []
 
-                search_k = int(load_env_var("FOLLOW_UP_VECTOR_SEARCH_K", "80") or "80") if (follow_up_request or excluded_titles_lower) else 8
+                search_k = (
+                    int(load_env_var("FOLLOW_UP_VECTOR_SEARCH_K", "80") or "80")
+                    if (follow_up_request or excluded_titles_lower)
+                    else int(load_env_var("LOCAL_VECTOR_SEARCH_K", "28") or "28")
+                )
                 docs_local: list[Document] = []
                 if follow_up_request and preferred_follow_up_titles:
                     for preferred_title in preferred_follow_up_titles[:10]:
                         docs_local.extend(_search_store(preferred_title, k=8))
-                docs_local.extend(_search_store(topic, k=search_k))
+
+                local_search_queries = [topic]
+                strong_query_tokens = [tok for tok in query_tokens if len(tok) >= 4]
+                if len(strong_query_tokens) >= 2:
+                    local_search_queries.append(" ".join(strong_query_tokens[:2]))
+                local_search_queries.extend(strong_query_tokens[:4])
+
+                seen_queries: set[str] = set()
+                for idx, query in enumerate(local_search_queries):
+                    normalized_query = clean_text(query).lower()
+                    if not normalized_query or normalized_query in seen_queries:
+                        continue
+                    seen_queries.add(normalized_query)
+                    per_query_k = search_k if idx == 0 else min(search_k, 16)
+                    docs_local.extend(_search_store(query, k=per_query_k))
 
                 deduped_docs_local: list[Document] = []
                 seen_doc_keys: set[str] = set()
@@ -1180,6 +1135,47 @@ def _run_research_explorer_impl_legacy(
                         )
                         if title_value:
                             seen_titles.append(title_value)
+                        if url_value:
+                            seen_urls.add(url_value)
+                        if len(rows_local) >= 5:
+                            break
+
+                if len(rows_local) < 5:
+                    try:
+                        from .assistant_model import get_assistant_sources
+
+                        fallback_sources = get_assistant_sources(topic, chat_history=chat_history, limit=5)
+                    except Exception:
+                        fallback_sources = []
+
+                    seen_urls = {
+                        _normalize_url(str(row.get("url", ""))) or _normalize_url(str(row.get("pdf_url", "")))
+                        for row in rows_local
+                        if str(row.get("url", "") or row.get("pdf_url", "")).strip()
+                    }
+                    seen_titles = [clean_text(row.get("title", "")) for row in rows_local if clean_text(row.get("title", ""))]
+                    for source in fallback_sources:
+                        title_value = clean_text(source.get("title", ""))
+                        if not title_value or _matches_excluded_paper(source):
+                            continue
+                        url_value = _normalize_url(str(source.get("url", ""))) or _normalize_url(str(source.get("pdf_url", "")))
+                        if title_value and _seen_title_match(title_value, seen_titles):
+                            continue
+                        if url_value and url_value in seen_urls:
+                            continue
+                        rows_local.append(
+                            {
+                                "title": source.get("title", ""),
+                                "authors": authors_to_str(source.get("authors", "")),
+                                "year": source.get("year", ""),
+                                "url": source.get("url", ""),
+                                "pdf_url": source.get("pdf_url", ""),
+                                "doi": source.get("doi", ""),
+                                "abstract": source.get("snippet", ""),
+                                "source": source.get("source", "assistant_model"),
+                            }
+                        )
+                        seen_titles.append(title_value)
                         if url_value:
                             seen_urls.add(url_value)
                         if len(rows_local) >= 5:
@@ -1535,7 +1531,7 @@ def _run_research_explorer_impl_legacy(
         # Build a lookup for full-text snippets by (title, url) and by title.
         if fulltext_docs:
             tmp_map: Dict[tuple[str, str], List[str]] = {}
-            for d in fulltext_docs:
+            for d in all_docs:
                 meta = d.metadata or {}
                 key = (meta.get("title", "") or "", meta.get("url", "") or "")
                 tmp_map.setdefault(key, []).append(d.page_content or "")
@@ -1651,7 +1647,7 @@ def _run_research_explorer_impl_legacy(
         # Filter out previously returned titles for follow-up requests.
         if follow_up_request and excluded_titles_lower:
             filtered_rows = [r for r in filtered_rows if not _row_is_excluded(r)]
-            if len(filtered_rows) < 5:
+            if len(filtered_rows) < 8:
                 broader_pool = [r for r in rows if not _row_is_excluded(r)]
                 seen_titles = [clean_text(r.get("title", "")) for r in filtered_rows if clean_text(r.get("title", ""))]
                 for r in broader_pool:
@@ -1660,9 +1656,9 @@ def _run_research_explorer_impl_legacy(
                         continue
                     filtered_rows.append(r)
                     seen_titles.append(title_value)
-                    if len(filtered_rows) >= 8:
+                    if len(filtered_rows) >= 12:
                         break
-            if len(filtered_rows) < 5:
+            if len(filtered_rows) < 8:
                 try:
                     prior_titles = _titles_from_chat_history(chat_history)
                     for extension_query in _follow_up_query_variants(topic, prior_titles=prior_titles):
@@ -1676,7 +1672,7 @@ def _run_research_explorer_impl_legacy(
                                 continue
                             filtered_rows.append(r)
                             seen_titles.append(title_value)
-                            if len(filtered_rows) >= 8:
+                            if len(filtered_rows) >= 12:
                                 break
                 except Exception:
                     pass
@@ -2024,13 +2020,13 @@ def _run_paper_reviewer_impl(paper_text: str) -> Dict[str, Any]:
             if "invalid_api_key" in str(exc).lower() or "401" in str(exc):
                 parsed = review_composer.sanitize(review_composer.heuristic_review(paper_text), paper_text)
                 parsed["suggested_venue"] = _infer_venue_type(paper_text)
-                _PAPER_REVIEW_CACHE[cache_key] = parsed
-                return parsed
+                _PAPER_REVIEW_CACHE[cache_key] = parsed 
+                return parsed 
             raise
         parsed = safe_json_loads(raw)
 
         if isinstance(parsed, dict) and parsed.get("error"):
-            schema_hint = (
+            schema_hint = ( 
                 "JSON object with keys: strengths, weaknesses, novelty, technical_correctness, "
                 "reproducibility, recommendation, suggested_venue."
             )

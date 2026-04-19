@@ -140,30 +140,31 @@ def cleanup_old_pdfs(max_pdfs: int = 50) -> int:
     db_path, pdf_dir = _get_paths()
     conn = sqlite3.connect(db_path)
     
+    removed_count = 0
     try:
         # Get all records ordered by added_at (oldest first)
         rows = conn.execute(
             """
             SELECT id, file_path, pdf_url
             FROM papers 
-            WHERE file_path IS NOT NULL
-            ORDER BY added_at ASC, id ASC
+            ORDER BY added_at DESC, id DESC
             """
         ).fetchall()
         
         if len(rows) <= max_pdfs:
             return 0  # No cleanup needed
             
-        # Keep only the most recent max_pdfs
-        to_remove = rows[:-max_pdfs]
-        removed_count = 0
+        # IDs to keep
+        ids_to_keep = {row[0] for row in rows[:max_pdfs]}
+        
+        # Files and IDs to remove
+        to_remove = [row for row in rows if row[0] not in ids_to_keep]
         
         for row in to_remove:
             file_path = row[1]
             if file_path and os.path.exists(file_path):
                 try:
                     os.remove(file_path)
-                    removed_count += 1
                 except OSError:
                     pass  # File might be in use
             
@@ -171,6 +172,7 @@ def cleanup_old_pdfs(max_pdfs: int = 50) -> int:
             conn.execute("DELETE FROM papers WHERE id = ?", (row[0],))
         
         conn.commit()
-        return removed_count
+        removed_count = len(to_remove)
     finally:
         conn.close()
+    return removed_count

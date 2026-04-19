@@ -16,6 +16,27 @@ import time
 import requests
 
 
+def _legacy_faiss_candidates(preferred_dir: str) -> list[str]:
+    """Return compatible older FAISS directory names for existing local data."""
+    normalized = os.path.normpath(preferred_dir)
+    default_dir = os.path.normpath(os.path.join("data", "vectorstore"))
+    legacy_dir = os.path.normpath(os.path.join("data", "vectorestore"))
+    if normalized == default_dir and legacy_dir != normalized:
+        return [legacy_dir]
+    return []
+
+
+def _resolve_existing_faiss_dir(preferred_dir: str) -> str:
+    """Prefer the configured FAISS directory, but fall back to legacy data if needed."""
+    candidates = [preferred_dir, *_legacy_faiss_candidates(preferred_dir)]
+    for candidate in candidates:
+        index_path = os.path.join(candidate, "index.faiss")
+        pickle_path = os.path.join(candidate, "index.pkl")
+        if os.path.exists(index_path) and os.path.exists(pickle_path):
+            return candidate
+    return preferred_dir
+
+
 def arxiv_search(query: str, max_results: int = 5) -> List[Document]:
     """Retrieve arXiv papers as LangChain Documents.
 
@@ -560,7 +581,7 @@ def load_vector_store() -> FAISS | None:
     """Load a persisted FAISS vector store if present."""
     try:
         embeddings = create_embeddings()
-        persist_dir = get_faiss_persist_dir()
+        persist_dir = _resolve_existing_faiss_dir(get_faiss_persist_dir())
         if not os.path.exists(persist_dir):
             return None
 

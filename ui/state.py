@@ -30,10 +30,18 @@ def init_state(default_mode: str) -> None:
     """Populate Streamlit session state keys used by the app."""
     get_or_create_owner_id()
     if "sessions" not in st.session_state:
-        loaded = load_sessions(default_mode)
-        st.session_state["sessions"] = loaded or default_sessions(default_mode)
-    if "current_session_id" not in st.session_state:
-        st.session_state["current_session_id"] = st.session_state["sessions"][0]["id"]
+        loaded_sessions = load_sessions(default_mode)
+        st.session_state["sessions"] = loaded_sessions or default_sessions(default_mode)
+
+    sessions = st.session_state["sessions"]
+    if not sessions:
+        sessions = default_sessions(default_mode)
+        st.session_state["sessions"] = sessions
+
+    known_ids = {session.get("id") for session in sessions}
+    current_id = st.session_state.get("current_session_id")
+    if current_id not in known_ids:
+        st.session_state["current_session_id"] = sessions[0]["id"]
 
 
 def current_session() -> dict[str, Any]:
@@ -104,5 +112,3 @@ def replace_or_append_assistant(messages: list[dict[str, Any]], assistant_msg: d
         updated_messages[-1] = assistant_msg
         return updated_messages
     return [*messages, assistant_msg]
-
-

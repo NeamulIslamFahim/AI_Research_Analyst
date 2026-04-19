@@ -8,7 +8,10 @@ import streamlit as st
 from dotenv import load_dotenv
 
 
-load_dotenv()
+# Ensure we load the .env from the project root relative to this file's location
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ENV_PATH = os.path.join(BASE_DIR, ".env")
+load_dotenv(dotenv_path=ENV_PATH, override=True)
 
 ASSISTANT_ONLY = (os.getenv("ASSISTANT_ONLY", "false") or "false").lower() == "true"
 MODES = ["Research Explorer"] if ASSISTANT_ONLY else [

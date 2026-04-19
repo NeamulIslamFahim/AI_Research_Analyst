@@ -12,7 +12,7 @@ from langchain_core.embeddings import Embeddings
 from .helpers import load_env_var, ensure_directory
 
 
-EMBEDDING_MODEL = load_env_var("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L3-v2") or "sentence-transformers/all-MiniLM-L3-v2"
+EMBEDDING_MODEL = load_env_var("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2") or "sentence-transformers/all-MiniLM-L6-v2"
 _EMBEDDINGS_SINGLETON: Embeddings | None = None
 _DUMMY_EMBEDDINGS_SINGLETON: Embeddings | None = None
 
@@ -99,18 +99,29 @@ def create_embeddings() -> Embeddings:
     global _EMBEDDINGS_SINGLETON
     if _EMBEDDINGS_SINGLETON is not None:
         return _EMBEDDINGS_SINGLETON
+
     try:
-        base = HuggingFaceEmbeddings(
-            model_name=EMBEDDING_MODEL,
-            model_kwargs={"device": "cpu", "local_files_only": True},
-            encode_kwargs={"normalize_embeddings": True},
-        )
-        _EMBEDDINGS_SINGLETON = _SafeEmbeddings(base)
-        return _EMBEDDINGS_SINGLETON
+        try:
+            # First, try to load the model from local files only to avoid network calls if cached.
+            base = HuggingFaceEmbeddings(
+                model_name=EMBEDDING_MODEL,
+                model_kwargs={"device": "cpu", "local_files_only": True},
+                encode_kwargs={"normalize_embeddings": True},
+            )
+        except Exception:
+            # If it fails, it likely means the model is not cached. Try to download it.
+            base = HuggingFaceEmbeddings(
+                model_name=EMBEDDING_MODEL,
+                model_kwargs={"device": "cpu", "local_files_only": False},
+                encode_kwargs={"normalize_embeddings": True},
+            )
     except Exception as exc:  # Defensive: surface embedding init failures clearly.
         # Fallback to dummy embeddings to keep the app running on Windows handle errors.
         _EMBEDDINGS_SINGLETON = _DummyEmbeddings(dim=384)
         return _EMBEDDINGS_SINGLETON
+
+    _EMBEDDINGS_SINGLETON = _SafeEmbeddings(base)
+    return _EMBEDDINGS_SINGLETON
 
 
 def create_dummy_embeddings(dim: int = 384) -> Embeddings:

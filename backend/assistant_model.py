@@ -7,6 +7,7 @@ import json
 import os
 import re
 import threading
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -51,8 +52,10 @@ def _query_tokens(text: str) -> list[str]:
         "the", "and", "for", "with", "from", "that", "this", "into", "have", "has",
         "had", "are", "was", "were", "what", "when", "where", "which", "who", "whom",
         "will", "would", "could", "should", "can", "about", "main", "than", "then",
-        "them", "they", "their", "there", "your", "user", "prompt", "please", "give",
-        "tell", "show", "explain", "describe", "summarize", "summary", "research",
+        "them", "they", "their", "there", "your", "you", "user", "prompt", "please",
+        "give", "tell", "show", "find", "list", "have", "know", "explain", "describe",
+        "summarize", "summary", "research", "assistant", "paper", "papers", "article",
+        "articles", "source", "sources", "study", "studies", "reference", "references",
     }
     tokens = [token for token in _tokenize(text) if len(token) > 2 and token not in stopwords]
     return list(dict.fromkeys(tokens))
@@ -113,7 +116,7 @@ def _chat_history_docs() -> list[dict[str, Any]]:
         return []
 
     docs: list[dict[str, Any]] = []
-    for path in sorted(chat_dir.glob("*.json")):
+    for path in sorted(chat_dir.rglob("*.json")):
         try:
             with open(path, "r", encoding="utf-8") as handle:
                 record = json.load(handle)
@@ -209,15 +212,63 @@ def _corpus_availability() -> dict[str, int]:
 
 
 def _save_json(path: str, payload: dict[str, Any]) -> None:
-    with open(path, "w", encoding="utf-8") as handle:
-        json.dump(payload, handle, ensure_ascii=True, indent=2)
+    directory = os.path.dirname(path) or "."
+    ensure_directory(directory)
+    fd, tmp_path = tempfile.mkstemp(
+        prefix=f"{Path(path).name}.",
+        suffix=".tmp",
+        dir=directory,
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, ensure_ascii=True, indent=2)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
+def _quarantine_corrupt_artifact(path: str) -> None:
+    """Move a corrupt artifact aside so later loads can rebuild it cleanly."""
+    if not os.path.exists(path):
+        return
+
+    quarantine_path = f"{path}.{int(time.time())}.corrupt"
+    try:
+        os.replace(path, quarantine_path)
+    except OSError:
+        pass
 
 
 def _load_json(path: str) -> dict[str, Any] | None:
     if not os.path.exists(path):
         return None
-    with open(path, "r", encoding="utf-8") as handle:
-        return json.load(handle)
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            return json.load(handle)
+    except json.JSONDecodeError:
+        _quarantine_corrupt_artifact(path)
+        return None
+    except OSError:
+        return None
+
+
+def _load_cached_runtime() -> dict[str, Any] | None:
+    """Load the persisted assistant runtime if it is still valid."""
+    payload_path = _artifact_path("assistant_index.json")
+    payload = _load_json(payload_path)
+    if not payload:
+        return None
+    try:
+        return _load_runtime(payload)
+    except Exception:
+        _quarantine_corrupt_artifact(payload_path)
+        return None
 
 
 def _load_runtime(payload: dict[str, Any]) -> dict[str, Any]:
@@ -317,9 +368,7 @@ def get_assistant_status() -> dict[str, Any]:
     global _MODEL_CACHE
 
     if _MODEL_CACHE is None:
-        payload = _load_json(_artifact_path("assistant_index.json"))
-        if payload:
-            _MODEL_CACHE = _load_runtime(payload)
+        _MODEL_CACHE = _load_cached_runtime()
     if _MODEL_CACHE is None:
         return {
             "status": "not_trained",
@@ -335,9 +384,7 @@ def get_assistant_status() -> dict[str, Any]:
 def _ensure_model_loaded() -> dict[str, Any]:
     global _MODEL_CACHE
     if _MODEL_CACHE is None:
-        payload = _load_json(_artifact_path("assistant_index.json"))
-        if payload:
-            _MODEL_CACHE = _load_runtime(payload)
+        _MODEL_CACHE = _load_cached_runtime()
     if _MODEL_CACHE is None:
         meta = train_assistant_model(force=True)
         if meta.get("status") != "ready":
@@ -543,6 +590,16 @@ def _best_sentences_from_hit(hit: dict[str, Any], prompt_tokens: set[str], limit
     if not text:
         return []
 
+    boilerplate_markers = (
+        "available at:",
+        "brought to you by",
+        "follow this and additional works",
+        "view metadata",
+        "citation and similar papers",
+        "all rights reserved",
+        "downloaded from",
+    )
+
     scored: list[tuple[int, str]] = []
     seen: set[str] = set()
     for sentence in re.split(r"(?<=[.!?])\s+", text):
@@ -558,6 +615,8 @@ def _best_sentences_from_hit(hit: dict[str, Any], prompt_tokens: set[str], limit
         if clean.count("|") >= 1 and word_count < 14:
             continue
         if clean.isupper():
+            continue
+        if any(marker in clean.lower() for marker in boilerplate_markers):
             continue
         overlap = len(prompt_tokens.intersection(_query_tokens(clean)))
         if prompt_tokens and overlap <= 0:
@@ -672,20 +731,10 @@ def _source_query_variants(prompt: str) -> list[str]:
     variants = [base]
     tokens = _query_tokens(base)
     if tokens:
-        variants.append(tokens[0])
-        variants.append(f"{tokens[0]} networking")
-        variants.append(f"{tokens[0]} ai")
-    if len(tokens) > 1:
         variants.append(" ".join(tokens[:2]))
-    variants.extend(
-        [
-            "networking",
-            "network optimization",
-            "artificial intelligence",
-            "ai networking",
-            "ai applications",
-        ]
-    )
+        if len(tokens) > 2:
+            variants.append(" ".join(tokens[:3]))
+        variants.append(tokens[0])
     seen: set[str] = set()
     deduped: list[str] = []
     for query in variants:
@@ -760,7 +809,7 @@ def get_assistant_sources(prompt: str, chat_history: str | None = None, limit: i
     if _generic_follow_up(clean_prompt):
         effective_topic = _topic_from_history(chat_history) or clean_prompt
 
-    excluded_titles = _previous_source_titles(chat_history)
+    excluded_titles = _previous_source_titles(chat_history) if _generic_follow_up(clean_prompt) else set()
     sources: list[dict[str, Any]] = []
     seen_source_keys: set[tuple[str, str]] = set()
     for query in _source_query_variants(effective_topic):
@@ -798,6 +847,14 @@ def get_assistant_sources(prompt: str, chat_history: str | None = None, limit: i
     return sources
 
 
+def _run_external_research_and_get_answer(topic: str, chat_history: str | None) -> dict[str, Any]:
+    """Run the full external research pipeline and return a grounded answer."""
+    from .main import run_research_explorer
+
+    # This runs the deep research, which also handles downloading and indexing.
+    return run_research_explorer(topic=topic, chat_history=chat_history, use_live=True, force_refresh=True)
+
+
 def assistant_chat(prompt: str, chat_history: str | None = None) -> dict[str, Any]:
     """Answer the user's prompt using the trained local corpus as the default model."""
     if not prompt or not prompt.strip():
@@ -807,7 +864,6 @@ def assistant_chat(prompt: str, chat_history: str | None = None) -> dict[str, An
     effective_topic = clean_prompt
     if _generic_follow_up(clean_prompt):
         effective_topic = _topic_from_history(chat_history) or clean_prompt
-    excluded_titles = _previous_source_titles(chat_history)
 
     try:
         hits = _hybrid_retrieve(effective_topic)
@@ -835,16 +891,20 @@ def assistant_chat(prompt: str, chat_history: str | None = None) -> dict[str, An
         )
         return response_payload
     wants_more_papers = _generic_follow_up(clean_prompt)
-    local_relevant = (not wants_more_papers) and _has_relevant_local_answer(hits, effective_topic)
+    local_relevant = (not wants_more_papers) and _has_relevant_local_answer(
+        hits, effective_topic
+    )
     answer = ""
 
     assistant_only = (load_env_var("ASSISTANT_MODEL_ONLY", "false") or "false").lower() == "true"
 
     if local_relevant:
         # Keep the general assistant fast and local. Deeper paper work belongs in Research Explorer.
-        answer = _fallback_answer(clean_prompt, hits)
-
         sources = get_assistant_sources(clean_prompt, chat_history=chat_history, limit=5)
+        if _looks_like_source_list_request(clean_prompt) and sources:
+            answer = _paper_list_answer(sources)
+        else:
+            answer = _fallback_answer(clean_prompt, hits)
 
         status = get_assistant_status()
         response_payload = {
@@ -865,6 +925,18 @@ def assistant_chat(prompt: str, chat_history: str | None = None) -> dict[str, An
         )
         return response_payload
 
+    # If local results are not relevant or user wants more, run the full external pipeline.
+    if not assistant_only:
+        _start_incremental_learning(effective_topic)
+        external_result = _run_external_research_and_get_answer(effective_topic, chat_history)
+        _record_chat_interaction(
+            prompt=clean_prompt,
+            response=str(external_result),
+            chat_history=chat_history,
+            answer_source="external_search",
+        )
+        return external_result
+
     status = get_assistant_status()
     response_payload = {
         "model": status.get("model", DEFAULT_ASSISTANT_MODEL),
@@ -882,6 +954,38 @@ def assistant_chat(prompt: str, chat_history: str | None = None) -> dict[str, An
         answer_source="vectordb_fallback",
     )
     return response_payload
+
+
+def _looks_like_source_list_request(prompt: str) -> bool:
+    normalized = _normalize_whitespace(prompt).lower()
+    return any(
+        phrase in normalized
+        for phrase in [
+            "what papers",
+            "which papers",
+            "show papers",
+            "list papers",
+            "what sources",
+            "which sources",
+            "list sources",
+            "relevant papers",
+            "relevant sources",
+        ]
+    )
+
+
+def _paper_list_answer(sources: list[dict[str, Any]]) -> str:
+    if not sources:
+        return "I found relevant local material, but I could not extract a clean paper list yet."
+
+    titles = [str(item.get("title", "")).strip() for item in sources if str(item.get("title", "")).strip()]
+    if not titles:
+        return "I found relevant local material, but the source titles are incomplete."
+
+    lines = [f"I found {len(titles)} relevant papers in the local research memory:"]
+    for idx, title in enumerate(titles[:5], start=1):
+        lines.append(f"{idx}. {title}")
+    return "\n".join(lines)
 
 
 _start_assistant_warmup()

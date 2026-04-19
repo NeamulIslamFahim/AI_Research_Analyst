@@ -7,6 +7,8 @@ When Supabase is not configured, the app falls back to local JSON files.
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -110,15 +112,6 @@ def _local_load_sessions(owner_id: str, default_mode: str) -> list[dict[str, Any
             continue
         records.append(payload)
 
-    if not records:
-        legacy_path = Path("data/chat_logs/chat-1.json")
-        if legacy_path.exists():
-            try:
-                payload = json.loads(legacy_path.read_text(encoding="utf-8"))
-                records.append(payload)
-            except Exception:
-                pass
-
     records.sort(key=lambda item: str(item.get("updated_at", "")), reverse=True)
     return [_deserialize_session(item, default_mode) for item in records]
 
@@ -130,7 +123,23 @@ def _local_save_sessions(owner_id: str, sessions: list[dict[str, Any]]) -> None:
     for session in sessions:
         try:
             path = _chat_log_path(owner_id, str(session.get("id", "")).strip())
-            path.write_text(json.dumps(_serialize_session(session), ensure_ascii=False, indent=2), encoding="utf-8")
+            fd, tmp_name = tempfile.mkstemp(
+                prefix=f"{path.name}.",
+                suffix=".tmp",
+                dir=str(path.parent),
+            )
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                    json.dump(_serialize_session(session), handle, ensure_ascii=False, indent=2)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                os.replace(tmp_name, path)
+            except Exception:
+                try:
+                    os.remove(tmp_name)
+                except OSError:
+                    pass
+                raise
         except OSError:
             continue
 

@@ -1,0 +1,30 @@
+{
+  "id": "chat-1",
+  "title": "ai",
+  "mode": "Research Explorer",
+  "paper_text": "",
+  "last_uploaded_pdf_signature": "",
+  "writer_state": {
+    "phase": "start"
+  },
+  "writer_intro_shown": false,
+  "research_last_topic": "",
+  "research_seen_papers": [],
+  "updated_at": "2026-04-19T10:42:07.407174Z",
+  "messages": [
+    {
+      "role": "user",
+      "type": null,
+      "display_text": "ai",
+      "content": "ai",
+      "effective_query": "ai"
+    },
+    {
+      "role": "assistant",
+      "type": "text",
+      "display_text": "unexpected indent (embeddings.py, line 126)",
+      "content": "unexpected indent (embeddings.py, line 126)",
+      "effective_query": null
+    }
+  ]
+}

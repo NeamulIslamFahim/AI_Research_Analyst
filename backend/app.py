@@ -11,7 +11,7 @@ from typing import Any, Dict
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
-from .assistant_model import train_assistant_model
+from .assistant_model import get_assistant_status, train_assistant_model
 from .explorer_cache import ExplorerCache
 from .explorer_utils import (
     fallback_error_result,
@@ -22,6 +22,8 @@ from .explorer_utils import (
 from .services.research_service import ResearchService
 from .helpers import safe_get
 from .schemas import (
+    AssistantChatRequest,
+    AssistantTrainRequest,
     DownloadRequest,
     ReferenceRequest,
     ResearchExplorerRequest,
@@ -76,6 +78,32 @@ def health() -> Dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/api/assistant/status")
+def assistant_status() -> Dict[str, Any]:
+    try:
+        return get_assistant_status()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Assistant status failed: {exc}") from exc
+
+
+@app.post("/api/assistant/train")
+def assistant_train(payload: AssistantTrainRequest | None = None) -> Dict[str, Any]:
+    force = bool(payload.force) if payload else False
+    try:
+        return train_assistant_model(force=force)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Assistant training failed: {exc}") from exc
+
+
+@app.post("/api/assistant/chat")
+def assistant_chat_route(payload: AssistantChatRequest) -> Dict[str, Any]:
+    backend_main = _backend_main()
+    result = backend_main.assistant_chat(payload.prompt, chat_history=payload.chat_history)
+    if isinstance(result, dict) and result.get("error"):
+        raise HTTPException(status_code=500, detail=result["error"])
+    return result
+
+
 @app.post("/api/review/upload")
 async def review_upload(file: UploadFile = File(...)) -> Dict[str, Any]:
     if not file.filename.lower().endswith(".pdf"):
@@ -116,7 +144,7 @@ def review_qa(payload: ReviewQARequest) -> Dict[str, Any]:
 def research_explore(payload: ResearchExplorerRequest) -> Dict[str, Any]:
     # Only refresh the local index when the user explicitly asks for more/extended results.
     is_follow_up = ResearchService.is_expansion_request(payload.topic)
-    resolved_topic = ResearchService.resolve_topic_from_history(payload.topic, payload.chat_history)
+    resolved_topic = ResearchService.resolve_topic_from_history(payload.topic, payload.chat_history or "")
     force_refresh = bool(payload.force_refresh or is_follow_up)
     backend_main = _backend_main()
     effective_use_live = payload.use_live
@@ -144,14 +172,9 @@ def research_explore(payload: ResearchExplorerRequest) -> Dict[str, Any]:
                 _explorer_cache.memory_cache[key] = disk_entry
                 return data
 
-    # Ensure the current topic is part of the history for context resolution on follow-ups.
-    history = payload.chat_history or ""
-    if resolved_topic not in history:
-        history = f"User: {resolved_topic}\n\n{history}"
-
     result = backend_main.run_research_explorer(
         topic=resolved_topic,
-        chat_history=history,
+        chat_history="",
         focus_topic=payload.focus_topic,
         use_live=effective_use_live,
         force_refresh=force_refresh,
