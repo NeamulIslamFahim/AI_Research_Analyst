@@ -32,7 +32,7 @@ if os.path.exists(ENV_PATH):
                     if isinstance(section, dict):
                         for key, value in section.items():
                             if isinstance(value, str):
-                                os.environ.setdefault(key, value)
+                                os.environ[key] = value
     except (tomllib.TOMLDecodeError, TypeError):
         # If it's not a valid TOML file, fall back to the standard .env format.
         load_dotenv(dotenv_path=ENV_PATH, override=True)
