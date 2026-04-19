@@ -1,0 +1,15 @@
+{
+  "id": "chat-3",
+  "title": "New Workspace",
+  "mode": "Research Paper Reviewer",
+  "updated_at": "2026-04-02T13:11:12.100171Z",
+  "messages": [
+    {
+      "role": "assistant",
+      "type": "text",
+      "display_text": "Paper Reviewer failed: Groq Authentication Failed: Please check your GROQ_API_KEY in .env. (Error code: 401 - {'error': {'message': 'Invalid API Key', 'type': 'invalid_request_error', 'code': 'invalid_api_key'}})",
+      "content": "Paper Reviewer failed: Groq Authentication Failed: Please check your GROQ_API_KEY in .env. (Error code: 401 - {'error': {'message': 'Invalid API Key', 'type': 'invalid_request_error', 'code': 'invalid_api_key'}})",
+      "effective_query": null
+    }
+  ]
+}

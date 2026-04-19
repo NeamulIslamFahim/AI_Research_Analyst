@@ -1,0 +1,206 @@
+{
+  "id": "chat-2",
+  "title": "ai in online shop",
+  "mode": "Research Explorer",
+  "paper_text": "",
+  "last_uploaded_pdf_signature": "",
+  "writer_state": {
+    "phase": "start"
+  },
+  "writer_intro_shown": false,
+  "updated_at": "2026-04-07T06:40:02.866822Z",
+  "messages": [
+    {
+      "role": "user",
+      "type": null,
+      "display_text": "ai in online shop",
+      "content": "ai in online shop",
+      "effective_query": "ai in online shop"
+    },
+    {
+      "role": "assistant",
+      "type": "research",
+      "display_text": "Research summary prepared from the retrieved papers.",
+      "content": {
+        "table": [
+          {
+            "paper_name": "The Next-Generation Shopper: A Study of Generation-Z Perceptions of AI in Online Shopping",
+            "paper_url": "https://doi.org/10.3390/jtaer19040125",
+            "authors_name": "Ovidiu-Iulian Bunea, Răzvan-Andrei Corboș, Sorina Ioana Mișu, Monica Triculescu, Andreea Trifu",
+            "summary_full_paper": "This paper is about The Next-Generation Shopper. The problem it addresses is improving or clarifying the target task described in the paper. To solve that problem, the paper uses This study explores the impact of artificial intelligence (AI) tools on the purchase intentions of members of Generation Z (Gen Z) in online shopping. The impact of the approach is that This study explores the impact of artificial intelligence (AI) tools on the purchase intentions of members of Generation Z (Gen Z) in online shopping. Overall, the summary is based on the abstract or metadata view, so it should be read as a concise paper overview rather than a full-text reconstruction.",
+            "problem_solved": "This study explores the impact of artificial intelligence (AI) tools on the purchase intentions of members of Generation Z (Gen Z) in online shopping, using an adapted technology acceptance model (TAM).",
+            "proposed_model_or_approach": "The main methodology described in the paper is This study explores the impact of artificial intelligence (AI) tools on the purchase intentions of members of Generation Z (Gen Z) in online shopping. The methodology is evaluated through Partial least squares structural equation modeling (PLS-SEM) and importance–performance analysis (IPA) were applied to examine the hypothesized relationships. Overall, the approach section indicates how the authors connect the method, the model family, the data, and the evaluation into one workflow.",
+            "source": "openalex",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "Consumer Privacy Protection With the Growth of AI-Empowered Online Shopping Based on the Evolutionary Game Model",
+            "paper_url": "https://doi.org/10.3389/fpubh.2021.705777",
+            "authors_name": "Su Wang, Zhuo Chen, Yi Xiao, Chun-Yu Lin",
+            "summary_full_paper": "This paper is about Consumer Privacy Protection With the Growth of AI-Empowered Online Shopping Based on the Evolutionary Game Model. The problem it addresses is Based on the results, the following conclusions are drawn: (1) the application of AI technologies in e-commerce will fundamentally benefit consumers, which makes them. To solve that problem, the paper uses Social distancing due to the COVID-19 pandemic has driven some consumers to online shopping, and concerns about pandemic risks and personal hygiene have increased. The impact of the approach is that Based on the results, the following conclusions are drawn: (1) the application of AI technologies in e-commerce will fundamentally benefit consumers, which makes them. Overall, the summary is based on the abstract or metadata view, so it should be read as a concise paper overview rather than a full-text reconstruction.",
+            "problem_solved": "Social distancing due to the COVID-19 pandemic has driven some consumers to online shopping, and concerns about pandemic risks and personal hygiene have increased the demand for e-commerce.",
+            "proposed_model_or_approach": "The main methodology described in the paper is Social distancing due to the COVID-19 pandemic has driven some consumers to online shopping, and concerns about pandemic risks and personal hygiene have increased. The methodology is evaluated through Based on the results, the following conclusions are drawn: (1) the application of AI technologies in e-commerce will fundamentally benefit consumers, which makes them. Overall, the approach section indicates how the authors connect the method, the model family, the data, and the evaluation into one workflow.",
+            "source": "openalex",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "When do AI chatbots lead to higher customer satisfaction than human frontline employees in online shopping assistance? Considering product attribute type",
+            "paper_url": "https://doi.org/10.1016/j.jretconser.2022.103059",
+            "authors_name": "Yanya Ruan, József Mezei",
+            "summary_full_paper": "This paper is about When do AI chatbots lead to higher customer satisfaction than human frontline employees in online shopping assistance? Considering product attribute type. The problem it addresses is improving or clarifying the target task described in the paper. To solve that problem, the paper uses The increasing adoption of AI chatbots in online shopping assistance, as a complement or substitute for human frontline employees (HFLEs), leads to the question. The impact of the approach is that From the perspective of product attribute type (experiential/functional) and focusing on customer satisfaction, this study explores how the impact of service agent on customer. Overall, the summary is based on the abstract or metadata view, so it should be read as a concise paper overview rather than a full-text reconstruction.",
+            "problem_solved": "The increasing adoption of AI chatbots in online shopping assistance, as a complement or substitute for human frontline employees (HFLEs), leads to the question whether HFLEs perform better than AI service robots and why.",
+            "proposed_model_or_approach": "The main methodology described in the paper is The increasing adoption of AI chatbots in online shopping assistance, as a complement or substitute for human frontline employees (HFLEs), leads to the question. The data or evaluation setup is described as A scenario-based experiment was designed and completed by 567 participants. The methodology is evaluated through A scenario-based experiment was designed and completed by 567 participants. Overall, the approach section indicates how the authors connect the method, the model family, the data, and the evaluation into one workflow.",
+            "source": "openalex",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "Enhancing trust in online grocery shopping through generative AI chatbots",
+            "paper_url": "https://doi.org/10.1016/j.jbusres.2024.114737",
+            "authors_name": "Debarun Chakraborty, Arpan Kumar Kar, Smruti Patre, Shivam Gupta",
+            "summary_full_paper": "This paper is about Enhancing trust in online grocery shopping through generative AI chatbots. The problem it addresses is improving or clarifying the target task described in the paper. To solve that problem, the paper uses Generative Artificial Intelligence (GAI) is witnessing a lot of adoption across industries, but literature is yet to fully document the nuances of these applications. The impact of the approach is not stated quantitatively in the available text, but the paper presents it as a meaningful contribution. Overall, the summary is based on the abstract or metadata view, so it should be read as a concise paper overview rather than a full-text reconstruction.",
+            "problem_solved": "Generative Artificial Intelligence (GAI) is witnessing a lot of adoption across industries, but literature is yet to fully document the nuances of these applications.",
+            "proposed_model_or_approach": "The main methodology described in the paper is Generative Artificial Intelligence (GAI) is witnessing a lot of adoption across industries, but literature is yet to fully document the nuances of these applications. Overall, the approach section indicates how the authors connect the method, the model family, the data, and the evaluation into one workflow. The available text does not clearly name a more specific model family beyond the general methodology described in the paper.",
+            "source": "openalex",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "AI-Powered Personalization in Online Shopping: Key Factors Influencing Customer Retention",
+            "paper_url": "https://doi.org/10.13052/jmm1550-4646.2125",
+            "authors_name": "Vicha Panya, Prush Sa-nga-ngam, Adisorn Leelasantitham",
+            "summary_full_paper": "This paper is about AI-Powered Personalization in Online Shopping. The problem it addresses is To address these concerns, online retailers should clearly communicate the security measures of AI-based shopping, especially regarding data privacy and protection. To solve that problem, the paper uses Customer retention is essential for the sustainability of retail businesses. The impact of the approach is that Personalization is shown to positively influence customer relationships and retention. Overall, the summary is based on the abstract or metadata view, so it should be read as a concise paper overview rather than a full-text reconstruction.",
+            "problem_solved": "Customer retention is essential for the sustainability of retail businesses.",
+            "proposed_model_or_approach": "The main methodology described in the paper is Customer retention is essential for the sustainability of retail businesses. Overall, the approach section indicates how the authors connect the method, the model family, the data, and the evaluation into one workflow. The available text does not clearly name a more specific model family beyond the general methodology described in the paper.",
+            "source": "openalex",
+            "score_relevance": 10,
+            "score_quality": 10
+          }
+        ],
+        "research_gaps": [
+          "The Next-Generation Shopper: A Study of Generation-Z Perceptions of AI in Online Shopping: the paper would benefit from stronger empirical comparison, clearer evaluation criteria, and a more explicit account of where the proposed approach succeeds or fails.",
+          "Consumer Privacy Protection With the Growth of AI-Empowered Online Shopping Based on the Evolutionary Game Model: the paper would benefit from stronger empirical comparison, clearer evaluation criteria, and a more explicit account of where the proposed approach succeeds or fails.",
+          "When do AI chatbots lead to higher customer satisfaction than human frontline employees in online shopping assistance? Considering product attribute type: a strong follow-up would test the system in a real user workflow, measure sustained behavior change, and report safety, reliability, and human-AI interaction outcomes together.",
+          "Enhancing trust in online grocery shopping through generative AI chatbots: the next step is to turn the conceptual contribution into a comparative empirical study with a shared evaluation setup, so readers can see how the proposed ideas perform in practice.",
+          "AI-Powered Personalization in Online Shopping: Key Factors Influencing Customer Retention: the paper would benefit from stronger empirical comparison, clearer evaluation criteria, and a more explicit account of where the proposed approach succeeds or fails."
+        ],
+        "assistant_reply": "Research summary prepared from the retrieved papers.",
+        "generated_idea": "Build a stronger ai in online shop pipeline that addresses the recurring weaknesses across these papers, especially the paper would benefit from stronger empirical comparison, clearer evaluation criteria, and a more explicit account of where the proposed approach succeeds or fails a strong follow-up would test the system in a real user workflow, measure sustained behavior change, and report safety, reliability, and human-AI interaction outcomes together. The study design should compare directly relevant methods on the same task, keep the evaluation population and metrics explicit, and separate evidence-supported conclusions from metadata-only guesses.",
+        "generated_idea_steps": [
+          "Use The Next-Generation Shopper and Consumer Privacy Protection With the Growth of AI-Empowered Online Shopping Based on the Evolutionary Game Model as the first comparison anchors, then add the remaining selected papers only if they still match the same task and population.",
+          "Target the main weakness explicitly: the paper would benefit from stronger empirical comparison, clearer evaluation criteria, and a more explicit account of where the proposed approach succeeds or fails.",
+          "Design the first experiment to test whether the proposed method still holds when a strong follow-up would test the system in a real user workflow, measure sustained behavior change, and report safety, reliability, and human-AI interaction outcomes together.",
+          "Add strong baselines from the same problem area and compare every system under one shared evaluation setup with the same metrics, population, and reporting rules.",
+          "Run an ablation or sensitivity study so the contribution of each component is clear and the final paper can explain which part of the pipeline is actually responsible for any gain.",
+          "Finish with an error analysis that explains where the approach fails, which users or cases are most affected, and what the next refinement should be."
+        ],
+        "generated_idea_citations": [
+          "The Next-Generation Shopper: A Study of Generation-Z Perceptions of AI in Online Shopping",
+          "Consumer Privacy Protection With the Growth of AI-Empowered Online Shopping Based on the Evolutionary Game Model",
+          "When do AI chatbots lead to higher customer satisfaction than human frontline employees in online shopping assistance? Considering product attribute type",
+          "Enhancing trust in online grocery shopping through generative AI chatbots",
+          "AI-Powered Personalization in Online Shopping: Key Factors Influencing Customer Retention"
+        ]
+      },
+      "effective_query": null
+    },
+    {
+      "role": "user",
+      "type": null,
+      "display_text": "more",
+      "content": "more",
+      "effective_query": "more"
+    },
+    {
+      "role": "assistant",
+      "type": "research",
+      "display_text": "Here are additional papers on ai in online shop. Research summary prepared from the retrieved papers.",
+      "content": {
+        "table": [
+          {
+            "paper_name": "The Next-Generation Shopper: A Study of Generation-Z Perceptions of AI in Online Shopping",
+            "paper_url": "https://doi.org/10.3390/jtaer19040125",
+            "authors_name": "Ovidiu-Iulian Bunea, Răzvan-Andrei Corboș, Sorina Ioana Mișu, Monica Triculescu, Andreea Trifu",
+            "summary_full_paper": "This paper is about The Next-Generation Shopper. The problem it addresses is improving or clarifying the target task described in the paper. To solve that problem, the paper uses This study explores the impact of artificial intelligence (AI) tools on the purchase intentions of members of Generation Z (Gen Z) in online shopping. The impact of the approach is that This study explores the impact of artificial intelligence (AI) tools on the purchase intentions of members of Generation Z (Gen Z) in online shopping. Overall, the summary is based on the abstract or metadata view, so it should be read as a concise paper overview rather than a full-text reconstruction.",
+            "problem_solved": "This study explores the impact of artificial intelligence (AI) tools on the purchase intentions of members of Generation Z (Gen Z) in online shopping, using an adapted technology acceptance model (TAM).",
+            "proposed_model_or_approach": "The main methodology described in the paper is This study explores the impact of artificial intelligence (AI) tools on the purchase intentions of members of Generation Z (Gen Z) in online shopping. The methodology is evaluated through Partial least squares structural equation modeling (PLS-SEM) and importance–performance analysis (IPA) were applied to examine the hypothesized relationships. Overall, the approach section indicates how the authors connect the method, the model family, the data, and the evaluation into one workflow.",
+            "source": "openalex",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "Consumer Privacy Protection With the Growth of AI-Empowered Online Shopping Based on the Evolutionary Game Model",
+            "paper_url": "https://doi.org/10.3389/fpubh.2021.705777",
+            "authors_name": "Su Wang, Zhuo Chen, Yi Xiao, Chun-Yu Lin",
+            "summary_full_paper": "This paper is about Consumer Privacy Protection With the Growth of AI-Empowered Online Shopping Based on the Evolutionary Game Model. The problem it addresses is Based on the results, the following conclusions are drawn: (1) the application of AI technologies in e-commerce will fundamentally benefit consumers, which makes them. To solve that problem, the paper uses Social distancing due to the COVID-19 pandemic has driven some consumers to online shopping, and concerns about pandemic risks and personal hygiene have increased. The impact of the approach is that Based on the results, the following conclusions are drawn: (1) the application of AI technologies in e-commerce will fundamentally benefit consumers, which makes them. Overall, the summary is based on the abstract or metadata view, so it should be read as a concise paper overview rather than a full-text reconstruction.",
+            "problem_solved": "Social distancing due to the COVID-19 pandemic has driven some consumers to online shopping, and concerns about pandemic risks and personal hygiene have increased the demand for e-commerce.",
+            "proposed_model_or_approach": "The main methodology described in the paper is Social distancing due to the COVID-19 pandemic has driven some consumers to online shopping, and concerns about pandemic risks and personal hygiene have increased. The methodology is evaluated through Based on the results, the following conclusions are drawn: (1) the application of AI technologies in e-commerce will fundamentally benefit consumers, which makes them. Overall, the approach section indicates how the authors connect the method, the model family, the data, and the evaluation into one workflow.",
+            "source": "openalex",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "When do AI chatbots lead to higher customer satisfaction than human frontline employees in online shopping assistance? Considering product attribute type",
+            "paper_url": "https://doi.org/10.1016/j.jretconser.2022.103059",
+            "authors_name": "Yanya Ruan, József Mezei",
+            "summary_full_paper": "This paper is about When do AI chatbots lead to higher customer satisfaction than human frontline employees in online shopping assistance? Considering product attribute type. The problem it addresses is improving or clarifying the target task described in the paper. To solve that problem, the paper uses The increasing adoption of AI chatbots in online shopping assistance, as a complement or substitute for human frontline employees (HFLEs), leads to the question. The impact of the approach is that From the perspective of product attribute type (experiential/functional) and focusing on customer satisfaction, this study explores how the impact of service agent on customer. Overall, the summary is based on the abstract or metadata view, so it should be read as a concise paper overview rather than a full-text reconstruction.",
+            "problem_solved": "The increasing adoption of AI chatbots in online shopping assistance, as a complement or substitute for human frontline employees (HFLEs), leads to the question whether HFLEs perform better than AI service robots and why.",
+            "proposed_model_or_approach": "The main methodology described in the paper is The increasing adoption of AI chatbots in online shopping assistance, as a complement or substitute for human frontline employees (HFLEs), leads to the question. The data or evaluation setup is described as A scenario-based experiment was designed and completed by 567 participants. The methodology is evaluated through A scenario-based experiment was designed and completed by 567 participants. Overall, the approach section indicates how the authors connect the method, the model family, the data, and the evaluation into one workflow.",
+            "source": "openalex",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "Enhancing trust in online grocery shopping through generative AI chatbots",
+            "paper_url": "https://doi.org/10.1016/j.jbusres.2024.114737",
+            "authors_name": "Debarun Chakraborty, Arpan Kumar Kar, Smruti Patre, Shivam Gupta",
+            "summary_full_paper": "This paper is about Enhancing trust in online grocery shopping through generative AI chatbots. The problem it addresses is improving or clarifying the target task described in the paper. To solve that problem, the paper uses Generative Artificial Intelligence (GAI) is witnessing a lot of adoption across industries, but literature is yet to fully document the nuances of these applications. The impact of the approach is not stated quantitatively in the available text, but the paper presents it as a meaningful contribution. Overall, the summary is based on the abstract or metadata view, so it should be read as a concise paper overview rather than a full-text reconstruction.",
+            "problem_solved": "Generative Artificial Intelligence (GAI) is witnessing a lot of adoption across industries, but literature is yet to fully document the nuances of these applications.",
+            "proposed_model_or_approach": "The main methodology described in the paper is Generative Artificial Intelligence (GAI) is witnessing a lot of adoption across industries, but literature is yet to fully document the nuances of these applications. Overall, the approach section indicates how the authors connect the method, the model family, the data, and the evaluation into one workflow. The available text does not clearly name a more specific model family beyond the general methodology described in the paper.",
+            "source": "openalex",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "AI-Powered Personalization in Online Shopping: Key Factors Influencing Customer Retention",
+            "paper_url": "https://doi.org/10.13052/jmm1550-4646.2125",
+            "authors_name": "Vicha Panya, Prush Sa-nga-ngam, Adisorn Leelasantitham",
+            "summary_full_paper": "This paper is about AI-Powered Personalization in Online Shopping. The problem it addresses is To address these concerns, online retailers should clearly communicate the security measures of AI-based shopping, especially regarding data privacy and protection. To solve that problem, the paper uses Customer retention is essential for the sustainability of retail businesses. The impact of the approach is that Personalization is shown to positively influence customer relationships and retention. Overall, the summary is based on the abstract or metadata view, so it should be read as a concise paper overview rather than a full-text reconstruction.",
+            "problem_solved": "Customer retention is essential for the sustainability of retail businesses.",
+            "proposed_model_or_approach": "The main methodology described in the paper is Customer retention is essential for the sustainability of retail businesses. Overall, the approach section indicates how the authors connect the method, the model family, the data, and the evaluation into one workflow. The available text does not clearly name a more specific model family beyond the general methodology described in the paper.",
+            "source": "openalex",
+            "score_relevance": 10,
+            "score_quality": 10
+          }
+        ],
+        "research_gaps": [
+          "The Next-Generation Shopper: A Study of Generation-Z Perceptions of AI in Online Shopping: the paper would benefit from stronger empirical comparison, clearer evaluation criteria, and a more explicit account of where the proposed approach succeeds or fails.",
+          "Consumer Privacy Protection With the Growth of AI-Empowered Online Shopping Based on the Evolutionary Game Model: the paper would benefit from stronger empirical comparison, clearer evaluation criteria, and a more explicit account of where the proposed approach succeeds or fails.",
+          "When do AI chatbots lead to higher customer satisfaction than human frontline employees in online shopping assistance? Considering product attribute type: a strong follow-up would test the system in a real user workflow, measure sustained behavior change, and report safety, reliability, and human-AI interaction outcomes together.",
+          "Enhancing trust in online grocery shopping through generative AI chatbots: the next step is to turn the conceptual contribution into a comparative empirical study with a shared evaluation setup, so readers can see how the proposed ideas perform in practice.",
+          "AI-Powered Personalization in Online Shopping: Key Factors Influencing Customer Retention: the paper would benefit from stronger empirical comparison, clearer evaluation criteria, and a more explicit account of where the proposed approach succeeds or fails."
+        ],
+        "assistant_reply": "Research summary prepared from the retrieved papers.",
+        "generated_idea": "Build a stronger ai in online shop pipeline that addresses the recurring weaknesses across these papers, especially the paper would benefit from stronger empirical comparison, clearer evaluation criteria, and a more explicit account of where the proposed approach succeeds or fails a strong follow-up would test the system in a real user workflow, measure sustained behavior change, and report safety, reliability, and human-AI interaction outcomes together. The study design should compare directly relevant methods on the same task, keep the evaluation population and metrics explicit, and separate evidence-supported conclusions from metadata-only guesses.",
+        "generated_idea_steps": [
+          "Use The Next-Generation Shopper and Consumer Privacy Protection With the Growth of AI-Empowered Online Shopping Based on the Evolutionary Game Model as the first comparison anchors, then add the remaining selected papers only if they still match the same task and population.",
+          "Target the main weakness explicitly: the paper would benefit from stronger empirical comparison, clearer evaluation criteria, and a more explicit account of where the proposed approach succeeds or fails.",
+          "Design the first experiment to test whether the proposed method still holds when a strong follow-up would test the system in a real user workflow, measure sustained behavior change, and report safety, reliability, and human-AI interaction outcomes together.",
+          "Add strong baselines from the same problem area and compare every system under one shared evaluation setup with the same metrics, population, and reporting rules.",
+          "Run an ablation or sensitivity study so the contribution of each component is clear and the final paper can explain which part of the pipeline is actually responsible for any gain.",
+          "Finish with an error analysis that explains where the approach fails, which users or cases are most affected, and what the next refinement should be."
+        ],
+        "generated_idea_citations": [
+          "The Next-Generation Shopper: A Study of Generation-Z Perceptions of AI in Online Shopping",
+          "Consumer Privacy Protection With the Growth of AI-Empowered Online Shopping Based on the Evolutionary Game Model",
+          "When do AI chatbots lead to higher customer satisfaction than human frontline employees in online shopping assistance? Considering product attribute type",
+          "Enhancing trust in online grocery shopping through generative AI chatbots",
+          "AI-Powered Personalization in Online Shopping: Key Factors Influencing Customer Retention"
+        ]
+      },
+      "effective_query": null
+    }
+  ]
+}

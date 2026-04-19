@@ -1,0 +1,206 @@
+{
+  "id": "chat-2",
+  "title": "respiratory symptoms- Acute and chronic",
+  "mode": "Research Explorer",
+  "paper_text": "",
+  "last_uploaded_pdf_signature": "",
+  "writer_state": {
+    "phase": "start"
+  },
+  "writer_intro_shown": false,
+  "updated_at": "2026-04-06T18:22:31.603011Z",
+  "messages": [
+    {
+      "role": "user",
+      "type": null,
+      "display_text": "respiratory symptoms- Acute and chronic",
+      "content": "respiratory symptoms- Acute and chronic",
+      "effective_query": "respiratory symptoms- Acute and chronic"
+    },
+    {
+      "role": "assistant",
+      "type": "research",
+      "display_text": "Research summary prepared from the retrieved papers.",
+      "content": {
+        "table": [
+          {
+            "paper_name": "Respiratory Viruses, Symptoms, and Inflammatory Markers in Acute Exacerbations and Stable Chronic Obstructive Pulmonary Disease",
+            "paper_url": "https://doi.org/10.1164/ajrccm.164.9.2105011",
+            "authors_name": "Terence Seemungal, RHIAN HARPER-OWEN, Angshu Bhowmik, Ivana Morić, Gwendolyn Sanderson, Simon Message",
+            "summary_full_paper": "This paper is about the effects of respiratory viral infection on the time course of chronic obstructive pulmonary disease (COPD) exacerbation were examined by monitoring changes in systemic inflammatory markers in stable. It solves the problem of the effects of respiratory viral infection on the time course of chronic obstructive pulmonary disease (COPD) exacerbation were examined by monitoring changes in systemic inflammatory markers in stable. It takes the approach of the effects of respiratory viral infection on the time course of chronic obstructive pulmonary disease (COPD) exacerbation were examined by monitoring changes in systemic inflammatory markers in stable COPD. The effects of respiratory viral infection on the time course of chronic obstructive pulmonary disease (COPD) exacerbation were examined by monitoring changes in systemic inflammatory markers in stable. Overall, t...",
+            "problem_solved": "The effects of respiratory viral infection on the time course of chronic obstructive pulmonary disease (COPD) exacerbation were examined by monitoring changes in systemic inflammatory markers in stable COPD and at exacerbation.",
+            "proposed_model_or_approach": "The paper studies the dataset or experimental setting described as Nasal samples and blood were taken for respiratory virus detection by culture, polymerase chain reaction, and serology, and plasma fibrinogen and serum interleukin-6 (IL-6) were determined. The source metadata does not expose a distinct named model. It proposes or applies The effects of respiratory viral infection on the time course of chronic obstructive pulmonary disease (COPD) exacerbation were examined by monitoring changes in systemic inflammatory markers.",
+            "source": "openalex",
+            "score_relevance": 8,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "Acute effects of urban air pollution on respiratory health of children with and without chronic respiratory symptoms.",
+            "paper_url": "https://doi.org/10.1136/oem.56.12.802",
+            "authors_name": "S. van der Zee, Gerard Hoek, H. Marike Boezen, Jan P. Schouten, J.H. van Wijnen, Bert Brunekreef",
+            "summary_full_paper": "This paper is about the results suggest that children with symptoms are more susceptible to the effects of particulate air pollution than children without symptoms, and that use of medication for asthma. It solves the problem of the results suggest that children with symptoms are more susceptible to the effects of particulate air pollution than children without symptoms, and that use of medication for asthma. It takes the approach of the results suggest that children with symptoms are more susceptible to the effects of particulate air pollution than children without symptoms, and that use of medication for asthma does not. The results suggest that children with symptoms are more susceptible to the effects of particulate air pollution than children without symptoms, and that use of medication for asthma. Overall, the approach appears meaningful for the target task based on the evidence...",
+            "problem_solved": "The results suggest that children with symptoms are more susceptible to the effects of particulate air pollution than children without symptoms, and that use of medication for asthma does not prevent the adverse effects of particulate air pollution in children with symptoms.",
+            "proposed_model_or_approach": "The paper describes its empirical setting in the source text. The source metadata does not expose a distinct named model. The source metadata does not expose a distinct new method, so the methodology should be read cautiously from the paper text.",
+            "source": "openalex",
+            "score_relevance": 8,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "Mechanisms of acute exacerbation of respiratory symptoms in chronic obstructive pulmonary disease",
+            "paper_url": "https://doi.org/10.1111/eci.12064",
+            "authors_name": "Mihai Roca, Alessia Verduri, Lorenzo Corbetta, Enrico Clini, Leonardo M. Fabbri, Bianca Beghé",
+            "summary_full_paper": "This paper is about exacerbations of chronic obstructive respiratory disease (ECOPD) are acute events characterized by worsening of the patient's respiratory symptoms, particularly dyspnoea, leading to change in medical treatment and/or hospitalisation. It solves the problem of lungs, myocardium, vessels, adipose tissue), but also clinical manifestations like fatigue and dyspnoea. It takes the approach of exacerbations of chronic obstructive respiratory disease (ECOPD) are acute events characterized by worsening of the patient's respiratory symptoms, particularly dyspnoea, leading to change in medical treatment and/or hospitalisation. The reported impact is that the solution makes the target task more effective or practical. Overall, the approach appears meaningful for the target task based on the evidence reported in the paper.",
+            "problem_solved": "Exacerbations of chronic obstructive respiratory disease (ECOPD) are acute events characterized by worsening of the patient's respiratory symptoms, particularly dyspnoea, leading to change in medical treatment and/or hospitalisation.",
+            "proposed_model_or_approach": "The paper describes its empirical setting in the source text. The source metadata does not expose a distinct named model. It proposes or applies This acute inflammation is responsible of the development of acute respiratory symptoms (in these cases the term ECOPD is appropriate)..",
+            "source": "openalex",
+            "score_relevance": 8,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "Acute respiratory illness in the community: effect of family composition, smoking, and chronic symptoms.",
+            "paper_url": "https://doi.org/10.1136/jech.31.2.101",
+            "authors_name": "Arnold S. Monto, Helen E. Ross",
+            "summary_full_paper": "This paper is about respiratory illness and infection was studied in the community of Tecumseh, Michigan, USA, during a six-year period. It solves the problem of respiratory illness and infection was studied in the community of Tecumseh, Michigan, USA, during a six-year period. It takes the approach of respiratory illness and infection was studied in the community of Tecumseh, Michigan, USA, during a six-year period. The impact of the approach is that smoking in itself was not related to increased acute respiratory illnesses, but persons with symptoms of chronic bronchitis were found to have higher illness rates independently of whether. Overall, the approach appears meaningful for the target task based on the evidence reported in the paper.",
+            "problem_solved": "Respiratory illness and infection was studied in the community of Tecumseh, Michigan, USA, during a six-year period.",
+            "proposed_model_or_approach": "The paper describes its empirical setting in the source text. The source metadata does not expose a distinct named model. The source metadata does not expose a distinct new method, so the methodology should be read cautiously from the paper text.",
+            "source": "openalex",
+            "score_relevance": 8,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "Acute and Chronic Respiratory Symptoms among Primary Care Patients Who Smoke Crack Cocaine",
+            "paper_url": "https://doi.org/10.1007/s11524-012-9780-9",
+            "authors_name": "Pamela Leece, Nikhil Rajaram, Susan Woolhouse, Margaret Millson",
+            "summary_full_paper": "This paper is about Acute and Chronic Respiratory Symptoms among Primary Care Patients Who Smoke Crack Cocaine. It addresses a research problem that is not clearly specified in the available metadata. The available metadata does not clearly describe the approach used to solve the problem. The reported impact is not clearly stated in the available metadata. Overall, the source suggests the work is relevant, but the evidence available here is limited.",
+            "problem_solved": "The paper addresses the topic suggested by its title: Acute and Chronic Respiratory Symptoms among Primary Care Patients Who Smoke Crack Cocaine.",
+            "proposed_model_or_approach": "The source metadata does not expose a clear methodology for Acute and Chronic Respiratory Symptoms among Primary Care Patients Who Smoke Crack Cocaine.",
+            "source": "openalex",
+            "score_relevance": 8,
+            "score_quality": 10
+          }
+        ],
+        "research_gaps": [
+          "Respiratory Viruses, Symptoms, and Inflammatory Markers in Acute Exacerbations and Stable Chronic Obstructive Pulmonary Disease: strengthen the evaluation with stronger baselines and clearer error analysis.",
+          "Acute effects of urban air pollution on respiratory health of children with and without chronic respiratory symptoms.: strengthen the evaluation with stronger baselines and clearer error analysis.",
+          "Mechanisms of acute exacerbation of respiratory symptoms in chronic obstructive pulmonary disease: strengthen the evaluation with stronger baselines and clearer error analysis.",
+          "Acute respiratory illness in the community: effect of family composition, smoking, and chronic symptoms.: strengthen the evaluation with stronger baselines and clearer error analysis.",
+          "Acute and Chronic Respiratory Symptoms among Primary Care Patients Who Smoke Crack Cocaine: strengthen the evaluation with stronger baselines and clearer error analysis."
+        ],
+        "assistant_reply": "Research summary prepared from the retrieved papers.",
+        "generated_idea": "Build a stronger respiratory symptoms- Acute and chronic pipeline that addresses the recurring weaknesses across these papers, especially strengthen the evaluation with stronger baselines and clearer error analysis.",
+        "generated_idea_steps": [
+          "Use Respiratory Viruses, Symptoms, and Inflammatory Markers in Acute Exacerbations and Stable Chronic Obstructive Pulmonary Disease and Acute effects of urban air pollution on respiratory health of children with and w...",
+          "Target the main weakness: strengthen the evaluation with stronger baselines and clearer error analysis.",
+          "Design the first experiment to test the method on a harder or more diverse dataset.",
+          "Add strong baselines from the same problem area and compare them under one shared evaluation setup.",
+          "Run an ablation or sensitivity study so the contribution of each component is clear.",
+          "Finish with an error analysis that explains where the approach fails and what the next refinement should be."
+        ],
+        "generated_idea_citations": [
+          "Respiratory Viruses, Symptoms, and Inflammatory Markers in Acute Exacerbations and Stable Chronic Obstructive Pulmonary Disease",
+          "Acute effects of urban air pollution on respiratory health of children with and without chronic respiratory symptoms.",
+          "Mechanisms of acute exacerbation of respiratory symptoms in chronic obstructive pulmonary disease",
+          "Acute respiratory illness in the community: effect of family composition, smoking, and chronic symptoms.",
+          "Acute and Chronic Respiratory Symptoms among Primary Care Patients Who Smoke Crack Cocaine"
+        ]
+      },
+      "effective_query": null
+    },
+    {
+      "role": "user",
+      "type": null,
+      "display_text": "more",
+      "content": "more",
+      "effective_query": "more"
+    },
+    {
+      "role": "assistant",
+      "type": "research",
+      "display_text": "I found 5 papers related to respiratory symptoms- Acute and chronic. The common thread is respiratory symptoms- Acute and chronic, and the main open problems are evaluate the method in a real workflow and measure how it affects human-AI collaboration separate retrieval quality from generation quality and compare against stronger retrieval baselines. A good next step is to test whether these methods still hold up on harder, more diverse data.",
+      "content": {
+        "table": [
+          {
+            "paper_name": "A XAI-based Framework for Frequency Subband Characterization of Cough Spectrograms in Chronic Respiratory Disease",
+            "paper_url": "http://arxiv.org/abs/2508.16237v2",
+            "authors_name": "Patricia Amado-Caballero, Luis M. San-José-Revuelta, Xinheng Wang, José Ramón Garmendia-Leiza, Carlos Alberola-López, Pablo Casaseca-de-la-Higuera",
+            "summary_full_paper": "This paper presents an explainable artificial intelligence (XAI)-based framework for the spectral analysis of cough sounds associated with chronic respiratory diseases, with a particular focus on Chronic Obstructive. It solves the problem of this paper presents an explainable artificial intelligence (XAI)-based framework for the spectral analysis of cough sounds associated with chronic respiratory diseases, with a particular focus on Chronic Obstructive. It takes the approach of this paper presents an explainable artificial intelligence (XAI)-based framework for the spectral analysis of cough sounds associated with chronic respiratory diseases, with a particular focus on Chronic Obstructive Pulm. The results reveal that spectral patterns differ across subbands and disease groups, uncovering complementary and compensatory trends across the frequency spectrum. Overall, the approach appe...",
+            "problem_solved": "This paper presents an explainable artificial intelligence (XAI)-based framework for the spectral analysis of cough sounds associated with chronic respiratory diseases, with a particular focus on Chronic Obstructive Pulmonary Disease (COPD).",
+            "proposed_model_or_approach": "The paper describes its empirical setting in the source text. It uses CNN as a central model component. It proposes or applies This paper presents an explainable artificial intelligence (XAI)-based framework for the spectral analysis of cough sounds associated with chronic respiratory diseases, with a particular focus on.",
+            "source": "arxiv",
+            "score_relevance": 6,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "The Clinical Research of the Chronic Cough After COVID-19 Infection.",
+            "paper_url": "https://doi.org/10.3390/jcm15062174",
+            "authors_name": "Wang J, Liu L, Zhou N, Zhang Y, Liu H, Xu C, Wu Y, Zhang J.",
+            "summary_full_paper": "This paper is about a total of 1434 patients with post-COVID-19 cough were categorized into acute, subacute, and chronic subgroups by cough duration, with clinical data analyzed across subgroups. It solves the problem of objective: To investigate the epidemiology, clinical characteristics, and potential risk factors of chronic cough following SARS-CoV-2 infection. It takes the approach of a total of 1434 patients with post-COVID-19 cough were categorized into acute, subacute, and chronic subgroups by cough duration, with clinical data analyzed across subgroups. The reported impact is that the solution makes the target task more effective or practical. Overall, the approach appears meaningful for the target task based on the evidence reported in the paper.",
+            "problem_solved": "Objective: To investigate the epidemiology, clinical characteristics, and potential risk factors of chronic cough following SARS-CoV-2 infection.",
+            "proposed_model_or_approach": "The paper describes its empirical setting in the source text. The source metadata does not expose a distinct named model. It proposes or applies Methods: A total of 1434 patients with post-COVID-19 cough were categorized into acute, subacute, and chronic subgroups by cough duration, with clinical data analyzed across subgroups..",
+            "source": "europe_pmc",
+            "score_relevance": 6,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "Post-pulmonary embolism cardiac impairment and chronic thromboembolic pulmonary hypertension after ultrasound-assisted catheter-directed thrombolysis for acute pulmonary embolism.",
+            "paper_url": "https://doi.org/10.1007/s00392-026-02894-7",
+            "authors_name": "Fumagalli RM, Zbinden S, Cardi S, Fürbringer-Schwarz A, Gyolay OA, Voci D, Klok FA, Konstantinides SV, Von Stempel C, Kucher N, Barco S.",
+            "summary_full_paper": "This paper is about backgroundSparse data are available on the long-term course of acute pulmonary embolism (PE) after ultrasound-assisted catheter-directed thrombolysis (USAT).MethodsWe included consecutive patients with intermediate-high or high-risk acute PE treated. It solves the problem of backgroundSparse data are available on the long-term course of acute pulmonary embolism (PE) after ultrasound-assisted catheter-directed thrombolysis (USAT). It takes the approach of backgroundSparse data are available on the long-term course of acute pulmonary embolism (PE) after ultrasound-assisted catheter-directed thrombolysis (USAT).MethodsWe included consecutive patients with intermediate-high or high-risk acute PE treated with USAT. The impact of the approach is that symptomatic post-PE cardiac impairment was defined as residual respiratory symptoms with at least one echocardiographic pa...",
+            "problem_solved": "BackgroundSparse data are available on the long-term course of acute pulmonary embolism (PE) after ultrasound-assisted catheter-directed thrombolysis (USAT).MethodsWe included consecutive patients with intermediate-high or high-risk acute PE treated with USAT (alteplase 20 mg over 15 h) and therapeutic anticoagulation at a tertiary center, who underwent a...",
+            "proposed_model_or_approach": "The paper describes its empirical setting in the source text. The source metadata does not expose a distinct named model. It proposes or applies BackgroundSparse data are available on the long-term course of acute pulmonary embolism (PE) after ultrasound-assisted catheter-directed thrombolysis (USAT).MethodsWe included consecutive patients with intermediate-high or high-risk acute.",
+            "source": "europe_pmc",
+            "score_relevance": 8,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "Randomized, Double-Blind, Multicenter, Phase 3 Study of AG NPP709 Compared With Ivy Leaf Extract in Patients With Acute or Chronic Respiratory Symptoms.",
+            "paper_url": "https://doi.org/10.3346/jkms.2026.41.e97",
+            "authors_name": "Cho YJ, Yoon HJ, Lim DH, Yoo KH, Choi SH, Rha YH.",
+            "summary_full_paper": "This paper is about backgroundAG NPP709, formulated with extracts of ivy leaves and Coptis chinensis rhizomes, has antitussive and expectorant effects in preclinical rodent studies. It solves the problem of backgroundAG NPP709, formulated with extracts of ivy leaves and Coptis chinensis rhizomes, has antitussive and expectorant effects in preclinical rodent studies. It takes the approach of backgroundAG NPP709, formulated with extracts of ivy leaves and Coptis chinensis rhizomes, has antitussive and expectorant effects in preclinical rodent studies. The impact of the approach is that backgroundAG NPP709, formulated with extracts of ivy leaves and Coptis chinensis rhizomes, has antitussive and expectorant effects in preclinical rodent studies. Overall, the approach appears meaningful for the target task based on the evidence reported in the paper.",
+            "problem_solved": "BackgroundAG NPP709, formulated with extracts of ivy leaves and Coptis chinensis rhizomes, has antitussive and expectorant effects in preclinical rodent studies.",
+            "proposed_model_or_approach": "The paper describes its empirical setting in the source text. The source metadata does not expose a distinct named model. It proposes or applies We conducted a clinical trial to establish the efficacy and safety of the product compared with a widely prescribed ivy leaf extract product for the treatment.",
+            "source": "europe_pmc",
+            "score_relevance": 8,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "Respiratory sympathetic modulation is augmented in chronic kidney disease",
+            "paper_url": "http://arxiv.org/abs/1904.01862v1",
+            "authors_name": "Manash Saha, Clément Menuet, Qi-Jian Sun, Peter Burke, Cara Hildreth, Andrew Allen",
+            "summary_full_paper": "This paper is about respiratory modulation of sympathetic nerve activity (respSNA) was studied in a hypertensive rodent model of chronic kidney disease (CKD) using Lewis Polycystic Kidney (LPK) rats and Lewis controls. It solves the problem of in adult animals under in vivo anaesthetised conditions (n=8-10/strain), respiratory modulation of splanchnic and renal nerve activity was compared under control conditions, and during peripheral (hypoxia), and central. It takes the approach of respiratory modulation of sympathetic nerve activity (respSNA) was studied in a hypertensive rodent model of chronic kidney disease (CKD) using Lewis Polycystic Kidney (LPK) rats and Lewis controls. The impact of the approach is that respSNA was increased in the LPK vs. Overall, the approach appears meaningful for the target task based on the evidence reported in the paper.",
+            "problem_solved": "Respiratory modulation of sympathetic nerve activity (respSNA) was studied in a hypertensive rodent model of chronic kidney disease (CKD) using Lewis Polycystic Kidney (LPK) rats and Lewis controls.",
+            "proposed_model_or_approach": "The paper describes its empirical setting in the source text. The source metadata does not expose a distinct named model. It proposes or applies Amplified respSNA occurs in CKD and may contribute to the development of hypertension..",
+            "source": "arxiv",
+            "score_relevance": 6,
+            "score_quality": 10
+          }
+        ],
+        "research_gaps": [
+          "A XAI-based Framework for Frequency Subband Characterization of Cough Spectrograms in Chronic Respiratory Disease: evaluate the method in a real workflow and measure how it affects human-AI collaboration.",
+          "The Clinical Research of the Chronic Cough After COVID-19 Infection.: separate retrieval quality from generation quality and compare against stronger retrieval baselines.",
+          "Post-pulmonary embolism cardiac impairment and chronic thromboembolic pulmonary hypertension after ultrasound-assisted catheter-directed thrombolysis for acute pulmonary embolism.: strengthen the evaluation with stronger baselines and clearer error analysis.",
+          "Randomized, Double-Blind, Multicenter, Phase 3 Study of AG NPP709 Compared With Ivy Leaf Extract in Patients With Acute or Chronic Respiratory Symptoms.: strengthen the evaluation with stronger baselines and clearer error analysis.",
+          "Respiratory sympathetic modulation is augmented in chronic kidney disease: evaluate the method in a real workflow and measure how it affects human-AI collaboration."
+        ],
+        "assistant_reply": "I found 5 papers related to respiratory symptoms- Acute and chronic. The common thread is respiratory symptoms- Acute and chronic, and the main open problems are evaluate the method in a real workflow and measure how it affects human-AI collaboration separate retrieval quality from generation quality and compare against stronger retrieval baselines. A good next step is to test whether these methods still hold up on harder, more diverse data.",
+        "generated_idea": "Build a stronger respiratory symptoms- Acute and chronic pipeline that addresses the recurring weaknesses across these papers, especially evaluate the method in a real workflow and measure how it affects human-AI collaboration separate retrieval quality from generation quality and compare against stronger retrieval baselines strengthen the evaluation with stronger baselines and clearer error analysis.",
+        "generated_idea_steps": [
+          "Use A XAI-based Framework for Frequency Subband Characterization of Cough Spectrograms in Chronic Respiratory Disease and The Clinical Research of the Chronic Cough After COVID-19 Infection. as the baseline comparison...",
+          "Target the main weakness: evaluate the method in a real workflow and measure how it affects human-AI collaboration.",
+          "Design the first experiment to check whether the method still works when separate retrieval quality from generation quality and compare against stronger retrieval baselines.",
+          "Add strong baselines from the same problem area and compare them under one shared evaluation setup.",
+          "Run an ablation or sensitivity study so the contribution of each component is clear.",
+          "Finish with an error analysis that explains where the approach fails and what the next refinement should be."
+        ],
+        "generated_idea_citations": [
+          "A XAI-based Framework for Frequency Subband Characterization of Cough Spectrograms in Chronic Respiratory Disease",
+          "The Clinical Research of the Chronic Cough After COVID-19 Infection.",
+          "Post-pulmonary embolism cardiac impairment and chronic thromboembolic pulmonary hypertension after ultrasound-assisted catheter-directed thrombolysis for acute pulmonary embolism.",
+          "Randomized, Double-Blind, Multicenter, Phase 3 Study of AG NPP709 Compared With Ivy Leaf Extract in Patients With Acute or Chronic Respiratory Symptoms.",
+          "Respiratory sympathetic modulation is augmented in chronic kidney disease"
+        ]
+      },
+      "effective_query": null
+    }
+  ]
+}

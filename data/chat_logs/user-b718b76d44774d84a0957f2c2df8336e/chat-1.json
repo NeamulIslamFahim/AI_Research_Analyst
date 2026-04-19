@@ -1,0 +1,265 @@
+{
+  "id": "chat-1",
+  "title": "rag in crm",
+  "mode": "Research Explorer",
+  "paper_text": "",
+  "last_uploaded_pdf_signature": "",
+  "writer_state": {
+    "phase": "start"
+  },
+  "writer_intro_shown": false,
+  "research_last_topic": "",
+  "research_seen_papers": [],
+  "updated_at": "2026-04-07T08:09:03.489986Z",
+  "messages": [
+    {
+      "role": "user",
+      "type": null,
+      "display_text": "rag in crm",
+      "content": "rag in crm",
+      "effective_query": "rag in crm"
+    },
+    {
+      "role": "assistant",
+      "type": "research",
+      "display_text": "Research summary prepared from the retrieved papers.",
+      "content": {
+        "table": [
+          {
+            "paper_name": "CRM: Single Image to 3D Textured Mesh with Convolutional Reconstruction Model",
+            "paper_url": "http://arxiv.org/abs/2403.05034v1",
+            "authors_name": "Zhengyi Wang, Yikai Wang, Yifei Chen, Chendong Xiang, Shuo Chen, Dajiang Yu",
+            "summary_full_paper": "This paper is about do not leverage the geometric priors of the triplane component in their architecture, often leading to sub-optimal quality given the limited size of 3D data and slow training. It solves the problem of recognizing the limitations posed by sparse 3D data, we highlight the necessity of integrating geometric priors into network design. It takes the approach of we present the Convolutional Reconstruction Model (CRM), a high-fidelity feed-forward single image-to-3D generative model. Recognizing the limitations posed by sparse 3D data, we highlight the necessity of integrating ge. The reported impact is that the solution makes the target task more effective or practical. Overall, the approach appears meaningful for the target task based on the evidence reported in the paper.",
+            "problem_solved": "Feed-forward 3D generative models like the Large Reconstruction Model (LRM) have demonstrated exceptional generation speed.",
+            "proposed_model_or_approach": "The paper describes its empirical setting in the source text. It uses Transformer as a central model component. It proposes or applies we present the Convolutional Reconstruction Model (CRM), a high-fidelity feed-forward single image-to-3D generative model. Recognizing the limitations posed by sparse 3D data, we highlight the necessity.",
+            "source": "arxiv",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "RAG-Gym: Systematic Optimization of Language Agents for Retrieval-Augmented Generation",
+            "paper_url": "http://arxiv.org/abs/2502.13957v2",
+            "authors_name": "Guangzhi Xiong, Qiao Jin, Xiao Wang, Yin Fang, Haolin Liu, Yifan Yang",
+            "summary_full_paper": "This paper is about often depend on ad-hoc prompt engineering and lack a unified optimization framework. It solves the problem of retrieval-augmented generation (RAG) has shown great promise for knowledge-intensive tasks and recently advanced with agentic RAG, where language agents engage in multi-round interactions with external knowledge sources. It takes the approach of we propose Re$^2$Search, a novel agent incorporating reasoning reflection that significantly outperforms standard prompts. In actor tuning, we evaluate three popular post-training algorithms with fine-grained process sup. The impact of the approach is that for prompt engineering, we propose Re$^2$Search, a novel agent incorporating reasoning reflection that significantly outperforms standard prompts. Overall, the approach appears meaningful for the target task based on the evidence reported in the paper.",
+            "problem_solved": "Retrieval-augmented generation (RAG) has shown great promise for knowledge-intensive tasks and recently advanced with agentic RAG, where language agents engage in multi-round interactions with external knowledge sources for adaptive information retrieval.",
+            "proposed_model_or_approach": "The paper describes its empirical setting in the source text. The source metadata does not expose a distinct named model. It proposes or applies we propose Re$^2$Search, a novel agent incorporating reasoning reflection that significantly outperforms standard prompts. In actor tuning, we evaluate three popular post-training algorithms with fine-grained process.",
+            "source": "arxiv",
+            "score_relevance": 5,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "MultiHop-RAG: Benchmarking Retrieval-Augmented Generation for Multi-Hop Queries",
+            "paper_url": "http://arxiv.org/abs/2401.15391v1",
+            "authors_name": "Yixuan Tang, Yi Yang",
+            "summary_full_paper": "This paper is about perform unsatisfactorily in retrieving and answering multi-hop queries. It solves the problem of retrieval-augmented generation (RAG) augments large language models (LLM) by retrieving relevant knowledge, showing promising potential in mitigating LLM hallucinations and enhancing response quality, thereby facilitating the great adoption. It takes the approach of perform unsatisfactorily in retrieving and answering multi-hop queries. The impact of the approach is that we hope MultiHop-RAG will be a valuable resource for the community in developing effective RAG systems, thereby facilitating greater adoption of LLMs in practice. Overall, the approach appears meaningful for the target task based on the evidence reported in the paper.",
+            "problem_solved": "Retrieval-augmented generation (RAG) augments large language models (LLM) by retrieving relevant knowledge, showing promising potential in mitigating LLM hallucinations and enhancing response quality, thereby facilitating the great adoption of LLMs in practice.",
+            "proposed_model_or_approach": "The paper studies the dataset or experimental setting described as Furthermore, to our knowledge, no existing RAG benchmarking dataset focuses on multi-hop queries.. It uses GPT as a central model component. It proposes or applies However, we find that existing RAG systems are inadequate in answering multi-hop queries, which require retrieving and reasoning over multiple pieces of supporting evidence..",
+            "source": "arxiv",
+            "score_relevance": 5,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "Agentic RAG for CRM: From Answers to Actions",
+            "paper_url": "https://doi.org/10.2139/ssrn.5865562",
+            "authors_name": "Abinaya Mettupatti Sivagnanam, Srikanth Singireddy, Vinoth Asoor Palanivel",
+            "summary_full_paper": "This paper is about Agentic RAG for CRM: From Answers to Actions. It addresses a research problem that is not clearly specified in the available metadata. The available metadata does not clearly describe the approach used to solve the problem. The reported impact is not clearly stated in the available metadata. Overall, the source suggests the work is relevant, but the evidence available here is limited.",
+            "problem_solved": "The paper addresses the topic suggested by its title: Agentic RAG for CRM: From Answers to Actions.",
+            "proposed_model_or_approach": "The source metadata does not expose a clear methodology for Agentic RAG for CRM: From Answers to Actions.",
+            "source": "openalex",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "Agentic RAG for CRM: From Answers to Actions",
+            "paper_url": "https://doi.org/10.63412/30syg211",
+            "authors_name": "Abinaya Mettupatti Sivagnanam, Srikanth Singireddy, Vinoth Asoor Palanivel",
+            "summary_full_paper": "This paper is about many CRM teams need more than a text answer. It solves the problem of many CRM teams need more than a text answer. It takes the approach of many CRM teams need more than a text answer. The reported impact is that the solution makes the target task more effective or practical. Overall, the approach appears meaningful for the target task based on the evidence reported in the paper.",
+            "problem_solved": "Many CRM teams need more than a text answer.",
+            "proposed_model_or_approach": "The paper describes its empirical setting in the source text. The source metadata does not expose a distinct named model. It proposes or applies The design is small on purpose: a compact action record with a signature, a policy guard for roles, limits, and required fields, and a simple split.",
+            "source": "openalex",
+            "score_relevance": 10,
+            "score_quality": 10
+          }
+        ],
+        "research_gaps": [
+          "CRM: Single Image to 3D Textured Mesh with Convolutional Reconstruction Model: evaluate the method in a real workflow and measure how it affects human-AI collaboration.",
+          "RAG-Gym: Systematic Optimization of Language Agents for Retrieval-Augmented Generation: evaluate the method in a real workflow and measure how it affects human-AI collaboration.",
+          "MultiHop-RAG: Benchmarking Retrieval-Augmented Generation for Multi-Hop Queries: report stronger safety, hallucination, and robustness checks under prompt variation.",
+          "Agentic RAG for CRM: From Answers to Actions: strengthen the evaluation with stronger baselines and clearer error analysis.",
+          "Agentic RAG for CRM: From Answers to Actions: strengthen the evaluation with stronger baselines and clearer error analysis."
+        ],
+        "assistant_reply": "Research summary prepared from the retrieved papers.",
+        "generated_idea": "Build a stronger rag in crm pipeline that addresses the recurring weaknesses across these papers, especially evaluate the method in a real workflow and measure how it affects human-AI collaboration report stronger safety, hallucination, and robustness checks under prompt variation.",
+        "generated_idea_steps": [
+          "Use CRM and RAG-Gym as the baseline comparison set.",
+          "Target the main weakness: evaluate the method in a real workflow and measure how it affects human-AI collaboration.",
+          "Design the first experiment to check whether the method still works when report stronger safety, hallucination, and robustness checks under prompt variation.",
+          "Add strong baselines from the same problem area and compare them under one shared evaluation setup.",
+          "Run an ablation or sensitivity study so the contribution of each component is clear.",
+          "Finish with an error analysis that explains where the approach fails and what the next refinement should be."
+        ],
+        "generated_idea_citations": [
+          "CRM: Single Image to 3D Textured Mesh with Convolutional Reconstruction Model",
+          "RAG-Gym: Systematic Optimization of Language Agents for Retrieval-Augmented Generation",
+          "MultiHop-RAG: Benchmarking Retrieval-Augmented Generation for Multi-Hop Queries",
+          "Agentic RAG for CRM: From Answers to Actions",
+          "Agentic RAG for CRM: From Answers to Actions"
+        ]
+      },
+      "effective_query": null
+    },
+    {
+      "role": "user",
+      "type": null,
+      "display_text": "more",
+      "content": "more",
+      "effective_query": "more"
+    },
+    {
+      "role": "assistant",
+      "type": "research",
+      "display_text": "I found 2 papers related to rag in crm. The common thread is rag in crm, and the main open problems are evaluate the method in a real workflow and measure how it affects human-AI collaboration. A good next step is to test whether these methods still hold up on harder, more diverse data.",
+      "content": {
+        "table": [
+          {
+            "paper_name": "Retrieval-Augmented AI for Cloud CRM Systems: Advancing Customer Engagement Through Enterprise-Grade RAG Architectures",
+            "paper_url": "https://doi.org/10.52783/jisem.v11i1s.14136",
+            "authors_name": "Damodhar Reddy Ramesh Reddy Mutayalwad",
+            "summary_full_paper": "This paper is about cloud-based customer relationship management platforms accumulate vast quantities of heterogeneous data assets across multiple interaction channels. It solves the problem of cloud-based customer relationship management platforms accumulate vast quantities of heterogeneous data assets across multiple interaction channels. It takes the approach of cloud-based customer relationship management platforms accumulate vast quantities of heterogeneous data assets across multiple interaction channels. The reported impact is that the solution makes the target task more effective or practical. Overall, the approach appears meaningful for the target task based on the evidence reported in the paper.",
+            "problem_solved": "Cloud-based customer relationship management platforms accumulate vast quantities of heterogeneous data assets across multiple interaction channels.",
+            "proposed_model_or_approach": "The paper describes its empirical setting in the source text. It uses Transformer as a central model component. It proposes or applies Traditional analytics frameworks struggle to synthesize dispersed knowledge fragments into actionable customer insights..",
+            "source": "openalex",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "On-Device RAG for Enterprise CRM - Optimizing Privacy, Latency, and Offline Availability",
+            "paper_url": "https://doi.org/10.5120/ijca2025926119",
+            "authors_name": "Vijaya Sai Munduru",
+            "summary_full_paper": "This paper is about traditional CRM knowledge systems remain heavily dependent on cloud processing, where latency, data privacy, and network availability pose significant challenges.The author presents an Edge-First Retrieval-Augmented Generation system. It solves the problem of traditional CRM knowledge systems remain heavily dependent on cloud processing, where latency, data privacy, and network availability pose significant challenges.The author presents an Edge-First Retrieval-Augmented Generation system. It takes the approach of traditional CRM knowledge systems remain heavily dependent on cloud processing, where latency, data privacy, and network availability pose significant challenges.The author presents an Edge-First Retrieval-Augmented Generation system for mobile CRM. The impact of the approach is that traditional CRM knowledge systems remain heavily dependent on cloud proc...",
+            "problem_solved": "Traditional CRM knowledge systems remain heavily dependent on cloud processing, where latency, data privacy, and network availability pose significant challenges.The author presents an Edge-First Retrieval-Augmented Generation system for mobile CRM applications.It runs every information-retrieval and text-generation task on the user's mobile device or an...",
+            "proposed_model_or_approach": "The paper studies the dataset or experimental setting described as Traditional CRM knowledge systems remain heavily dependent on cloud processing, where latency, data privacy, and network availability pose significant challenges.The author presents an Edge-First Retrieval-Augmented Generation. The source metadata does not expose a distinct named model. It proposes or applies Traditional CRM knowledge systems remain heavily dependent on cloud processing, where latency, data privacy, and network availability pose significant challenges.The author presents an Edge-First Retrieval-Augmented Generation.",
+            "source": "openalex",
+            "score_relevance": 10,
+            "score_quality": 10
+          }
+        ],
+        "research_gaps": [
+          "Retrieval-Augmented AI for Cloud CRM Systems: Advancing Customer Engagement Through Enterprise-Grade RAG Architectures: evaluate the method in a real workflow and measure how it affects human-AI collaboration.",
+          "On-Device RAG for Enterprise CRM - Optimizing Privacy, Latency, and Offline Availability: evaluate the method in a real workflow and measure how it affects human-AI collaboration."
+        ],
+        "assistant_reply": "I found 2 papers related to rag in crm. The common thread is rag in crm, and the main open problems are evaluate the method in a real workflow and measure how it affects human-AI collaboration. A good next step is to test whether these methods still hold up on harder, more diverse data.",
+        "generated_idea": "Build a stronger rag in crm pipeline that addresses the recurring weaknesses across these papers, especially evaluate the method in a real workflow and measure how it affects human-AI collaboration.",
+        "generated_idea_steps": [
+          "Use Retrieval-Augmented AI for Cloud CRM Systems and On-Device RAG for Enterprise CRM - Optimizing Privacy, Latency, and Offline Availability as the baseline comparison set.",
+          "Target the main weakness: evaluate the method in a real workflow and measure how it affects human-AI collaboration.",
+          "Design the first experiment to test the method on a harder or more diverse dataset.",
+          "Add strong baselines from the same problem area and compare them under one shared evaluation setup.",
+          "Run an ablation or sensitivity study so the contribution of each component is clear.",
+          "Finish with an error analysis that explains where the approach fails and what the next refinement should be."
+        ],
+        "generated_idea_citations": [
+          "Retrieval-Augmented AI for Cloud CRM Systems: Advancing Customer Engagement Through Enterprise-Grade RAG Architectures",
+          "On-Device RAG for Enterprise CRM - Optimizing Privacy, Latency, and Offline Availability"
+        ]
+      },
+      "effective_query": null
+    },
+    {
+      "role": "user",
+      "type": null,
+      "display_text": "more",
+      "content": "more",
+      "effective_query": "more"
+    },
+    {
+      "role": "assistant",
+      "type": "research",
+      "display_text": "I found 5 papers related to rag in crm. The common thread is rag in crm, and the main open problems are strengthen the evaluation with stronger baselines and clearer error analysis test the claims on a larger and more diverse student sample, not just one institution. A good next step is to test whether these methods still hold up on harder, more diverse data.",
+      "content": {
+        "table": [
+          {
+            "paper_name": "Agentic RAG for CRM: From Answers to Actions",
+            "paper_url": "https://doi.org/10.2139/ssrn.5865562",
+            "authors_name": "Abinaya Mettupatti Sivagnanam, Srikanth Singireddy, Vinoth Asoor Palanivel",
+            "summary_full_paper": "This paper is about Agentic RAG for CRM: From Answers to Actions. It addresses a research problem that is not clearly specified in the available metadata. The available metadata does not clearly describe the approach used to solve the problem. The reported impact is not clearly stated in the available metadata. Overall, the source suggests the work is relevant, but the evidence available here is limited.",
+            "problem_solved": "The paper addresses the topic suggested by its title: Agentic RAG for CRM: From Answers to Actions.",
+            "proposed_model_or_approach": "The source metadata does not expose a clear methodology for Agentic RAG for CRM: From Answers to Actions.",
+            "source": "openalex",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "Implementing generative artificial intelligence in precision oncology: safety, governance, and significance.",
+            "paper_url": "https://doi.org/10.1186/s13045-026-01781-y",
+            "authors_name": "Hamamoto R, Koyama T, Takahashi S, Yasuda T, Kobayashi K, Akagi Y, Kouno N, Sudo K, Hirata M, Sunami K, Kubo T, Katayama H, Takashima A, Taniguchi T, Matsumoto H, Shibaki R, Asada K, Komatsu M, Kaneko S, Yamada M, Horinouchi H, Tanaka K, Goto Y, Kato K, Saito Y, Nakamura K, Yamamoto N.",
+            "summary_full_paper": "This paper is about the paramount challenge in precision oncology lies in further improving quality of life and response rates for individual patients. It solves the problem of the paramount challenge in precision oncology lies in further improving quality of life and response rates for individual patients. It takes the approach of we propose a strategy centered on retrieval-augmented generation (RAG) and human-in-the-loop (HITL) workflows, encompassing data preparation based on OMOP, mCODE, and FHIR; multicenter prospective evaluation; auditable l. The impact of the approach is that efforts toward these goals are steadily expanding the scope of clinical implementation, despite ongoing challenges such as standardization, cost-effectiveness, and data harmonization. Overall, the approach appears meaningful for the target task based on the evidence reported in the paper.",
+            "problem_solved": "The paramount challenge in precision oncology lies in further improving quality of life and response rates for individual patients.",
+            "proposed_model_or_approach": "The paper describes its empirical setting in the source text. The source metadata does not expose a distinct named model. It proposes or applies we propose a strategy centered on retrieval-augmented generation (RAG) and human-in-the-loop (HITL) workflows, encompassing data preparation based on OMOP, mCODE, and FHIR; multicenter prospective evaluation; auditable.",
+            "source": "europe_pmc",
+            "score_relevance": 5,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "RAG-Gym: Systematic Optimization of Language Agents for Retrieval-Augmented Generation",
+            "paper_url": "http://arxiv.org/abs/2502.13957v2",
+            "authors_name": "Guangzhi Xiong, Qiao Jin, Xiao Wang, Yin Fang, Haolin Liu, Yifan Yang",
+            "summary_full_paper": "This paper is about often depend on ad-hoc prompt engineering and lack a unified optimization framework. It solves the problem of retrieval-augmented generation (RAG) has shown great promise for knowledge-intensive tasks and recently advanced with agentic RAG, where language agents engage in multi-round interactions with external knowledge sources. It takes the approach of we propose Re$^2$Search, a novel agent incorporating reasoning reflection that significantly outperforms standard prompts. In actor tuning, we evaluate three popular post-training algorithms with fine-grained process sup. The impact of the approach is that for prompt engineering, we propose Re$^2$Search, a novel agent incorporating reasoning reflection that significantly outperforms standard prompts. Overall, the approach appears meaningful for the target task based on the evidence reported in the paper.",
+            "problem_solved": "Retrieval-augmented generation (RAG) has shown great promise for knowledge-intensive tasks and recently advanced with agentic RAG, where language agents engage in multi-round interactions with external knowledge sources for adaptive information retrieval.",
+            "proposed_model_or_approach": "The paper describes its empirical setting in the source text. The source metadata does not expose a distinct named model. It proposes or applies we propose Re$^2$Search, a novel agent incorporating reasoning reflection that significantly outperforms standard prompts. In actor tuning, we evaluate three popular post-training algorithms with fine-grained process.",
+            "source": "arxiv",
+            "score_relevance": 5,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "CRM: Single Image to 3D Textured Mesh with Convolutional Reconstruction Model",
+            "paper_url": "http://arxiv.org/abs/2403.05034v1",
+            "authors_name": "Zhengyi Wang, Yikai Wang, Yifei Chen, Chendong Xiang, Shuo Chen, Dajiang Yu",
+            "summary_full_paper": "This paper is about do not leverage the geometric priors of the triplane component in their architecture, often leading to sub-optimal quality given the limited size of 3D data and slow training. It solves the problem of recognizing the limitations posed by sparse 3D data, we highlight the necessity of integrating geometric priors into network design. It takes the approach of we present the Convolutional Reconstruction Model (CRM), a high-fidelity feed-forward single image-to-3D generative model. Recognizing the limitations posed by sparse 3D data, we highlight the necessity of integrating ge. The reported impact is that the solution makes the target task more effective or practical. Overall, the approach appears meaningful for the target task based on the evidence reported in the paper.",
+            "problem_solved": "Feed-forward 3D generative models like the Large Reconstruction Model (LRM) have demonstrated exceptional generation speed.",
+            "proposed_model_or_approach": "The paper describes its empirical setting in the source text. It uses Transformer as a central model component. It proposes or applies we present the Convolutional Reconstruction Model (CRM), a high-fidelity feed-forward single image-to-3D generative model. Recognizing the limitations posed by sparse 3D data, we highlight the necessity.",
+            "source": "arxiv",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "MultiHop-RAG: Benchmarking Retrieval-Augmented Generation for Multi-Hop Queries",
+            "paper_url": "http://arxiv.org/abs/2401.15391v1",
+            "authors_name": "Yixuan Tang, Yi Yang",
+            "summary_full_paper": "This paper is about perform unsatisfactorily in retrieving and answering multi-hop queries. It solves the problem of retrieval-augmented generation (RAG) augments large language models (LLM) by retrieving relevant knowledge, showing promising potential in mitigating LLM hallucinations and enhancing response quality, thereby facilitating the great adoption. It takes the approach of perform unsatisfactorily in retrieving and answering multi-hop queries. The impact of the approach is that we hope MultiHop-RAG will be a valuable resource for the community in developing effective RAG systems, thereby facilitating greater adoption of LLMs in practice. Overall, the approach appears meaningful for the target task based on the evidence reported in the paper.",
+            "problem_solved": "Retrieval-augmented generation (RAG) augments large language models (LLM) by retrieving relevant knowledge, showing promising potential in mitigating LLM hallucinations and enhancing response quality, thereby facilitating the great adoption of LLMs in practice.",
+            "proposed_model_or_approach": "The paper studies the dataset or experimental setting described as Furthermore, to our knowledge, no existing RAG benchmarking dataset focuses on multi-hop queries.. It uses GPT as a central model component. It proposes or applies However, we find that existing RAG systems are inadequate in answering multi-hop queries, which require retrieving and reasoning over multiple pieces of supporting evidence..",
+            "source": "arxiv",
+            "score_relevance": 5,
+            "score_quality": 10
+          }
+        ],
+        "research_gaps": [
+          "Agentic RAG for CRM: From Answers to Actions: strengthen the evaluation with stronger baselines and clearer error analysis.",
+          "Implementing generative artificial intelligence in precision oncology: safety, governance, and significance.: test the claims on a larger and more diverse student sample, not just one institution.",
+          "RAG-Gym: Systematic Optimization of Language Agents for Retrieval-Augmented Generation: evaluate the method in a real workflow and measure how it affects human-AI collaboration.",
+          "CRM: Single Image to 3D Textured Mesh with Convolutional Reconstruction Model: evaluate the method in a real workflow and measure how it affects human-AI collaboration.",
+          "MultiHop-RAG: Benchmarking Retrieval-Augmented Generation for Multi-Hop Queries: report stronger safety, hallucination, and robustness checks under prompt variation."
+        ],
+        "assistant_reply": "I found 5 papers related to rag in crm. The common thread is rag in crm, and the main open problems are strengthen the evaluation with stronger baselines and clearer error analysis test the claims on a larger and more diverse student sample, not just one institution. A good next step is to test whether these methods still hold up on harder, more diverse data.",
+        "generated_idea": "Build a stronger rag in crm pipeline that addresses the recurring weaknesses across these papers, especially strengthen the evaluation with stronger baselines and clearer error analysis test the claims on a larger and more diverse student sample, not just one institution evaluate the method in a real workflow and measure how it affects human-AI collaboration.",
+        "generated_idea_steps": [
+          "Use Agentic RAG for CRM and Implementing generative artificial intelligence in precision oncology: safety, governance, and significance. as the baseline comparison set.",
+          "Target the main weakness: strengthen the evaluation with stronger baselines and clearer error analysis.",
+          "Design the first experiment to check whether the method still works when test the claims on a larger and more diverse student sample, not just one institution.",
+          "Add strong baselines from the same problem area and compare them under one shared evaluation setup.",
+          "Run an ablation or sensitivity study so the contribution of each component is clear.",
+          "Finish with an error analysis that explains where the approach fails and what the next refinement should be."
+        ],
+        "generated_idea_citations": [
+          "Agentic RAG for CRM: From Answers to Actions",
+          "Implementing generative artificial intelligence in precision oncology: safety, governance, and significance.",
+          "RAG-Gym: Systematic Optimization of Language Agents for Retrieval-Augmented Generation",
+          "CRM: Single Image to 3D Textured Mesh with Convolutional Reconstruction Model",
+          "MultiHop-RAG: Benchmarking Retrieval-Augmented Generation for Multi-Hop Queries"
+        ]
+      },
+      "effective_query": null
+    }
+  ]
+}

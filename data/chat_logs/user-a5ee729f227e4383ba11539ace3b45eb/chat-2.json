@@ -1,0 +1,302 @@
+{
+  "id": "chat-2",
+  "title": "ai in sports",
+  "mode": "Research Explorer",
+  "paper_text": "",
+  "last_uploaded_pdf_signature": "",
+  "writer_state": {
+    "phase": "start"
+  },
+  "writer_intro_shown": false,
+  "updated_at": "2026-04-07T07:29:33.506027Z",
+  "messages": [
+    {
+      "role": "user",
+      "type": null,
+      "display_text": "ai in sports",
+      "content": "ai in sports",
+      "effective_query": "ai in sports"
+    },
+    {
+      "role": "assistant",
+      "type": "research",
+      "display_text": "Research summary prepared from the retrieved papers.",
+      "content": {
+        "table": [
+          {
+            "paper_name": "Sports Business Administration and New Age Technology: Role of AI",
+            "paper_url": "http://arxiv.org/abs/2601.06053v1",
+            "authors_name": "Sahibpreet Singh, Pawan Kumar",
+            "summary_full_paper": "This chapter explores the complexities of sports governance, taxation, dispute resolution, and the impact of digital transformation within the sports sector. More specifically, it focuses on this study identifies a critical research gap regarding the integration of innovative technologies to enhance governance and talent identification in sports law. In the reported results, this chapter explores the complexities of sports governance, taxation, dispute resolution, and the impact of digital transformation within the sports sector. Overall, this reads as a concise overview from the abstract or metadata rather than a full reconstruction of the paper.",
+            "problem_solved": "The paper focuses on this study identifies a critical research gap regarding the integration of innovative technologies to enhance governance and talent identification in sports law.",
+            "proposed_model_or_approach": "The paper's main idea is this chapter explores the complexities of sports governance, taxation, dispute resolution, and the impact of digital transformation within the sports sector. The evaluation setup is described around key findings demonstrate that AI enhances player evaluation by minimizing biases and expanding access to diverse talent pools. The reported evaluation suggests that the objective is to evaluate how data-driven approaches and AI can optimize recruitment processes; also ensuring compliance with existing regulations. Taken together, the method links the modeling choice, the data, and the evaluation into one coherent workflow.",
+            "source": "arxiv",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "Diagnostic Applications of AI in Sports: A Comprehensive Review of Injury Risk Prediction Methods",
+            "paper_url": "https://doi.org/10.3390/diagnostics14222516",
+            "authors_name": "Carmina Liana Mușat, Claudiu Mereuţă, Aurel Nechita, Dana Tutunaru, Andreea Elena Voipan, Daniel Voipan",
+            "summary_full_paper": "This review provides a comprehensive analysis of the transformative role of artificial intelligence (AI) in predicting and preventing sports injuries across various disciplines. More specifically, it focuses on aI models improve the accuracy and reliability of injury risk assessments by tailoring prevention strategies to individual athlete profiles and processing real-time data. In the reported results, while AI's predictive power supports both team and individual sports, its effectiveness varies based on the unique data requirements and injury risks of each, with team. Overall, this reads as a concise overview from the abstract or metadata rather than a full reconstruction of the paper.",
+            "problem_solved": "The paper focuses on aI models improve the accuracy and reliability of injury risk assessments by tailoring prevention strategies to individual athlete profiles and processing real-time data.",
+            "proposed_model_or_approach": "The paper's main idea is this review provides a comprehensive analysis of the transformative role of artificial intelligence (AI) in predicting and preventing sports injuries across various disciplines. It brings together CNN and Random Forest. The paper does not revolve around a named benchmark dataset and instead reads as a conceptual or review-oriented study. Its contribution is framed more as synthesis and design guidance than as a benchmark-style comparison on one fixed dataset. Taken together, the method should be read as a synthesis or study plan rather than as a single deployable model.",
+            "source": "openalex",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "AI did not write this manuscript, or did it? Can we trick the AI text detector into generated texts? The potential future of ChatGPT and AI in Sports &amp; Exercise Medicine manuscript generation",
+            "paper_url": "https://doi.org/10.1136/bmjsem-2023-001568",
+            "authors_name": "Nash Anderson, Daniel L. Belavý, Stephen M. Perle, Sharief Hendricks, Luiz Hespanhol, Evert Verhagen",
+            "summary_full_paper": "AI did not write this manuscript, or did it? Can we trick the AI text detector into generated texts? The potential future of ChatGPT and AI in Sports &amp; Exercise Medicine manuscript generation appears relevant to ai in sports, but the available metadata is too limited to support a trustworthy paper-level summary. The source does not clearly expose the problem setting, the concrete method, or the main findings, so this row should be treated as metadata-only evidence.",
+            "problem_solved": "The paper centers on the question suggested by its title, AI did not write this manuscript, or did it? Can we trick the AI text detector into generated texts? The potential future of ChatGPT and AI in Sports &amp; Exercise Medicine manuscript generation.",
+            "proposed_model_or_approach": "The available metadata suggests a method centered on aI did not write this manuscript, or did it? Can we trick the AI text detector into generated texts? The potential future of ChatGPT and AI in Sports &amp; Exercise Medicine manuscript generation. However, the visible record does not expose enough detail to reconstruct the full pipeline with confidence. The dataset, benchmark, and evaluation setup are also unclear from the metadata alone.",
+            "source": "openalex",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "AI-Based Sports Highlight Generation for Social Media",
+            "paper_url": "https://doi.org/10.1145/3638036.3640799",
+            "authors_name": "Cise Midoglu, Saeed Shafiee Sabet, Mehdi Houshmand Sarkhoosh, Mohammad Majidi, Sushant Gautam, H. Solberg",
+            "summary_full_paper": "Social media plays a significant role for sports organizations with millions of active fans, but publishing highlights is often a tedious manual operation. More specifically, it focuses on the core challenge described in the paper. The central idea is we propose an AI-based multimedia production framework for the automatic publishing of soccer and ice hockey highlights on social media, and disseminate our experiences with developing dedicated pipelines. The paper frames the method as a meaningful contribution, even though the visible text does not give a precise quantitative result. Overall, this reads as a concise overview from the abstract or metadata rather than a full reconstruction of the paper.",
+            "problem_solved": "The paper focuses on social media plays a significant role for sports organizations with millions of active fans, but publishing highlights is often a tedious manual operation.",
+            "proposed_model_or_approach": "The paper's main idea is an AI-based multimedia production framework for the automatic publishing of soccer and ice hockey highlights on social media, and disseminate our experiences with developing dedicated pipelines for event detec. Taken together, the method links the modeling choice, the data, and the evaluation into one coherent workflow. The available text does not clearly name a more specific model family beyond the general methodology described in the paper.",
+            "source": "openalex",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "AI-Assisted Fatigue and Stamina Control for Performance Sports on IMU-Generated Multivariate Times Series Datasets",
+            "paper_url": "https://doi.org/10.3390/s24010132",
+            "authors_name": "Attila Biró, Antonio Cuesta‐Vargas, László Szilágyi",
+            "summary_full_paper": "In sports performance analytics, the AI-assisted model using IMU multivariate time series data is effective. More specifically, it focuses on the approach enables ongoing and thorough data analysis, supporting strategic planning for training and competition, resulting in optimized performance outcomes. In the reported results, in sports performance analytics, the AI-assisted model using IMU multivariate time series data is effective. Overall, this reads as a concise overview from the abstract or metadata rather than a full reconstruction of the paper.",
+            "problem_solved": "The paper focuses on the approach enables ongoing and thorough data analysis, supporting strategic planning for training and competition, resulting in optimized performance outcomes.",
+            "proposed_model_or_approach": "The paper's main idea is in sports performance analytics, the AI-assisted model using IMU multivariate time series data is effective. The reported evaluation suggests that in sports performance analytics, the AI-assisted model using IMU multivariate time series data is effective. Taken together, the method links the modeling choice, the data, and the evaluation into one coherent workflow.",
+            "source": "openalex",
+            "score_relevance": 10,
+            "score_quality": 10
+          }
+        ],
+        "research_gaps": [
+          "In Sports Business Administration and New Age Technology: Role of AI, the paper would benefit from stronger empirical comparison, clearer evaluation criteria, and a more explicit account of where the proposed approach succeeds or fails.",
+          "In Diagnostic Applications of AI in Sports: A Comprehensive Review of Injury Risk Prediction Methods, the paper would benefit from stronger empirical comparison, clearer evaluation criteria, and a more explicit account of where the proposed approach succeeds or fails.",
+          "For AI did not write this manuscript, or did it? Can we trick the AI text detector into generated texts? The potential future of ChatGPT and AI in Sports &amp; Exercise Medicine manuscript generation, the metadata is still too thin to state a paper-specific gap confidently, so the safest next step is to inspect the full text before turning it into a concrete design recommendation.",
+          "In AI-Based Sports Highlight Generation for Social Media, the next step is to turn the conceptual contribution into a comparative empirical study with a shared evaluation setup, so readers can see how the proposed ideas perform in practice.",
+          "In AI-Assisted Fatigue and Stamina Control for Performance Sports on IMU-Generated Multivariate Times Series Datasets, the paper would benefit from stronger empirical comparison, clearer evaluation criteria, and a more explicit account of where the proposed approach succeeds or fails."
+        ],
+        "assistant_reply": "Research summary prepared from the retrieved papers.",
+        "generated_idea": "A strong follow-up project would be a ai in sports pipeline that directly addresses the recurring weaknesses shared across these papers. The study design should compare closely related methods on the same task, keep the evaluation population and metrics explicit, and separate evidence-backed conclusions from metadata-only guesses.",
+        "generated_idea_steps": [
+          "Use Sports Business Administration and New Age Technology and Diagnostic Applications of AI in Sports as the first comparison anchors, then add the remaining selected papers only if they still match the same task and population.",
+          "Target the main weakness explicitly: Role of AI, the paper would benefit from stronger empirical comparison, clearer evaluation criteria, and a more explicit account of where the proposed approach succeeds or fails.",
+          "Design the first experiment to test whether the proposed method still holds when A Comprehensive Review of Injury Risk Prediction Methods, the paper would benefit from stronger empirical comparison, clearer evaluation criteria, and a more explicit account of where the proposed approach succeeds or fails.",
+          "Add strong baselines from the same problem area and compare every system under one shared evaluation setup with the same metrics, population, and reporting rules.",
+          "Run an ablation or sensitivity study so the contribution of each component is clear and the final paper can explain which part of the pipeline is actually responsible for any gain.",
+          "Finish with an error analysis that explains where the approach fails, which users or cases are most affected, and what the next refinement should be."
+        ],
+        "generated_idea_citations": [
+          "Sports Business Administration and New Age Technology: Role of AI",
+          "Diagnostic Applications of AI in Sports: A Comprehensive Review of Injury Risk Prediction Methods",
+          "AI did not write this manuscript, or did it? Can we trick the AI text detector into generated texts? The potential future of ChatGPT and AI in Sports &amp; Exercise Medicine manuscript generation",
+          "AI-Based Sports Highlight Generation for Social Media",
+          "AI-Assisted Fatigue and Stamina Control for Performance Sports on IMU-Generated Multivariate Times Series Datasets"
+        ]
+      },
+      "effective_query": null
+    },
+    {
+      "role": "user",
+      "type": null,
+      "display_text": "more",
+      "content": "more",
+      "effective_query": "more"
+    },
+    {
+      "role": "assistant",
+      "type": "research",
+      "display_text": "Here are additional papers on ai in sports. Research summary prepared from the retrieved papers.",
+      "content": {
+        "table": [
+          {
+            "paper_name": "Role of Artificial Inteligence (AI) in Sports",
+            "paper_url": "https://doi.org/10.1051/itmconf/20246801004",
+            "authors_name": "Namrata Mohan Antalamarad, Jyoti Upadhye",
+            "summary_full_paper": "Artificial Intelligence (AI) has become an essential enabler in different fields, and its significance in sports has acted up as a revolution to the. More specifically, it focuses on this paper aims to understand the roles of AI in these sports as well as its relevance to decision-making processes, strategy, and performance improvement. The central idea is artificial Intelligence (AI) has become an essential enabler in different fields, and its significance in sports has acted up as a revolution to the enhancement of players’ performance. In the reported results, artificial Intelligence (AI) has become an essential enabler in different fields, and its significance in sports has acted up as a revolution to the enhancement of. Overall, this reads as a concise overview from the abstract or metadata rather than a full reconstruction of the paper.",
+            "problem_solved": "The paper focuses on this paper aims to understand the roles of AI in these sports as well as its relevance to decision-making processes, strategy, and performance improvement.",
+            "proposed_model_or_approach": "The paper's main idea is artificial Intelligence (AI) has become an essential enabler in different fields, and its significance in sports has acted up as a revolution to the enhancement of players’ performance, audience interaction. The reported evaluation suggests that artificial Intelligence (AI) has become an essential enabler in different fields, and its significance in sports has acted up as a revolution to the enhancement of. Taken together, the method links the modeling choice, the data, and the evaluation into one coherent workflow.",
+            "source": "openalex",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "AI-enabled sports-system peer-to-peer energy exchange network for remote areas in the digital economy",
+            "paper_url": "https://doi.org/10.1016/j.heliyon.2024.e35890",
+            "authors_name": "Yinfu Lu, Na Hao, X. Li, Mohammad Y. Alshahrani",
+            "summary_full_paper": "In remote areas, particularly in developing countries, there is a growing interest in off-grid solar PV systems for their ability to provide clean and. More specifically, it focuses on to address these challenges and promote energy independence, this paper proposes an AI-enabled sports-system peer-to-peer (P2P) energy exchange network within the digital economy. The central idea is an AI-enabled sports-system peer-to-peer (P2P) energy exchange network within the digital economy. In the reported results, this innovative system leverages AI to optimize energy distribution specifically for sports-related infrastructures, ensuring efficient use of solar power and improved energy availability for both recreational. Overall, this reads as a concise overview from the abstract or metadata rather than a full reconstruction of the paper.",
+            "problem_solved": "The paper focuses on however, these systems often face limitations in powering essential amenities, including sports facilities, due to restricted capabilities and inadequate battery storage.",
+            "proposed_model_or_approach": "The paper's main idea is an AI-enabled sports-system peer-to-peer (P2P) energy exchange network within the digital economy. The reported evaluation suggests that this approach not only enhances the performance of existing solar power setups but also ensures that energy demands for sports facilities are met effectively. Taken together, the method links the modeling choice, the data, and the evaluation into one coherent workflow.",
+            "source": "openalex",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "Implementasi Rule Base System Dan Fuzzy Logic Artifical Intelligence Pada Game Kartu Capsa",
+            "paper_url": "https://media.neliti.com/media/publications/111067-ID-implementasi-rule-base-system-dan-fuzzy.pdf",
+            "authors_name": "Budhi, G. S. (Gregorius), Liliana, L. (Liliana), Pangkatodi, E. (Edo)",
+            "summary_full_paper": "In the era of globalization today, science and technology is developing very fast, particularly in entertainment media, specifically in the gaming world. More specifically, it focuses on but the way of thinking AI still fairly few and need to be developed more. The paper frames the method as a meaningful contribution, even though the visible text does not give a precise quantitative result. Overall, this reads as a concise overview from the abstract or metadata rather than a full reconstruction of the paper.",
+            "problem_solved": "The paper focuses on but the way of thinking AI still fairly few and need to be developed more.",
+            "proposed_model_or_approach": "The paper's main idea is in the era of globalization today, science and technology is developing very fast, particularly in entertainment media, specifically in the gaming world. Taken together, the method links the modeling choice, the data, and the evaluation into one coherent workflow. The available text does not clearly name a more specific model family beyond the general methodology described in the paper.",
+            "source": "core",
+            "score_relevance": 0,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "A simple hybrid algorithm for improving team sport AI",
+            "paper_url": "https://core.ac.uk/download/228176521.pdf",
+            "authors_name": "Edwards, D, King, David J.",
+            "summary_full_paper": "In the very popular genre of team sports games defeating the opposing AI is the main focus of the gameplay experience. More specifically, it focuses on that improvements can be made to the gameplay experience without overly increasing the implementation complexity of the system or negatively affecting its performance. In the reported results, the created defensive system detects patterns in the offensive tactics used against it and changes elements of its reaction accordingly; effectively adapting to attempted exploitation of. Overall, this reads as a concise overview from the abstract or metadata rather than a full reconstruction of the paper.",
+            "problem_solved": "The paper focuses on that improvements can be made to the gameplay experience without overly increasing the implementation complexity of the system or negatively affecting its performance.",
+            "proposed_model_or_approach": "The paper's main idea is in the very popular genre of team sports games defeating the opposing AI is the main focus of the gameplay experience. The reported evaluation suggests that that improvements can be made to the gameplay experience without overly increasing the implementation complexity of the system or negatively affecting its performance. Taken together, the method links the modeling choice, the data, and the evaluation into one coherent workflow.",
+            "source": "core",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "Ivy League Athletic Performance: Do Brains Win?",
+            "paper_url": "https://core.ac.uk/download/5117316.pdf",
+            "authors_name": "Ehrenberg, Ronald G, Kotlyarenko, Dmitry",
+            "summary_full_paper": "[Excerpt] The Ivy League, which consists of Brown, Columbia, Cornell, Dartmouth, Harvard, Pennsylvania, Princeton, and Yale universities, is unique among the athletic conferences that. More specifically, it focuses on the Ivy League prohibits athletic scholarships and all undergraduate financial aid is awarded only on the basis of financial need. The central idea is [Excerpt] The Ivy League, which consists of Brown, Columbia, Cornell, Dartmouth, Harvard, Pennsylvania, Princeton, and Yale universities, is unique among the athletic conferences that compete at the Division. In the reported results, we also show that the schools in the league differ in the extent to which their athletes\\u27 average academic qualifications differ from the average academic qualifications. Overall, this reads as a concise overview from the abstract or metadata rather than a full reconstruction of the paper.",
+            "problem_solved": "The paper focuses on the Ivy League prohibits athletic scholarships and all undergraduate financial aid is awarded only on the basis of financial need.",
+            "proposed_model_or_approach": "The paper's main idea is [Excerpt] The Ivy League, which consists of Brown, Columbia, Cornell, Dartmouth, Harvard, Pennsylvania, Princeton, and Yale universities, is unique among the athletic conferences that compete at the Division I (major. Taken together, the method links the modeling choice, the data, and the evaluation into one coherent workflow. The available text does not clearly name a more specific model family beyond the general methodology described in the paper.",
+            "source": "core",
+            "score_relevance": 0,
+            "score_quality": 10
+          }
+        ],
+        "research_gaps": [
+          "In Role of Artificial Inteligence (AI) in Sports, the paper would benefit from stronger empirical comparison, clearer evaluation criteria, and a more explicit account of where the proposed approach succeeds or fails.",
+          "In AI-enabled sports-system peer-to-peer energy exchange network for remote areas in the digital economy, the next step is to turn the conceptual contribution into a comparative empirical study with a shared evaluation setup, so readers can see how the proposed ideas perform in practice.",
+          "In Implementasi Rule Base System Dan Fuzzy Logic Artifical Intelligence Pada Game Kartu Capsa, the paper would benefit from stronger empirical comparison, clearer evaluation criteria, and a more explicit account of where the proposed approach succeeds or fails.",
+          "In A simple hybrid algorithm for improving team sport AI, the paper would benefit from stronger empirical comparison, clearer evaluation criteria, and a more explicit account of where the proposed approach succeeds or fails.",
+          "In Ivy League Athletic Performance: Do Brains Win?, a strong follow-up would test the system in a real user workflow, measure sustained behavior change, and report safety, reliability, and human-AI interaction outcomes together."
+        ],
+        "assistant_reply": "Research summary prepared from the retrieved papers.",
+        "generated_idea": "A strong follow-up project would be a ai in sports pipeline that directly addresses the recurring weaknesses shared across these papers. The study design should compare closely related methods on the same task, keep the evaluation population and metrics explicit, and separate evidence-backed conclusions from metadata-only guesses.",
+        "generated_idea_steps": [
+          "Use Role of Artificial Inteligence (AI) in Sports and AI-enabled sports-system peer-to-peer energy exchange network for remote areas in the digital economy as the first comparison anchors, then add the remaining selected papers only if they still match the same task and population.",
+          "Target the main weakness explicitly: stronger empirical comparison, clearer evaluation criteria, and a more explicit account of where the proposed approach succeeds or fails.",
+          "Design the first experiment to test whether the proposed method still holds when turn the conceptual contribution into a comparative empirical study with a shared evaluation setup, so readers can see how the proposed ideas perform in practice.",
+          "Add strong baselines from the same problem area and compare every system under one shared evaluation setup with the same metrics, population, and reporting rules.",
+          "Run an ablation or sensitivity study so the contribution of each component is clear and the final paper can explain which part of the pipeline is actually responsible for any gain.",
+          "Finish with an error analysis that explains where the approach fails, which users or cases are most affected, and what the next refinement should be."
+        ],
+        "generated_idea_citations": [
+          "Role of Artificial Inteligence (AI) in Sports",
+          "AI-enabled sports-system peer-to-peer energy exchange network for remote areas in the digital economy",
+          "Implementasi Rule Base System Dan Fuzzy Logic Artifical Intelligence Pada Game Kartu Capsa",
+          "A simple hybrid algorithm for improving team sport AI",
+          "Ivy League Athletic Performance: Do Brains Win?"
+        ]
+      },
+      "effective_query": null
+    },
+    {
+      "role": "user",
+      "type": null,
+      "display_text": "more",
+      "content": "more",
+      "effective_query": "more"
+    },
+    {
+      "role": "assistant",
+      "type": "research",
+      "display_text": "Here are additional papers on ai in sports. Research summary prepared from the retrieved papers.",
+      "content": {
+        "table": [
+          {
+            "paper_name": "Sports Business Administration and New Age Technology: Role of AI",
+            "paper_url": "http://arxiv.org/abs/2601.06053v1",
+            "authors_name": "Sahibpreet Singh, Pawan Kumar",
+            "summary_full_paper": "This chapter explores the complexities of sports governance, taxation, dispute resolution, and the impact of digital transformation within the sports sector. More specifically, it focuses on this study identifies a critical research gap regarding the integration of innovative technologies to enhance governance and talent identification in sports law. In the reported results, this chapter explores the complexities of sports governance, taxation, dispute resolution, and the impact of digital transformation within the sports sector. Overall, this reads as a concise overview from the abstract or metadata rather than a full reconstruction of the paper.",
+            "problem_solved": "The paper focuses on this study identifies a critical research gap regarding the integration of innovative technologies to enhance governance and talent identification in sports law.",
+            "proposed_model_or_approach": "The paper's main idea is this chapter explores the complexities of sports governance, taxation, dispute resolution, and the impact of digital transformation within the sports sector. The evaluation setup is described around key findings demonstrate that AI enhances player evaluation by minimizing biases and expanding access to diverse talent pools. The reported evaluation suggests that the objective is to evaluate how data-driven approaches and AI can optimize recruitment processes; also ensuring compliance with existing regulations. Taken together, the method links the modeling choice, the data, and the evaluation into one coherent workflow.",
+            "source": "arxiv",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "Diagnostic Applications of AI in Sports: A Comprehensive Review of Injury Risk Prediction Methods",
+            "paper_url": "https://doi.org/10.3390/diagnostics14222516",
+            "authors_name": "Carmina Liana Mușat, Claudiu Mereuţă, Aurel Nechita, Dana Tutunaru, Andreea Elena Voipan, Daniel Voipan",
+            "summary_full_paper": "This review provides a comprehensive analysis of the transformative role of artificial intelligence (AI) in predicting and preventing sports injuries across various disciplines. More specifically, it focuses on aI models improve the accuracy and reliability of injury risk assessments by tailoring prevention strategies to individual athlete profiles and processing real-time data. In the reported results, while AI's predictive power supports both team and individual sports, its effectiveness varies based on the unique data requirements and injury risks of each, with team. Overall, this reads as a concise overview from the abstract or metadata rather than a full reconstruction of the paper.",
+            "problem_solved": "The paper focuses on aI models improve the accuracy and reliability of injury risk assessments by tailoring prevention strategies to individual athlete profiles and processing real-time data.",
+            "proposed_model_or_approach": "The paper's main idea is this review provides a comprehensive analysis of the transformative role of artificial intelligence (AI) in predicting and preventing sports injuries across various disciplines. It brings together CNN and Random Forest. The paper does not revolve around a named benchmark dataset and instead reads as a conceptual or review-oriented study. Its contribution is framed more as synthesis and design guidance than as a benchmark-style comparison on one fixed dataset. Taken together, the method should be read as a synthesis or study plan rather than as a single deployable model.",
+            "source": "openalex",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "AI did not write this manuscript, or did it? Can we trick the AI text detector into generated texts? The potential future of ChatGPT and AI in Sports &amp; Exercise Medicine manuscript generation",
+            "paper_url": "https://doi.org/10.1136/bmjsem-2023-001568",
+            "authors_name": "Nash Anderson, Daniel L. Belavý, Stephen M. Perle, Sharief Hendricks, Luiz Hespanhol, Evert Verhagen",
+            "summary_full_paper": "AI did not write this manuscript, or did it? Can we trick the AI text detector into generated texts? The potential future of ChatGPT and AI in Sports &amp; Exercise Medicine manuscript generation appears relevant to ai in sports, but the available metadata is too limited to support a trustworthy paper-level summary. The source does not clearly expose the problem setting, the concrete method, or the main findings, so this row should be treated as metadata-only evidence.",
+            "problem_solved": "The paper centers on the question suggested by its title, AI did not write this manuscript, or did it? Can we trick the AI text detector into generated texts? The potential future of ChatGPT and AI in Sports &amp; Exercise Medicine manuscript generation.",
+            "proposed_model_or_approach": "The available metadata suggests a method centered on aI did not write this manuscript, or did it? Can we trick the AI text detector into generated texts? The potential future of ChatGPT and AI in Sports &amp; Exercise Medicine manuscript generation. However, the visible record does not expose enough detail to reconstruct the full pipeline with confidence. The dataset, benchmark, and evaluation setup are also unclear from the metadata alone.",
+            "source": "openalex",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "AI-Based Sports Highlight Generation for Social Media",
+            "paper_url": "https://doi.org/10.1145/3638036.3640799",
+            "authors_name": "Cise Midoglu, Saeed Shafiee Sabet, Mehdi Houshmand Sarkhoosh, Mohammad Majidi, Sushant Gautam, H. Solberg",
+            "summary_full_paper": "Social media plays a significant role for sports organizations with millions of active fans, but publishing highlights is often a tedious manual operation. More specifically, it focuses on the core challenge described in the paper. The central idea is we propose an AI-based multimedia production framework for the automatic publishing of soccer and ice hockey highlights on social media, and disseminate our experiences with developing dedicated pipelines. The paper frames the method as a meaningful contribution, even though the visible text does not give a precise quantitative result. Overall, this reads as a concise overview from the abstract or metadata rather than a full reconstruction of the paper.",
+            "problem_solved": "The paper focuses on social media plays a significant role for sports organizations with millions of active fans, but publishing highlights is often a tedious manual operation.",
+            "proposed_model_or_approach": "The paper's main idea is an AI-based multimedia production framework for the automatic publishing of soccer and ice hockey highlights on social media, and disseminate our experiences with developing dedicated pipelines for event detec. Taken together, the method links the modeling choice, the data, and the evaluation into one coherent workflow. The available text does not clearly name a more specific model family beyond the general methodology described in the paper.",
+            "source": "openalex",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "AI-Assisted Fatigue and Stamina Control for Performance Sports on IMU-Generated Multivariate Times Series Datasets",
+            "paper_url": "https://doi.org/10.3390/s24010132",
+            "authors_name": "Attila Biró, Antonio Cuesta‐Vargas, László Szilágyi",
+            "summary_full_paper": "In sports performance analytics, the AI-assisted model using IMU multivariate time series data is effective. More specifically, it focuses on the approach enables ongoing and thorough data analysis, supporting strategic planning for training and competition, resulting in optimized performance outcomes. In the reported results, in sports performance analytics, the AI-assisted model using IMU multivariate time series data is effective. Overall, this reads as a concise overview from the abstract or metadata rather than a full reconstruction of the paper.",
+            "problem_solved": "The paper focuses on the approach enables ongoing and thorough data analysis, supporting strategic planning for training and competition, resulting in optimized performance outcomes.",
+            "proposed_model_or_approach": "The paper's main idea is in sports performance analytics, the AI-assisted model using IMU multivariate time series data is effective. The reported evaluation suggests that in sports performance analytics, the AI-assisted model using IMU multivariate time series data is effective. Taken together, the method links the modeling choice, the data, and the evaluation into one coherent workflow.",
+            "source": "openalex",
+            "score_relevance": 10,
+            "score_quality": 10
+          }
+        ],
+        "research_gaps": [
+          "In Sports Business Administration and New Age Technology: Role of AI, the paper would benefit from stronger empirical comparison, clearer evaluation criteria, and a more explicit account of where the proposed approach succeeds or fails.",
+          "In Diagnostic Applications of AI in Sports: A Comprehensive Review of Injury Risk Prediction Methods, the paper would benefit from stronger empirical comparison, clearer evaluation criteria, and a more explicit account of where the proposed approach succeeds or fails.",
+          "For AI did not write this manuscript, or did it? Can we trick the AI text detector into generated texts? The potential future of ChatGPT and AI in Sports &amp; Exercise Medicine manuscript generation, the metadata is still too thin to state a paper-specific gap confidently, so the safest next step is to inspect the full text before turning it into a concrete design recommendation.",
+          "In AI-Based Sports Highlight Generation for Social Media, the next step is to turn the conceptual contribution into a comparative empirical study with a shared evaluation setup, so readers can see how the proposed ideas perform in practice.",
+          "In AI-Assisted Fatigue and Stamina Control for Performance Sports on IMU-Generated Multivariate Times Series Datasets, the paper would benefit from stronger empirical comparison, clearer evaluation criteria, and a more explicit account of where the proposed approach succeeds or fails."
+        ],
+        "assistant_reply": "Research summary prepared from the retrieved papers.",
+        "generated_idea": "A strong follow-up project would be a ai in sports pipeline that directly addresses the recurring weaknesses shared across these papers. The study design should compare closely related methods on the same task, keep the evaluation population and metrics explicit, and separate evidence-backed conclusions from metadata-only guesses.",
+        "generated_idea_steps": [
+          "Use Sports Business Administration and New Age Technology and Diagnostic Applications of AI in Sports as the first comparison anchors, then add the remaining selected papers only if they still match the same task and population.",
+          "Target the main weakness explicitly: Role of AI, the paper would benefit from stronger empirical comparison, clearer evaluation criteria, and a more explicit account of where the proposed approach succeeds or fails.",
+          "Design the first experiment to test whether the proposed method still holds when A Comprehensive Review of Injury Risk Prediction Methods, the paper would benefit from stronger empirical comparison, clearer evaluation criteria, and a more explicit account of where the proposed approach succeeds or fails.",
+          "Add strong baselines from the same problem area and compare every system under one shared evaluation setup with the same metrics, population, and reporting rules.",
+          "Run an ablation or sensitivity study so the contribution of each component is clear and the final paper can explain which part of the pipeline is actually responsible for any gain.",
+          "Finish with an error analysis that explains where the approach fails, which users or cases are most affected, and what the next refinement should be."
+        ],
+        "generated_idea_citations": [
+          "Sports Business Administration and New Age Technology: Role of AI",
+          "Diagnostic Applications of AI in Sports: A Comprehensive Review of Injury Risk Prediction Methods",
+          "AI did not write this manuscript, or did it? Can we trick the AI text detector into generated texts? The potential future of ChatGPT and AI in Sports &amp; Exercise Medicine manuscript generation",
+          "AI-Based Sports Highlight Generation for Social Media",
+          "AI-Assisted Fatigue and Stamina Control for Performance Sports on IMU-Generated Multivariate Times Series Datasets"
+        ]
+      },
+      "effective_query": null
+    }
+  ]
+}

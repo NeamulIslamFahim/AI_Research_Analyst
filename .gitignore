@@ -14,8 +14,6 @@ build/
 .DS_Store
 Thumbs.db
 logs/
-.env
-.env.*
 .python-version
 .cache/
 .mypy_cache/
@@ -37,12 +35,4 @@ logs/
 *.parquet # Ignore data formats
 *.csv # Ignore data formats
 
-# Ignore local data, but keep specific config files
-data/*
-!data/trained_assistant/
-data/trained_assistant/*
-!data/trained_assistant/assistant_config.json
-!data/trained_assistant/assistant_index.json
-
 node_modules/ # Node dependencies
-.superbase_session.sql # Supabase session file
