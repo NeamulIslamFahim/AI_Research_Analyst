@@ -1530,11 +1530,7 @@ def _run_research_explorer_impl_legacy(
                             "source": src.get("source", "trained_local_corpus"),
                         }
                         for src in local_sources
-                    ]
-                if recovery_rows:
-                    return _finalize_follow_up_response(
-                        response_composer.build(recovery_rows, fulltext_map, fulltext_by_title)
-                    )
+            ] or []
             return _finalize_follow_up_response(response_composer.build_insufficient())
         # Build a lookup for full-text snippets by (title, url) and by title.
         if fulltext_docs:
@@ -2251,4 +2247,3 @@ def assistant_chat(prompt: str, chat_history: str | None = None) -> dict[str, An
         return _assistant_chat(prompt, chat_history=chat_history)
     except Exception as exc:
         return {"error": str(exc)}
-

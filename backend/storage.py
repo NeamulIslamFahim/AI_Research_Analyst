@@ -108,14 +108,7 @@ def upsert_paper_record(
             ),
         )
         conn.commit()
-        
-        # Cleanup old PDFs to maintain cache size limits
-        max_cached = int(load_env_var("MAX_CACHED_PDFS", "50") or "50")
-        cleanup_old_pdfs(max_cached)
-        
-    finally:
-        conn.close()
-
+    
 
 def list_paper_records() -> list[dict]:
     """Return cached paper metadata rows from local storage."""
