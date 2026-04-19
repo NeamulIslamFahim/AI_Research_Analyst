@@ -3,15 +3,39 @@
 from __future__ import annotations
 
 import os
+import sys
 
 import streamlit as st
 from dotenv import load_dotenv
+
+# Use tomllib for Python 3.11+ and tomli for older versions
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    try:
+        import tomli as tomllib
+    except ImportError:
+        tomllib = None
 
 
 # Ensure we load the .env from the project root relative to this file's location
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ENV_PATH = os.path.join(BASE_DIR, ".env")
-load_dotenv(dotenv_path=ENV_PATH, override=True)
+
+if os.path.exists(ENV_PATH):
+    try:
+        # First, try to load as a TOML file, which is what Streamlit secrets use.
+        if tomllib:
+            with open(ENV_PATH, "rb") as f:
+                config = tomllib.load(f)
+                for section in config.values():
+                    if isinstance(section, dict):
+                        for key, value in section.items():
+                            if isinstance(value, str):
+                                os.environ.setdefault(key, value)
+    except (tomllib.TOMLDecodeError, TypeError):
+        # If it's not a valid TOML file, fall back to the standard .env format.
+        load_dotenv(dotenv_path=ENV_PATH, override=True)
 
 ASSISTANT_ONLY = (os.getenv("ASSISTANT_ONLY", "false") or "false").lower() == "true"
 MODES = ["Research Explorer"] if ASSISTANT_ONLY else [
