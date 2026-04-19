@@ -44,3 +44,4 @@ node_modules/
 !data/trained_assistant/assistant_config.json
 .env
 .superbase_session.sql
+data/
