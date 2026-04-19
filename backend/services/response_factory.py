@@ -227,6 +227,7 @@ class ResearchResponseComposer:
         return gaps
 
     def _idea(self, gaps: list[str]) -> str:
+        """Generate a research idea from a list of gaps."""
         theme = self._topic_theme()
         if not gaps:
             return f"Build a stronger benchmark for {theme} that tests robustness, transfer, and interpretability."
@@ -234,6 +235,7 @@ class ResearchResponseComposer:
         return collapse_text(f"A promising research direction is to develop a more robust {theme} pipeline that directly addresses the recurring weaknesses identified, such as {gap_summary}.", 700)
 
     def _implementation_steps(self, gaps: list[str], rows: list[dict], idea: str) -> list[str]:
+        """Generate implementation steps for a research idea."""
         titles = [self._paper_label(row.get("paper_name", "")) for row in rows if clean_text(row.get("paper_name", ""))]
         primary_title = titles[0] if titles else self._topic_theme().title()
         secondary_title = titles[1] if len(titles) > 1 else primary_title
@@ -562,61 +564,58 @@ class ResearchResponseComposer:
         final_approach = final_approach.replace(" .", ".").replace("  ", " ")
         return collapse_text(final_approach, 1400 if fulltext else 1100)
 
-    def _gaps(self, rows: list[dict]) -> list[str]:
+    def _gaps(self, rows: list[dict]) -> list[str]: # type: ignore
+        """Generate a list of research gaps from the selected papers."""
         gaps: list[str] = []
         for row in rows[:5]:
             title = clean_text(row.get("title", "")) or "Paper"
             if self._metadata_limited(row):
                 gap = (
-                    f"For {title}, the metadata is still too thin to state a paper-specific gap confidently, "
-                    "so the safest next step is to inspect the full text before turning it into a concrete design recommendation."
+                    f"The paper '{title}' provides limited metadata, making it difficult to pinpoint a specific gap. "
+                    "A deeper analysis of the full text is needed to form a confident recommendation."
                 )
             else:
-                gap = f"In {title}, {self._domain_gap(row)}."
+                gap = f"The work in '{title}' could be extended by addressing that {self._domain_gap(row)}."
             gaps.append(collapse_text(gap, 500))
         return gaps
 
-    def _idea(self, gaps: list[str]) -> str:
+    def _idea(self, gaps: list[str]) -> str: # type: ignore
+        """Synthesize a natural-sounding research idea from the identified gaps."""
         theme = self._topic_theme()
         if not gaps:
             return (
-                f"A promising research direction would be to construct a more rigorous research pipeline for {theme} that combines focused retrieval, "
-                "paper-level evidence tracking, and evaluation in real workflows, so the final recommendation rests on comparable studies rather than generic summaries."
+                f"A promising research direction is to build a more rigorous and transparent evaluation framework for {theme}. "
+                "This would involve creating a shared benchmark that tests for robustness, fairness, and real-world applicability, ensuring that new methods are compared on a level playing field."
             )
         return collapse_text(
-            f"A strong follow-up project would be to design a {theme} pipeline that directly addresses the recurring weaknesses shared across these papers. "
-            "This new study should compare closely related methods on the same task, keep the evaluation population and metrics explicit, "
-            "and separate evidence-backed conclusions from metadata-only guesses.",
+            f"A valuable next step would be to develop a unified {theme} pipeline that addresses the common weaknesses found in the literature. "
+            "Such a study should focus on creating a standardized evaluation protocol with stronger baselines and more diverse datasets, ensuring that conclusions are both reliable and generalizable.",
             900,
         )
 
-    def _implementation_steps(self, gaps: list[str], rows: list[dict], idea: str) -> list[str]:
+    def _implementation_steps(self, gaps: list[str], rows: list[dict], idea: str) -> list[str]: # type: ignore
+        """Generate actionable implementation steps for the research idea."""
         titles = [self._paper_label(row.get("paper_name", "")) for row in rows if clean_text(row.get("paper_name", ""))]
         primary_title = titles[0] if titles else self._topic_theme().title()
         secondary_title = titles[1] if len(titles) > 1 else primary_title
         gap_focus = list(dict.fromkeys(self._gap_focus(g) for g in gaps[:3] if self._gap_focus(g)))
 
         steps: list[str] = []
-        if len(titles) >= 2:
-            steps.append(f"Use {primary_title} and {secondary_title} as the first comparison anchors, then add the remaining selected papers only if they still match the same task and population.")
-        elif titles:
-            steps.append(f"Use {primary_title} as the main comparison anchor and keep every later comparison tied to the same problem setting.")
-        else:
-            steps.append(f"Use the selected papers as the initial comparison set for {self._topic_theme()}, but remove any paper that is only loosely related before drawing conclusions.")
+        steps.append(f"Begin by establishing a strong baseline, using the methods from '{primary_title}' and '{secondary_title}' as initial comparison points.")
 
         if gap_focus:
-            steps.append(f"Target the main weakness explicitly: {gap_focus[0]}.")
+            steps.append(f"Focus the initial experiments on addressing the most critical shared weakness: {gap_focus[0]}.")
         else:
-            steps.append("Target the main weakness shared across the selected papers and define it in measurable terms before implementation starts.")
+            steps.append("Define a primary research question that targets the most significant weakness shared across the selected papers, ensuring it is measurable.")
 
         if len(gap_focus) > 1:
-            steps.append(f"Design the first experiment to test whether the proposed method still holds when {gap_focus[1]}.")
+            steps.append(f"Design a follow-up experiment to test the system's robustness, specifically by evaluating if the approach holds up when you {gap_focus[1]}.")
         else:
-            steps.append("Design the first experiment on a harder and more diverse evaluation set so the results are useful beyond one narrow setting.")
+            steps.append("Expand the evaluation to include a more diverse and challenging dataset to ensure the findings are generalizable beyond a narrow academic setting.")
 
-        steps.append("Add strong baselines from the same problem area and compare every system under one shared evaluation setup with the same metrics, population, and reporting rules.")
-        steps.append("Run an ablation or sensitivity study so the contribution of each component is clear and the final paper can explain which part of the pipeline is actually responsible for any gain.")
-        steps.append("Finish with an error analysis that explains where the approach fails, which users or cases are most affected, and what the next refinement should be.")
+        steps.append("Incorporate several strong, alternative baselines from the same problem domain to ensure the comparison is fair and comprehensive under a unified evaluation framework.")
+        steps.append("Conduct an ablation study to isolate the impact of each component in your proposed model, clarifying what parts are truly responsible for any performance gains.")
+        steps.append("Conclude with a detailed error analysis to identify where the new approach fails, which will provide clear directions for future refinements and follow-up studies.")
         return [collapse_text(step, 360) for step in steps[:6]]
 
     def build(
