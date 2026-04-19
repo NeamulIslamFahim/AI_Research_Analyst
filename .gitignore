@@ -42,3 +42,4 @@ node_modules/
 !data/trained_assistant/
 !data/trained_assistant/assistant_index.json
 !data/trained_assistant/assistant_config.json
+.env
