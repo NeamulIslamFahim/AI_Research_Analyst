@@ -165,7 +165,7 @@ def _merge_session_seen_papers(session: dict[str, Any], result: dict[str, Any], 
 
     for ref in new_refs:
         key = _paper_memory_key(ref)
-        if not key or key in seen_keys:
+        if not key or key in seen_keys or not ref.get("title"):
             continue
         seen_keys.add(key)
         merged.append(ref)

@@ -7,8 +7,6 @@ When Supabase is not configured, the app falls back to local JSON files.
 from __future__ import annotations
 
 import json
-import os
-import tempfile
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -123,23 +121,7 @@ def _local_save_sessions(owner_id: str, sessions: list[dict[str, Any]]) -> None:
     for session in sessions:
         try:
             path = _chat_log_path(owner_id, str(session.get("id", "")).strip())
-            fd, tmp_name = tempfile.mkstemp(
-                prefix=f"{path.name}.",
-                suffix=".tmp",
-                dir=str(path.parent),
-            )
-            try:
-                with os.fdopen(fd, "w", encoding="utf-8") as handle:
-                    json.dump(_serialize_session(session), handle, ensure_ascii=False, indent=2)
-                    handle.flush()
-                    os.fsync(handle.fileno())
-                os.replace(tmp_name, path)
-            except Exception:
-                try:
-                    os.remove(tmp_name)
-                except OSError:
-                    pass
-                raise
+            path.write_text(json.dumps(_serialize_session(session), ensure_ascii=False, indent=2), encoding="utf-8")
         except OSError:
             continue
 

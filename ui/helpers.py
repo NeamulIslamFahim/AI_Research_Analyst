@@ -29,6 +29,8 @@ def format_chat_history(messages: list[dict[str, Any]], max_messages: int = 100)
                 titles = [str(item.get("paper_name", "")).strip() for item in table if isinstance(item, dict) and item.get("paper_name")]
                 if titles:
                     extra_lines.append("Papers: " + " | ".join(titles[:8]))
+        elif msg.get("type") == "research" and isinstance(content_raw, str):
+             content = content_raw
         else:
             content = msg.get("effective_query") or msg.get("display_text") or str(content_raw)
         lines.append(f"{label}: {content}")

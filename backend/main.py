@@ -2020,13 +2020,13 @@ def _run_paper_reviewer_impl(paper_text: str) -> Dict[str, Any]:
             if "invalid_api_key" in str(exc).lower() or "401" in str(exc):
                 parsed = review_composer.sanitize(review_composer.heuristic_review(paper_text), paper_text)
                 parsed["suggested_venue"] = _infer_venue_type(paper_text)
-                _PAPER_REVIEW_CACHE[cache_key] = parsed 
-                return parsed 
+                _PAPER_REVIEW_CACHE[cache_key] = parsed
+                return parsed
             raise
         parsed = safe_json_loads(raw)
 
         if isinstance(parsed, dict) and parsed.get("error"):
-            schema_hint = ( 
+            schema_hint = (
                 "JSON object with keys: strengths, weaknesses, novelty, technical_correctness, "
                 "reproducibility, recommendation, suggested_venue."
             )
