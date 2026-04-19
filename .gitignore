@@ -14,8 +14,6 @@ build/
 .DS_Store
 Thumbs.db
 logs/
-.env
-.env.*
 .python-version
 .cache/
 .mypy_cache/
