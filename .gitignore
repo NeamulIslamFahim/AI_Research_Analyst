@@ -21,6 +21,7 @@ logs/
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
+.dockerignore
 .idea/
 *.log
 *.tmp
