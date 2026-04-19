@@ -166,6 +166,18 @@ def should_use_live_research_sources(
     force_refresh: bool = False,
 ) -> bool:
     """Keep explorer answers on the local vector store by default."""
+    if force_refresh:
+        return True
+
+    # If the user is asking for "more", we should fetch new results.
+    if ResearchService.is_expansion_request(topic):
+        return True
+
+    # If there's a specific focus topic, a live search is better.
+    if focus_topic:
+        return True
+
+    # Default to local search to leverage the cached corpus.
     return False
 
 
