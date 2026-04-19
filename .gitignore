@@ -34,14 +34,15 @@ logs/
 *.faiss
 *.index
 *.db
-*.parquet
-*.csv
-data/trained_assistant/
-data/chat_logs/
-node_modules/
+*.parquet # Ignore data formats
+*.csv # Ignore data formats
+
+# Ignore local data, but keep specific config files
+data/*
 !data/trained_assistant/
-!data/trained_assistant/assistant_index.json
+data/trained_assistant/*
 !data/trained_assistant/assistant_config.json
-.env
-.superbase_session.sql
-data/
+!data/trained_assistant/assistant_index.json
+
+node_modules/ # Node dependencies
+.superbase_session.sql # Supabase session file
