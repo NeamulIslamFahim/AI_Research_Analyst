@@ -565,10 +565,9 @@ def _download_arxiv_fulltext(docs: List[Document], limit: int = 5) -> List[Docum
             else:
                 url = url.rstrip("/") + ".pdf"
         try:
+            tmp_path = get_cached_pdf_path(url)
             cached = get_cached_pdf_path(url)
-            if cached:
-                tmp_path = cached
-            else:
+            if not tmp_path:
                 resp = requests.get(url, timeout=30)
                 resp.raise_for_status()
                 content_type = resp.headers.get("Content-Type", "")
@@ -577,26 +576,25 @@ def _download_arxiv_fulltext(docs: List[Document], limit: int = 5) -> List[Docum
                 tmp_path = save_pdf_bytes(url, resp.content)
                 upsert_paper_record(title, authors_to_str(authors), url, url, "arxiv", tmp_path)
                 downloaded += 1
-            try:
-                text = extract_text(tmp_path)
-                chunks = chunk_text(text)
-                for idx, chunk in enumerate(chunks):
-                    fulltext_docs.append(
-                        Document(
-                            page_content=chunk,
-                            metadata={
-                                "title": title,
-                                "url": url,
-                                "source": "arxiv_fulltext",
-                                "chunk": idx,
-                            },
-                        )
+
+            text = extract_text(tmp_path)
+            chunks = chunk_text(text)
+            for idx, chunk in enumerate(chunks):
+                fulltext_docs.append(
+                    Document(
+                        page_content=chunk,
+                        metadata={
+                            "title": title,
+                            "url": url,
+                            "source": "arxiv_fulltext",
+                            "chunk": idx,
+                        },
                     )
-            finally:
-                pass
+                )
         except Exception:
             # Skip failures silently to keep the pipeline robust.
             continue
+
     return fulltext_docs
 
 
@@ -616,10 +614,9 @@ def _download_external_fulltext(rows: List[dict], limit: int = 5) -> List[Docume
         if downloaded >= max_downloads:
             break
         try:
+            tmp_path = get_cached_pdf_path(pdf_url)
             cached = get_cached_pdf_path(pdf_url)
-            if cached:
-                tmp_path = cached
-            else:
+            if not tmp_path:
                 resp = requests.get(pdf_url, timeout=30)
                 resp.raise_for_status()
                 content_type = resp.headers.get("Content-Type", "")
@@ -635,26 +632,25 @@ def _download_external_fulltext(rows: List[dict], limit: int = 5) -> List[Docume
                     tmp_path,
                 )
                 downloaded += 1
-            try:
-                text = extract_text(tmp_path)
-                chunks = chunk_text(text)
-                for idx, chunk in enumerate(chunks):
-                    fulltext_docs.append(
-                        Document(
-                            page_content=chunk,
-                            metadata={
-                                "title": r.get("title", ""),
-                                "url": r.get("url", ""),
-                                "pdf_url": pdf_url,
-                                "source": r.get("source", ""),
-                                "chunk": idx,
-                            },
-                        )
+
+            text = extract_text(tmp_path)
+            chunks = chunk_text(text)
+            for idx, chunk in enumerate(chunks):
+                fulltext_docs.append(
+                    Document(
+                        page_content=chunk,
+                        metadata={
+                            "title": r.get("title", ""),
+                            "url": r.get("url", ""),
+                            "pdf_url": pdf_url,
+                            "source": r.get("source", ""),
+                            "chunk": idx,
+                        },
                     )
-            finally:
-                pass
+                )
         except Exception:
             continue
+
     return fulltext_docs
 
 
