@@ -1521,59 +1521,8 @@ def _run_research_explorer_impl_legacy(
             if filtered_rows:
                 all_rows = filtered_rows
             rows.extend(all_rows)
-
-            if follow_up_request and excluded_titles_lower and len(all_rows) < 8:
-                for follow_up_query in _follow_up_query_variants(topic, prior_titles=excluded_title_values):
-                    if len(all_rows) >= 8:
-                        break
-                    if _title_key(follow_up_query) == _title_key(topic):
-                        continue
-                    try:
-                        recovered_rows = _simple_fallback_source_rows(follow_up_query)
-                    except Exception:
-                        recovered_rows = []
-                    if not recovered_rows:
-                        continue
-                    topic_filtered_rows = [r for r in recovered_rows if _row_matches(r, tokens)]
-                    if topic_filtered_rows:
-                        recovered_rows = topic_filtered_rows
-                    _append_unique_rows(all_rows, recovered_rows, excluded_titles_lower)
-
-            all_docs = docs + rows_to_docs(all_rows)
-
-            if not skip_fulltext_download:
-                # Explicit live mode: download up to five papers to ground the result.
-                arxiv_to_download = [d for d in docs if "arxiv.org" in (d.metadata or {}).get("url", "")]
-                fulltext_docs.extend(_download_arxiv_fulltext(arxiv_to_download, limit=5))
-
-                remaining_slots = 5 - len(fulltext_docs)
-                if remaining_slots > 0:
-                    fulltext_docs.extend(_download_external_fulltext(all_rows, limit=remaining_slots))
-
-                all_docs.extend(fulltext_docs)
-            if not all_docs:
-                recovery_rows = _simple_fallback_source_rows(topic)
-                if not recovery_rows:
-                    try:
-                        from .assistant_model import get_assistant_sources
-
-                        local_sources = get_assistant_sources(topic, chat_history=chat_history, limit=5)
-                    except Exception:
-                        local_sources = []
-                    recovery_rows = [
-                        {
-                            "title": src.get("title", ""),
-                            "authors": src.get("authors", ""),
-                            "year": "",
-                            "url": src.get("url", ""),
-                            "pdf_url": src.get("pdf_url", ""),
-                            "doi": "",
-                            "abstract": src.get("snippet", ""),
-                            "source": src.get("source", "trained_local_corpus"),
-                        }
-                        for src in local_sources
-            ] or []
-            return _finalize_follow_up_response(response_composer.build_insufficient())
+        
+        # Build a lookup for full-text snippets by (title, url) and by title.
         # Build a lookup for full-text snippets by (title, url) and by title.
         if fulltext_docs:
             tmp_map: Dict[tuple[str, str], List[str]] = {}
@@ -1587,72 +1536,6 @@ def _run_research_explorer_impl_legacy(
                 title = key[0]
                 if title and title not in fulltext_by_title:
                     fulltext_by_title[title] = text
-        if use_live_sources:
-            vector_store = _ensure_vector_store_with_docs(all_docs)
-        else:
-            vector_store = _get_vector_store()
-
-        if vector_store is None:
-            recovery_rows = _simple_fallback_source_rows(topic)
-            if not recovery_rows:
-                try:
-                    from .assistant_model import get_assistant_sources
-
-                    local_sources = get_assistant_sources(topic, chat_history=chat_history, limit=5)
-                except Exception:
-                    local_sources = []
-                recovery_rows = [
-                    {
-                        "title": src.get("title", ""),
-                        "authors": src.get("authors", ""),
-                        "year": "",
-                        "url": src.get("url", ""),
-                        "pdf_url": src.get("pdf_url", ""),
-                        "doi": "",
-                        "abstract": src.get("snippet", ""),
-                        "source": src.get("source", "trained_local_corpus"),
-                    }
-                    for src in local_sources
-                ]
-            if recovery_rows:
-                return _finalize_follow_up_response(
-                    response_composer.build(recovery_rows, fulltext_map, fulltext_by_title)
-                )
-            return {"error": "No documents found or vector store unavailable."}
-
-        # Build retrieval context explicitly for the prompt.
-        retriever = vector_store.as_retriever(search_kwargs={"k": 6})
-        if use_live_sources:
-            bm25 = BM25Retriever.from_documents(all_docs)
-            bm25.k = 6
-            # Manual hybrid: merge FAISS + BM25 results by URL/title key.
-            if hasattr(retriever, "invoke"):
-                faiss_docs = retriever.invoke(topic)
-            else:
-                faiss_docs = retriever.get_relevant_documents(topic)
-            if hasattr(bm25, "invoke"):
-                bm25_docs = bm25.invoke(topic)
-            else:
-                bm25_docs = bm25.get_relevant_documents(topic)
-            merged = {}
-            for d in faiss_docs + bm25_docs:
-                meta = d.metadata or {}
-                key = (meta.get("title", ""), meta.get("url", ""))
-                if key not in merged:
-                    merged[key] = d
-            context_docs = list(merged.values())[:8]
-        else:
-            if hasattr(retriever, "invoke"):
-                context_docs = retriever.invoke(topic)
-            else:
-                context_docs = retriever.get_relevant_documents(topic)
-            context_docs = list(context_docs)[:8]
-        if fulltext_docs:
-            context = truncate_text("\n\n".join([d.page_content for d in fulltext_docs[:8]]), max_chars=6000)
-        else:
-            context = truncate_text("\n\n".join([d.page_content for d in context_docs]), max_chars=5000)
-        if chat_history:
-            context = f"Conversation context:\\n{chat_history}\\n\\n{context}"
 
         # Prefer papers with full text available.
         fulltext_keys = set()
