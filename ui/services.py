@@ -180,6 +180,39 @@ def _resolve_research_topic(prompt: str, history: str | None, session: dict[str,
     return resolved
 
 
+def _looks_like_assistant_request(prompt: str) -> bool:
+    normalized = " ".join(str(prompt or "").split()).lower()
+    if not normalized:
+        return False
+    if ResearchService.is_expansion_request(normalized):
+        return False
+    if len(normalized.split()) >= 12:
+        return True
+    question_starters = (
+        "what ",
+        "why ",
+        "how ",
+        "when ",
+        "where ",
+        "which ",
+        "who ",
+        "can ",
+        "could ",
+        "would ",
+        "should ",
+        "is ",
+        "are ",
+        "do ",
+        "does ",
+        "explain ",
+        "summarize ",
+        "compare ",
+        "tell me ",
+        "give me ",
+    )
+    return "?" in normalized or normalized.startswith(question_starters)
+
+
 def research_error_result(detail: str) -> dict[str, Any]:
     """Return a safe response shape when explorer generation fails."""
     return build_research_error_response(detail)
@@ -257,7 +290,7 @@ def handle_send(prompt: str) -> None:
     }
     loading_text = "Working on your request..."
     if mode == "Research Explorer":
-        loading_text = "Searching the local VectorDB and generating a research summary..."
+        loading_text = "Research assistant is analyzing your request..."
     elif mode == "Research Paper Reviewer":
         loading_text = "Reading the uploaded paper and preparing an answer..."
     elif mode == "Research Paper Writer":
@@ -276,7 +309,7 @@ def handle_send(prompt: str) -> None:
     history = format_chat_history(session["messages"], 100)
     spinner_text = "Processing request..."
     if mode == "Research Explorer":
-        spinner_text = "Research Explorer is working. This can take a bit while the local paper index is searched and summarized."
+        spinner_text = "Research assistant is working. This can take a bit while papers are retrieved and summarized."
     notice = _show_running_notice(spinner_text)
 
     try:
@@ -307,6 +340,35 @@ def handle_send(prompt: str) -> None:
                 return
 
             if mode == "Research Explorer":
+                if _looks_like_assistant_request(trimmed):
+                    try:
+                        result = _backend_main().assistant_chat(trimmed, chat_history=history)  # type: ignore
+                    except HTTPException as exc:
+                        detail = exc.detail if hasattr(exc, "detail") else str(exc)
+                        result = {"answer": str(detail), "sources": [], "answer_source": "error"}
+
+                    if isinstance(result, dict) and result.get("table") is not None:
+                        display_text = result.get("assistant_reply", "Research result")
+                        final_msg = {"role": "assistant", "content": result, "type": "research", "display_text": display_text}
+                        update_current_session(
+                            messages=replace_or_append_assistant(session["messages"], final_msg),
+                            research_last_topic=trimmed,
+                            research_seen_papers=_merge_session_seen_papers(session, result, trimmed),
+                        )
+                    else:
+                        answer_text = ""
+                        if isinstance(result, dict):
+                            answer_text = str(result.get("answer") or result.get("message") or "No answer found.")
+                        final_msg = {
+                            "role": "assistant",
+                            "content": result if isinstance(result, dict) else {"answer": str(result), "sources": []},
+                            "type": "assistant",
+                            "display_text": answer_text or "Research assistant response",
+                        }
+                        update_current_session(messages=replace_or_append_assistant(session["messages"], final_msg))
+                    _maybe_schedule_assistant_retrain()
+                    return
+
                 resolved_topic = _resolve_research_topic(trimmed, history, session)
                 is_expansion_request = ResearchService.is_expansion_request(trimmed)
                 history_resolved_expansion = is_expansion_request and ResearchService.should_resolve_topic_from_history(trimmed)
