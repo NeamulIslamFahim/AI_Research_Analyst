@@ -85,7 +85,7 @@ def _vectorstore_docs() -> list[dict[str, Any]]:
         return docs
     raw_docs = getattr(getattr(store, "docstore", None), "_dict", {})
     for value in raw_docs.values():
-        text = _normalize_whitespace(getattr(value, "page_content", ""))
+        text = _normalize_whitespace(str(getattr(value, "page_content", "")))
         metadata = dict(getattr(value, "metadata", {}) or {})
         if not text:
             continue
@@ -369,16 +369,28 @@ def get_assistant_status() -> dict[str, Any]:
 
     if _MODEL_CACHE is None:
         _MODEL_CACHE = _load_cached_runtime()
-    if _MODEL_CACHE is None:
+    if _MODEL_CACHE is not None:
+        meta = dict(_MODEL_CACHE.get("meta", {}) or {})
+        meta["status"] = meta.get("status", "ready")
+        return meta
+
+    store = _get_vector_store_cached()
+    if store is not None:
+        docstore = getattr(store, "docstore", None)
+        chunk_count = len(getattr(docstore, "_dict", {}))
         return {
-            "status": "not_trained",
+            "status": "ready",
             "model": DEFAULT_ASSISTANT_MODEL,
-            "message": "Assistant model has not been trained yet.",
-            **_corpus_availability(),
+            "chunk_count": chunk_count,
+            "message": f"Assistant vector store is ready with {chunk_count} chunks. The BM25 cache will rebuild on demand.",
         }
-    meta = dict(_MODEL_CACHE.get("meta", {}) or {})
-    meta["status"] = meta.get("status", "ready")
-    return meta
+
+    return {
+        "status": "not_trained",
+        "model": DEFAULT_ASSISTANT_MODEL,
+        "message": "Assistant model has not been trained yet.",
+        **_corpus_availability(),
+    }
 
 
 def _ensure_model_loaded() -> dict[str, Any]:
@@ -463,7 +475,7 @@ def _vector_hits(prompt: str, limit: int) -> list[dict[str, Any]]:
     score = float(limit)
     for doc in docs:
         metadata = dict(getattr(doc, "metadata", {}) or {})
-        text = _normalize_whitespace(getattr(doc, "page_content", ""))
+        text = _normalize_whitespace(str(getattr(doc, "page_content", "")))
         if not text:
             continue
         hits.append(
@@ -494,11 +506,12 @@ def _hybrid_retrieve(prompt: str, limit: int = 6) -> list[dict[str, Any]]:
         else:
             existing["score"] = float(existing.get("score", 0.0)) + float(hit["score"])
             existing["retriever"] = "hybrid"
+
     reranked: list[dict[str, Any]] = []
     for item in combined.values():
         metadata = item.get("metadata", {}) or {}
-        title = _normalize_whitespace(metadata.get("title", ""))
-        text = _normalize_whitespace(item.get("text", ""))
+        title = _normalize_whitespace(str(metadata.get("title", "")))
+        text = _normalize_whitespace(str(item.get("text", "")))
         title_tokens = set(_query_tokens(title))
         text_tokens = set(_query_tokens(text[:2000]))
         overlap = len(set(query_terms).intersection(title_tokens | text_tokens))
@@ -540,7 +553,7 @@ def _hybrid_retrieve(prompt: str, limit: int = 6) -> list[dict[str, Any]]:
 
     for item in ranked:
         metadata = item.get("metadata", {}) or {}
-        title = _normalize_whitespace(metadata.get("title", "") or "Untitled")
+        title = _normalize_whitespace(str(metadata.get("title", "") or "Untitled"))
         count = per_title_counts.get(title, 0)
         if count >= max_per_title:
             continue
@@ -566,7 +579,7 @@ def _diverse_hits_for_answer(hits: list[dict[str, Any]], limit: int = 4) -> list
 
     for hit in hits:
         metadata = hit.get("metadata", {}) or {}
-        title = _normalize_whitespace(metadata.get("title", "") or "Untitled")
+        title = _normalize_whitespace(str(metadata.get("title", "") or "Untitled"))
         if title in seen_titles:
             continue
         seen_titles.add(title)
@@ -585,8 +598,8 @@ def _diverse_hits_for_answer(hits: list[dict[str, Any]], limit: int = 4) -> list
 
 
 def _best_sentences_from_hit(hit: dict[str, Any], prompt_tokens: set[str], limit: int = 2) -> list[str]:
-    text = _normalize_whitespace(hit.get("text", ""))
-    title = (hit.get("metadata", {}) or {}).get("title", "Untitled")
+    text = _normalize_whitespace(str(hit.get("text", "")))
+    title = str((hit.get("metadata", {}) or {}).get("title", "Untitled"))
     if not text:
         return []
 
@@ -692,7 +705,7 @@ def _has_relevant_local_answer(hits: list[dict[str, Any]], prompt: str) -> bool:
 
 
 def _generic_follow_up(prompt: str) -> bool:
-    normalized = _normalize_whitespace(prompt).lower()
+    normalized = " ".join(prompt.split()).lower()
     generic_prompts = {
         "more",
         "more papers",
@@ -715,7 +728,7 @@ def _previous_source_titles(chat_history: str | None) -> set[str]:
         normalized = line.strip()
         lower = normalized.lower()
         if lower.startswith("sources:") or lower.startswith("papers:"):
-            raw = normalized.split(":", 1)[1] if ":" in normalized else ""
+            raw = normalized.partition(":")[2]
             for piece in raw.split("|"):
                 clean = _normalize_whitespace(piece).lower()
                 if clean:
@@ -724,7 +737,7 @@ def _previous_source_titles(chat_history: str | None) -> set[str]:
 
 
 def _source_query_variants(prompt: str) -> list[str]:
-    base = _normalize_whitespace(prompt)
+    base = " ".join(prompt.split())
     if not base:
         return []
 
@@ -738,7 +751,7 @@ def _source_query_variants(prompt: str) -> list[str]:
     seen: set[str] = set()
     deduped: list[str] = []
     for query in variants:
-        normalized = _normalize_whitespace(query).lower()
+        normalized = " ".join(query.split()).lower()
         if not normalized or normalized in seen:
             continue
         seen.add(normalized)
@@ -752,7 +765,7 @@ def _topic_from_history(chat_history: str | None) -> str | None:
     for line in reversed(str(chat_history).splitlines()):
         normalized = line.strip()
         if normalized.startswith("User:"):
-            candidate = _normalize_whitespace(normalized.split(":", 1)[1])
+            candidate = " ".join(normalized.partition(":")[2].split())
             if candidate and not _generic_follow_up(candidate):
                 return candidate
     return None
@@ -815,13 +828,13 @@ def get_assistant_sources(prompt: str, chat_history: str | None = None, limit: i
     for query in _source_query_variants(effective_topic):
         if len(sources) >= limit:
             break
-        try:
+        try: # type: ignore
             hits = _hybrid_retrieve(query, limit=max(limit * 2, 8))
         except Exception:
             continue
         for hit in _diverse_hits_for_answer(hits, limit=max(limit * 2, 8)):
             metadata = hit.get("metadata", {}) or {}
-            title = _normalize_whitespace(metadata.get("title", "") or "Untitled")
+            title = " ".join(str(metadata.get("title", "") or "Untitled").split())
             if title.lower() in excluded_titles:
                 continue
             url = metadata.get("url", "") or metadata.get("pdf_url", "")
@@ -957,7 +970,7 @@ def assistant_chat(prompt: str, chat_history: str | None = None) -> dict[str, An
 
 
 def _looks_like_source_list_request(prompt: str) -> bool:
-    normalized = _normalize_whitespace(prompt).lower()
+    normalized = " ".join(prompt.split()).lower()
     return any(
         phrase in normalized
         for phrase in [

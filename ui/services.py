@@ -10,7 +10,6 @@ from typing import Any
 import streamlit as st
 from fastapi import HTTPException
 
-from backend.pdf_utils import extract_text
 from backend.schemas import ResearchExplorerRequest, WriterStepRequest
 from backend.services.response_templates import build_research_error_response
 from backend.services.research_service import ResearchService
@@ -207,6 +206,7 @@ def handle_upload(uploaded_file: Any) -> bool:
 
     try:
         from backend.explorer_utils import format_review_reply
+        from backend.pdf_utils import extract_text
 
         temp_path = save_uploaded_pdf(uploaded_file)
         paper_text = extract_text(temp_path)

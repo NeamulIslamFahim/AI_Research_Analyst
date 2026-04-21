@@ -159,13 +159,38 @@ def _set_vector_store(vs: Any) -> None:
     _CACHED_VECTOR_STORE = vs
 
 
+def _local_vector_store_available() -> bool:
+    """Return whether a persisted FAISS store is available on disk or in memory."""
+    if _peek_vector_store() is not None:
+        return True
+
+    try:
+        preferred_dir = get_faiss_persist_dir()
+    except Exception:
+        preferred_dir = os.path.join("data", "vectorstore")
+
+    normalized = os.path.normpath(preferred_dir)
+    default_dir = os.path.normpath(os.path.join("data", "vectorstore"))
+    legacy_dir = os.path.normpath(os.path.join("data", "vectorestore"))
+    candidates = [preferred_dir]
+    if normalized == default_dir and legacy_dir != normalized:
+        candidates.append(legacy_dir)
+
+    for candidate in candidates:
+        index_path = os.path.join(candidate, "index.faiss")
+        pickle_path = os.path.join(candidate, "index.pkl")
+        if os.path.exists(index_path) and os.path.exists(pickle_path):
+            return True
+    return False
+
+
 def should_use_live_research_sources(
     topic: str,
     chat_history: str | None = None,
     focus_topic: str | None = None,
     force_refresh: bool = False,
 ) -> bool:
-    """Keep explorer answers on the local vector store by default."""
+    """Prefer local search when available, but fall back to live sources on cloud."""
     if force_refresh:
         return True
 
@@ -175,6 +200,10 @@ def should_use_live_research_sources(
 
     # If there's a specific focus topic, a live search is better.
     if focus_topic:
+        return True
+
+    # Streamlit Cloud deployments synced from GitHub often do not include index.faiss.
+    if not _local_vector_store_available():
         return True
 
     # Default to local search to leverage the cached corpus.
@@ -213,7 +242,7 @@ def _follow_up_query_variants(topic: str, prior_titles: list[str] | None = None)
             clean_title = " ".join(str(title or "").split())
             if not clean_title:
                 continue
-            broad_variants.extend(
+            variants.extend(
                 [
                     clean_title,
                     f"{clean_title} recent papers",
@@ -248,11 +277,12 @@ def _titles_from_chat_history(chat_history: str | None) -> list[str]:
         normalized = line.strip()
         lower = normalized.lower()
         if lower.startswith("papers:") or lower.startswith("sources:"):
-            raw = normalized.split(":", 1)[1] if ":" in normalized else ""
+            raw = normalized.partition(":")[2]
             for piece in raw.split("|"):
                 clean_piece = clean_text(piece)
                 if clean_piece:
                     titles.append(clean_piece)
+
     seen: set[str] = set()
     deduped: list[str] = []
     for title in titles:
@@ -967,8 +997,13 @@ def _run_research_explorer_impl_legacy(
         max_primary = int(load_env_var("FAST_MAX_PRIMARY", "5") or "5")
         max_secondary = int(load_env_var("FAST_MAX_SECONDARY", "4") or "4")
         warnings: List[str] = []
+
         if use_live_sources is None:
-            use_live_sources = False
+            use_live_sources = should_use_live_research_sources(
+                topic, chat_history, focus_topic, force_refresh
+            )
+        elif not use_live_sources and not _local_vector_store_available():
+            use_live_sources = True
         skip_fulltext_download = fast_mode
 
         if not use_live_sources:
@@ -979,6 +1014,11 @@ def _run_research_explorer_impl_legacy(
                 except Exception:
                     vector_store = None
             if vector_store is None:
+                recovery_rows = _simple_fallback_source_rows(topic)
+                if recovery_rows:
+                    return _finalize_follow_up_response(
+                        response_composer.build(recovery_rows, fulltext_map, fulltext_by_title)
+                    )
                 return response_composer.build_insufficient()
             query_tokens = [
                 t for t in topic.lower().replace("-", " ").split()
@@ -1488,8 +1528,7 @@ def _run_research_explorer_impl_legacy(
             rows.extend(all_rows)
 
             if follow_up_request and excluded_titles_lower and len(all_rows) < 8:
-                prior_titles = _titles_from_chat_history(chat_history)
-                for follow_up_query in _follow_up_query_variants(topic, prior_titles=prior_titles):
+                for follow_up_query in _follow_up_query_variants(topic, prior_titles=excluded_title_values):
                     if len(all_rows) >= 8:
                         break
                     if _title_key(follow_up_query) == _title_key(topic):
@@ -1671,9 +1710,8 @@ def _run_research_explorer_impl_legacy(
                     if len(filtered_rows) >= 12:
                         break
             if len(filtered_rows) < 8:
-                try:
-                    prior_titles = _titles_from_chat_history(chat_history)
-                    for extension_query in _follow_up_query_variants(topic, prior_titles=prior_titles):
+                try: # type: ignore
+                    for extension_query in _follow_up_query_variants(topic, prior_titles=excluded_title_values):
                         if len(filtered_rows) >= 8:
                             break
                         extension_rows = _simple_fallback_source_rows(extension_query)

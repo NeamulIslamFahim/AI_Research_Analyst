@@ -8,10 +8,8 @@ langchain-huggingface
 langchain-groq
 langchain-openai
 langchain-classic
-langchain-text-splitters
 langgraph
 torch
-torchvision
 faiss-cpu
 sentence-transformers
 huggingface-hub
