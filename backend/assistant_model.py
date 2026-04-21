@@ -868,6 +868,50 @@ def _run_external_research_and_get_answer(topic: str, chat_history: str | None) 
     return run_research_explorer(topic=topic, chat_history=chat_history, use_live=True, force_refresh=True)
 
 
+def _assistant_local_only_mode() -> bool:
+    assistant_only = (load_env_var("ASSISTANT_MODEL_ONLY", "false") or "false").lower() == "true"
+    local_only = (load_env_var("LOCAL_ONLY", "false") or "false").lower() == "true"
+    return assistant_only or local_only
+
+
+def _local_only_answer(prompt: str, hits: list[dict[str, Any]], chat_history: str | None) -> dict[str, Any]:
+    status = get_assistant_status()
+    sources = get_assistant_sources(prompt, chat_history=chat_history, limit=5) if hits else []
+
+    if hits:
+        if _looks_like_source_list_request(prompt) and sources:
+            answer = _paper_list_answer(sources)
+        else:
+            answer = _fallback_answer(prompt, hits)
+        answer_source = "vectordb"
+    else:
+        answer = (
+            "I could not find enough relevant information in the current local research memory for that question. "
+            "This deployed assistant is configured to answer only from the existing vector DB and saved local corpus, "
+            "so it will not download new papers automatically."
+        )
+        answer_source = "vectordb_miss"
+
+    response_payload = {
+        "model": status.get("model", DEFAULT_ASSISTANT_MODEL),
+        "assistant_only": True,
+        "trained_at": status.get("trained_at"),
+        "answer": answer,
+        "sources": sources,
+        "answer_source": answer_source,
+        "incremental_learning_started": False,
+        "status": status.get("status", "ready"),
+    }
+    _record_chat_interaction(
+        prompt=prompt,
+        response=answer,
+        chat_history=chat_history,
+        answer_source=answer_source,
+        extra={"sources": sources},
+    )
+    return response_payload
+
+
 def assistant_chat(prompt: str, chat_history: str | None = None) -> dict[str, Any]:
     """Answer the user's prompt using the trained local corpus as the default model."""
     if not prompt or not prompt.strip():
@@ -909,7 +953,7 @@ def assistant_chat(prompt: str, chat_history: str | None = None) -> dict[str, An
     )
     answer = ""
 
-    assistant_only = (load_env_var("ASSISTANT_MODEL_ONLY", "false") or "false").lower() == "true"
+    assistant_only = _assistant_local_only_mode()
 
     if local_relevant:
         # Keep the general assistant fast and local. Deeper paper work belongs in Research Explorer.
@@ -938,6 +982,10 @@ def assistant_chat(prompt: str, chat_history: str | None = None) -> dict[str, An
         )
         return response_payload
 
+    if assistant_only:
+        # Stay grounded in the deployed local corpus and never trigger downloads or re-indexing.
+        return _local_only_answer(clean_prompt, hits, chat_history)
+
     # If local results are not relevant or user wants more, run the full external pipeline.
     if not assistant_only:
         _start_incremental_learning(effective_topic)
@@ -950,23 +998,7 @@ def assistant_chat(prompt: str, chat_history: str | None = None) -> dict[str, An
         )
         return external_result
 
-    status = get_assistant_status()
-    response_payload = {
-        "model": status.get("model", DEFAULT_ASSISTANT_MODEL),
-        "assistant_only": assistant_only,
-        "trained_at": status.get("trained_at"),
-        "answer": answer,
-        "sources": [],
-        "answer_source": "vectordb_fallback",
-        "incremental_learning_started": False,
-    }
-    _record_chat_interaction(
-        prompt=clean_prompt,
-        response=answer,
-        chat_history=chat_history,
-        answer_source="vectordb_fallback",
-    )
-    return response_payload
+    return _local_only_answer(clean_prompt, hits, chat_history)
 
 
 def _looks_like_source_list_request(prompt: str) -> bool:
