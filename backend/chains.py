@@ -275,6 +275,14 @@ def gap_list_chain(llm: BaseLLM) -> Runnable:
         raise RuntimeError(f"Failed to build gap list chain: {exc}") from exc
 
 
+def paper_section_writer_chain(llm: BaseLLM) -> Runnable:
+    """Build a chain that drafts a section of a paper."""
+    try:
+        return PAPER_SECTION_WRITER_PROMPT | llm
+    except Exception as exc:
+        raise RuntimeError(f"Failed to build paper section writer chain: {exc}") from exc
+
+
 def assistant_answer_chain(llm: BaseLLM) -> Runnable:
     """Build a grounded assistant chain for the trained local corpus."""
     try:

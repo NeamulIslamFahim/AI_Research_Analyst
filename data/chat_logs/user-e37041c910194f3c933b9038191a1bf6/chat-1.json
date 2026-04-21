@@ -1,0 +1,132 @@
+{
+  "id": "chat-1",
+  "title": "New Workspace",
+  "mode": "Research Paper Writer",
+  "paper_text": "",
+  "last_uploaded_pdf_signature": "",
+  "writer_state": {
+    "phase": "await_section",
+    "title": "ai in job",
+    "mode": "Conference",
+    "section": "Abstract",
+    "last_draft": "**Draft for: Abstract**\n\nThis is a placeholder draft. Please provide more specific details for a comprehensive section.\n\nBased on your input: 'no', here is a general structure:\n- **Point 1**: Elaborate on the first key aspect of your section.\n- **Point 2**: Discuss the second key aspect, connecting it to the first.\n- **Point 3**: Provide supporting evidence, examples, or citations [Author, Year].\n\nTo generate a better draft, please provide more details about the dataset, methodology, or specific results you want to include."
+  },
+  "writer_intro_shown": true,
+  "research_last_topic": "",
+  "research_seen_papers": [],
+  "updated_at": "2026-04-21T16:49:58.901581Z",
+  "messages": [
+    {
+      "role": "assistant",
+      "type": "text",
+      "display_text": "To begin, please provide:\n1) Paper Title\n2) Mode of Paper (Conference / Journal)\n\nLet's start with the Paper Title.",
+      "content": "To begin, please provide:\n1) Paper Title\n2) Mode of Paper (Conference / Journal)\n\nLet's start with the Paper Title.",
+      "effective_query": null
+    },
+    {
+      "role": "user",
+      "type": null,
+      "display_text": "ai in job",
+      "content": "ai in job",
+      "effective_query": "ai in job"
+    },
+    {
+      "role": "assistant",
+      "type": "text",
+      "display_text": "Great. Now specify the Mode of Paper (Conference / Journal).",
+      "content": "Great. Now specify the Mode of Paper (Conference / Journal).",
+      "effective_query": null
+    },
+    {
+      "role": "user",
+      "type": null,
+      "display_text": "Conference",
+      "content": "Conference",
+      "effective_query": "Conference"
+    },
+    {
+      "role": "assistant",
+      "type": "text",
+      "display_text": "Conference Paper Framework for: ai in job\n\n1. Title\nPurpose: Concise, specific, and informative.\nContent: Key variables, method, and domain.\nGuidelines: Avoid jargon; reflect novelty.\nLength: 8–20 words.\nTips: Use active wording; highlight contribution.\nCommon mistakes: Vague titles, overloaded acronyms.\n\n2. Abstract (150–250 words)\nPurpose: One-paragraph summary of the entire paper.\nContent: Problem, method, dataset, results, contributions.\nGuidelines: Structured flow; no citations.\nLength: 150–250 words.\nTips: Quantify results.\nCommon mistakes: Missing results or contributions.\n\n3. Problem Statement\nPurpose: Define the research problem precisely.\nContent: Scope, constraints, and motivation.\nGuidelines: Clear, measurable, aligned with method.\nLength: 100–200 words.\nTips: Tie to real-world impact.\nCommon mistakes: Too broad or ambiguous.\n\n4. Proposed Method\nPurpose: Present the core approach.\nContent: Architecture, algorithm, novelty.\nGuidelines: Technical clarity; reproducibility.\nLength: 300–700 words.\nTips: Use equations and diagrams if needed.\nCommon mistakes: Missing key design details.\n\n5. Dataset\nPurpose: Describe data used for evaluation.\nContent: Source, size, splits, preprocessing.\nGuidelines: Provide enough detail to reproduce.\nLength: 150–300 words.\nTips: Mention biases/limitations.\nCommon mistakes: Vague dataset description.\n\n6. Results\nPurpose: Report experimental outcomes.\nContent: Metrics, tables, comparisons.\nGuidelines: Quantitative, objective.\nLength: 300–600 words.\nTips: Use tables/figures for clarity.\nCommon mistakes: No baselines or weak analysis.\n\n7. Contribution\nPurpose: Summarize novel contributions.\nContent: Bullet points of new methods or findings.\nGuidelines: Distinct, measurable claims.\nLength: 3–5 bullets.\nTips: Align with abstract and results.\nCommon mistakes: Repetition without novelty.\n\n8. Keywords (4–6)\nPurpose: Aid indexing and retrieval.\nContent: Core topics and methods.\nGuidelines: Specific and relevant.\nLength: 4–6 keywords.\nTips: Include dataset/model if central.\nCommon mistakes: Overly generic terms.\n\n9. Introduction\nPurpose: Context and motivation.\nContent: Background, gap, contributions.\nGuidelines: Funnel from broad to specific.\nLength: 600–900 words.\nTips: End with contributions list.\nCommon mistakes: Long background, no gap.\n\n10. Background\nPurpose: Explain necessary technical background.\nContent: Key concepts, prior frameworks.\nGuidelines: Brief and relevant.\nLength: 300–600 words.\nTips: Define terms early.\nCommon mistakes: Excessive textbook content.\n\n11. Motivation\nPurpose: Justify why the problem matters.\nContent: Practical/academic importance.\nGuidelines: Evidence-based.\nLength: 200–400 words.\nTips: Use real-world examples.\nCommon mistakes: Claims without support.\n\n12. Research Problem\nPurpose: Formalize the problem statement.\nContent: Variables, constraints, objectives.\nGuidelines: Precise, formal where possible.\nLength: 150–300 words.\nTips: Align with evaluation metrics.\nCommon mistakes: Misalignment with method.\n\n13. Contributions (bullet points)\nPurpose: Highlight novelty.\nContent: 3–5 concise bullets.\nGuidelines: Actionable and measurable.\nLength: 3–5 bullets.\nTips: Tie each to evidence.\nCommon mistakes: Duplicate points.\n\n14. Related Work\nPurpose: Position against prior studies.\nContent: Key papers, approaches, limitations.\nGuidelines: Comparative and critical.\nLength: 600–1000 words.\nTips: Include comparison table suggestion.\nCommon mistakes: Summaries without critique.\n\n15. Methodology / Proposed Model\nPurpose: Full technical description.\nContent: Architecture, math formulation, algorithm.\nGuidelines: Reproducible detail.\nLength: 800–1200 words.\nTips: Provide workflow diagram explanation.\nCommon mistakes: Skipping implementation details.\n\n16. Dataset & Experimental Setup\nPurpose: Explain data and experiment configuration.\nContent: Datasets, splits, preprocessing, metrics.\nGuidelines: Reproducible settings.\nLength: 400–800 words.\nTips: Justify metric selection.\nCommon mistakes: Missing baselines.\n\n17. Results & Discussion\nPurpose: Interpret results and compare baselines.\nContent: Tables, graphs, and analysis.\nGuidelines: Evidence-based discussion.\nLength: 600–900 words.\nTips: Explain trends and limitations.\nCommon mistakes: Only reporting numbers.\n\n18. Conclusion\nPurpose: Summarize and close.\nContent: Findings, contributions, limitations, future work.\nGuidelines: Concise and forward-looking.\nLength: 200–400 words.\nTips: Avoid introducing new results.\nCommon mistakes: Overstating claims.\n\n19. References (IEEE default)\nPurpose: Cite prior work.\nContent: All referenced sources.\nGuidelines: IEEE style unless specified.\nLength: As needed.\nTips: Ensure consistency.\nCommon mistakes: Missing citations.\n\nConference notes: Concise (6–8 pages), focus on novelty and experiments, limited literature depth.",
+      "content": "Conference Paper Framework for: ai in job\n\n1. Title\nPurpose: Concise, specific, and informative.\nContent: Key variables, method, and domain.\nGuidelines: Avoid jargon; reflect novelty.\nLength: 8–20 words.\nTips: Use active wording; highlight contribution.\nCommon mistakes: Vague titles, overloaded acronyms.\n\n2. Abstract (150–250 words)\nPurpose: One-paragraph summary of the entire paper.\nContent: Problem, method, dataset, results, contributions.\nGuidelines: Structured flow; no citations.\nLength: 150–250 words.\nTips: Quantify results.\nCommon mistakes: Missing results or contributions.\n\n3. Problem Statement\nPurpose: Define the research problem precisely.\nContent: Scope, constraints, and motivation.\nGuidelines: Clear, measurable, aligned with method.\nLength: 100–200 words.\nTips: Tie to real-world impact.\nCommon mistakes: Too broad or ambiguous.\n\n4. Proposed Method\nPurpose: Present the core approach.\nContent: Architecture, algorithm, novelty.\nGuidelines: Technical clarity; reproducibility.\nLength: 300–700 words.\nTips: Use equations and diagrams if needed.\nCommon mistakes: Missing key design details.\n\n5. Dataset\nPurpose: Describe data used for evaluation.\nContent: Source, size, splits, preprocessing.\nGuidelines: Provide enough detail to reproduce.\nLength: 150–300 words.\nTips: Mention biases/limitations.\nCommon mistakes: Vague dataset description.\n\n6. Results\nPurpose: Report experimental outcomes.\nContent: Metrics, tables, comparisons.\nGuidelines: Quantitative, objective.\nLength: 300–600 words.\nTips: Use tables/figures for clarity.\nCommon mistakes: No baselines or weak analysis.\n\n7. Contribution\nPurpose: Summarize novel contributions.\nContent: Bullet points of new methods or findings.\nGuidelines: Distinct, measurable claims.\nLength: 3–5 bullets.\nTips: Align with abstract and results.\nCommon mistakes: Repetition without novelty.\n\n8. Keywords (4–6)\nPurpose: Aid indexing and retrieval.\nContent: Core topics and methods.\nGuidelines: Specific and relevant.\nLength: 4–6 keywords.\nTips: Include dataset/model if central.\nCommon mistakes: Overly generic terms.\n\n9. Introduction\nPurpose: Context and motivation.\nContent: Background, gap, contributions.\nGuidelines: Funnel from broad to specific.\nLength: 600–900 words.\nTips: End with contributions list.\nCommon mistakes: Long background, no gap.\n\n10. Background\nPurpose: Explain necessary technical background.\nContent: Key concepts, prior frameworks.\nGuidelines: Brief and relevant.\nLength: 300–600 words.\nTips: Define terms early.\nCommon mistakes: Excessive textbook content.\n\n11. Motivation\nPurpose: Justify why the problem matters.\nContent: Practical/academic importance.\nGuidelines: Evidence-based.\nLength: 200–400 words.\nTips: Use real-world examples.\nCommon mistakes: Claims without support.\n\n12. Research Problem\nPurpose: Formalize the problem statement.\nContent: Variables, constraints, objectives.\nGuidelines: Precise, formal where possible.\nLength: 150–300 words.\nTips: Align with evaluation metrics.\nCommon mistakes: Misalignment with method.\n\n13. Contributions (bullet points)\nPurpose: Highlight novelty.\nContent: 3–5 concise bullets.\nGuidelines: Actionable and measurable.\nLength: 3–5 bullets.\nTips: Tie each to evidence.\nCommon mistakes: Duplicate points.\n\n14. Related Work\nPurpose: Position against prior studies.\nContent: Key papers, approaches, limitations.\nGuidelines: Comparative and critical.\nLength: 600–1000 words.\nTips: Include comparison table suggestion.\nCommon mistakes: Summaries without critique.\n\n15. Methodology / Proposed Model\nPurpose: Full technical description.\nContent: Architecture, math formulation, algorithm.\nGuidelines: Reproducible detail.\nLength: 800–1200 words.\nTips: Provide workflow diagram explanation.\nCommon mistakes: Skipping implementation details.\n\n16. Dataset & Experimental Setup\nPurpose: Explain data and experiment configuration.\nContent: Datasets, splits, preprocessing, metrics.\nGuidelines: Reproducible settings.\nLength: 400–800 words.\nTips: Justify metric selection.\nCommon mistakes: Missing baselines.\n\n17. Results & Discussion\nPurpose: Interpret results and compare baselines.\nContent: Tables, graphs, and analysis.\nGuidelines: Evidence-based discussion.\nLength: 600–900 words.\nTips: Explain trends and limitations.\nCommon mistakes: Only reporting numbers.\n\n18. Conclusion\nPurpose: Summarize and close.\nContent: Findings, contributions, limitations, future work.\nGuidelines: Concise and forward-looking.\nLength: 200–400 words.\nTips: Avoid introducing new results.\nCommon mistakes: Overstating claims.\n\n19. References (IEEE default)\nPurpose: Cite prior work.\nContent: All referenced sources.\nGuidelines: IEEE style unless specified.\nLength: As needed.\nTips: Ensure consistency.\nCommon mistakes: Missing citations.\n\nConference notes: Concise (6–8 pages), focus on novelty and experiments, limited literature depth.",
+      "effective_query": null
+    },
+    {
+      "role": "assistant",
+      "type": "text",
+      "display_text": "How do you want to proceed?\n(A) Write section-by-section\n(B) Generate full paper at once\n(C) Provide additional details first (dataset, method, domain)",
+      "content": "How do you want to proceed?\n(A) Write section-by-section\n(B) Generate full paper at once\n(C) Provide additional details first (dataset, method, domain)",
+      "effective_query": null
+    },
+    {
+      "role": "user",
+      "type": null,
+      "display_text": "A",
+      "content": "A",
+      "effective_query": "A"
+    },
+    {
+      "role": "assistant",
+      "type": "text",
+      "display_text": "Which section should we write first? (e.g., Abstract, Introduction, Methodology)",
+      "content": "Which section should we write first? (e.g., Abstract, Introduction, Methodology)",
+      "effective_query": null
+    },
+    {
+      "role": "user",
+      "type": null,
+      "display_text": "Abstract",
+      "content": "Abstract",
+      "effective_query": "Abstract"
+    },
+    {
+      "role": "assistant",
+      "type": "text",
+      "display_text": "Section noted: Abstract. Please share any specific points, datasets, or constraints for this section.",
+      "content": "Section noted: Abstract. Please share any specific points, datasets, or constraints for this section.",
+      "effective_query": null
+    },
+    {
+      "role": "assistant",
+      "type": "text",
+      "display_text": "Once you provide details, I will draft the section in formal academic tone and ask whether to refine or proceed.",
+      "content": "Once you provide details, I will draft the section in formal academic tone and ask whether to refine or proceed.",
+      "effective_query": null
+    },
+    {
+      "role": "user",
+      "type": null,
+      "display_text": "no",
+      "content": "no",
+      "effective_query": "no"
+    },
+    {
+      "role": "assistant",
+      "type": "text",
+      "display_text": "**Draft for: Abstract**\n\nThis is a placeholder draft. Please provide more specific details for a comprehensive section.\n\nBased on your input: 'no', here is a general structure:\n- **Point 1**: Elaborate on the first key aspect of your section.\n- **Point 2**: Discuss the second key aspect, connecting it to the first.\n- **Point 3**: Provide supporting evidence, examples, or citations [Author, Year].\n\nTo generate a better draft, please provide more details about the dataset, methodology, or specific results you want to include.",
+      "content": "**Draft for: Abstract**\n\nThis is a placeholder draft. Please provide more specific details for a comprehensive section.\n\nBased on your input: 'no', here is a general structure:\n- **Point 1**: Elaborate on the first key aspect of your section.\n- **Point 2**: Discuss the second key aspect, connecting it to the first.\n- **Point 3**: Provide supporting evidence, examples, or citations [Author, Year].\n\nTo generate a better draft, please provide more details about the dataset, methodology, or specific results you want to include.",
+      "effective_query": null
+    },
+    {
+      "role": "assistant",
+      "type": "text",
+      "display_text": "Does any information need to be updated? (Yes/No)",
+      "content": "Does any information need to be updated? (Yes/No)",
+      "effective_query": null
+    },
+    {
+      "role": "user",
+      "type": null,
+      "display_text": "no",
+      "content": "no",
+      "effective_query": "no"
+    },
+    {
+      "role": "assistant",
+      "type": "text",
+      "display_text": "Which section should we write next? (e.g., Abstract, Methodology, Results)",
+      "content": "Which section should we write next? (e.g., Abstract, Methodology, Results)",
+      "effective_query": null
+    }
+  ]
+}

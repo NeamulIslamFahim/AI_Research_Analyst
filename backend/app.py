@@ -584,120 +584,54 @@ def writer_step(payload: WriterStepRequest) -> WriterStepResponse:
 
     if phase == "await_section_details":
         section = state.get("section", "Section")
-        details = text or "No additional details provided."
-        lower_section = section.strip().lower()
+        details = text or ""
+        draft = ""
 
-        def _claude_style_intro() -> str:
-            return (
-                "This section establishes the research context, articulates the gap, and "
-                "motivates the proposed approach in a concise, evidence-driven manner."
-            )
+        # If user provides little info, perform research to draft the section.
+        if len(details.split()) < 10:
+            backend_main = _backend_main()
+            topic = state.get("title", "research topic")
+            research_result = backend_main.run_research_explorer(topic=topic, use_live=True)
+            
+            research_context = []
+            if isinstance(research_result, dict) and research_result.get("table"):
+                for paper in research_result["table"]:
+                    research_context.append(
+                        f"Paper: {paper.get('paper_name', 'N/A')}\n"
+                        f"Authors: {paper.get('authors_name', 'N/A')}\n"
+                        f"Summary: {paper.get('summary_full_paper', 'N/A')}\n"
+                        f"Approach: {paper.get('proposed_model_or_approach', 'N/A')}\n"
+                    )
+            
+            if research_context:
+                from .chains import paper_section_writer_chain
+                
+                chain_input = {
+                    "title": topic,
+                    "section_name": section,
+                    "venue_mode": state.get("mode", "Conference"),
+                    "user_details": details,
+                    "research_context": "\n\n".join(research_context),
+                }
+                
+                raw_draft = backend_main._invoke_with_fallback(paper_section_writer_chain, chain_input)
+                if hasattr(raw_draft, 'content'):
+                    draft = raw_draft.content
+                else:
+                    draft = str(raw_draft)
 
-        def _draft_introduction() -> str:
-            return (
-                f"{section}\n"
-                f"{'-' * len(section)}\n"
-                f"{_claude_style_intro()}\n\n"
-                "Paragraph 1 (Context): Provide a brief overview of the problem domain and "
-                "why it matters in practice and research. Anchor claims with citations "
-                "[Author, Year – Placeholder].\n\n"
-                "Paragraph 2 (Gap): Summarize prior approaches and their limitations. "
-                "Explicitly state the unresolved gap that motivates this work "
-                "[Author, Year – Placeholder].\n\n"
-                "Paragraph 3 (Approach): Present the proposed solution at a high level, "
-                "highlighting novelty and expected impact. Include a compact contribution list.\n\n"
-                f"Specific details provided: {details}\n\n"
-                "Contributions (bullet points):\n"
-                "- Contribution 1 (clearly measurable and novel).\n"
-                "- Contribution 2 (methodological or empirical).\n"
-                "- Contribution 3 (dataset, benchmark, or analysis).\n"
-            )
-
-        def _draft_abstract() -> str:
-            return (
-                f"{section}\n"
-                f"{'-' * len(section)}\n"
-                "Background: One sentence about the problem context.\n"
-                "Problem: One sentence stating the research gap.\n"
-                "Method: One sentence describing the proposed approach.\n"
-                "Results: One sentence with key quantitative outcomes.\n"
-                "Contributions: One sentence summarizing the main contributions.\n\n"
-                f"Specific details provided: {details}\n\n"
-                "Note: Replace placeholders with concrete numbers and citations where appropriate."
-            )
-
-        def _draft_methodology() -> str:
-            return (
-                f"{section}\n"
-                f"{'-' * len(section)}\n"
-                "Overview: Summarize the proposed method and its intuition.\n\n"
-                "System Architecture: Describe components and their interactions. "
-                "Include a workflow description and data flow narrative.\n\n"
-                "Mathematical Formulation: Define key variables, objective functions, "
-                "and constraints. Use equations where needed.\n\n"
-                "Algorithm: Provide step-by-step pseudocode and note computational complexity.\n\n"
-                f"Specific details provided: {details}\n\n"
-                "Note: Add citations for baseline methods and theoretical foundations "
-                "[Author, Year – Placeholder]."
-            )
-
-        def _draft_results() -> str:
-            return (
-                f"{section}\n"
-                f"{'-' * len(section)}\n"
-                "Experimental Setup Summary: Briefly mention datasets, splits, and metrics.\n\n"
-                "Main Results: Present a table of results with baselines and highlight "
-                "statistically significant improvements.\n\n"
-                "Ablation/Analysis: Discuss which components contribute most.\n\n"
-                "Discussion: Interpret trends and connect back to the research question.\n\n"
-                f"Specific details provided: {details}\n\n"
-                "Note: Include comparison tables and figure references."
-            )
-
-        def _draft_related_work() -> str:
-            return (
-                f"{section}\n"
-                f"{'-' * len(section)}\n"
-                "Theme 1: Summarize key approaches and their limitations "
-                "[Author, Year – Placeholder].\n\n"
-                "Theme 2: Compare methods with respect to data, scalability, and evaluation.\n\n"
-                "Research Gap: Conclude with the specific gap your work addresses.\n\n"
-                f"Specific details provided: {details}\n\n"
-                "Suggestion: Include a comparison table (method, dataset, metric, limitations)."
-            )
-
-        def _draft_conclusion() -> str:
-            return (
-                f"{section}\n"
-                f"{'-' * len(section)}\n"
-                "Summary: Restate the problem and key findings in 2–3 sentences.\n\n"
-                "Contributions: Briefly reiterate the main contributions.\n\n"
-                "Limitations: Acknowledge constraints candidly.\n\n"
-                "Future Work: Provide 2–3 concrete next steps.\n\n"
-                f"Specific details provided: {details}"
-            )
-
-        if "abstract" in lower_section:
-            draft = _draft_abstract()
-        elif "introduction" in lower_section:
-            draft = _draft_introduction()
-        elif "method" in lower_section or "methodology" in lower_section:
-            draft = _draft_methodology()
-        elif "result" in lower_section or "discussion" in lower_section:
-            draft = _draft_results()
-        elif "related work" in lower_section:
-            draft = _draft_related_work()
-        elif "conclusion" in lower_section:
-            draft = _draft_conclusion()
-        else:
+        # Fallback to template if research fails or if user provided enough detail
+        if not draft:
             draft = (
-                f"{section}\n"
-                f"{'-' * len(section)}\n"
-                "Write a concise, formal academic section with clear structure, "
-                "logical flow, and evidence-based statements. Use placeholder citations "
-                "where sources are not yet specified.\n\n"
-                f"Specific details provided: {details}"
-            )
+                    f"**Draft for: {section}**\n\n"
+                    "This is a placeholder draft. Please provide more specific details for a comprehensive section.\n\n"
+                    f"Based on your input: '{details}', here is a general structure:\n"
+                    "- **Point 1**: Elaborate on the first key aspect of your section.\n"
+                    "- **Point 2**: Discuss the second key aspect, connecting it to the first.\n"
+                    "- **Point 3**: Provide supporting evidence, examples, or citations [Author, Year].\n\n"
+                    "To generate a better draft, please provide more details about the dataset, methodology, or specific results you want to include."
+                )
+
         next_state = {**state, "phase": "await_refine_choice", "last_draft": draft}
         return WriterStepResponse(
             next_state=next_state,
