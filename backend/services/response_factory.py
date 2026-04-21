@@ -226,13 +226,30 @@ class ResearchResponseComposer:
             gaps.append(collapse_text(gap, 360))
         return gaps
 
-    def _idea(self, gaps: list[str]) -> str:
-        """Generate a research idea from a list of gaps."""
+    def _idea(self, gaps: list[str]) -> str: # type: ignore
+        """Synthesize a natural-sounding research idea from the identified gaps."""
         theme = self._topic_theme()
         if not gaps:
-            return f"Build a stronger benchmark for {theme} that tests robustness, transfer, and interpretability."
-        gap_summary = " ".join(dict.fromkeys(self._gap_focus(g) for g in gaps[:3]))
-        return collapse_text(f"A promising research direction is to develop a more robust {theme} pipeline that directly addresses the recurring weaknesses identified, such as {gap_summary}.", 700)
+            return (
+                f"A promising research direction is to build a more rigorous and transparent evaluation framework for {theme}. "
+                "This would involve creating a shared benchmark that tests for robustness, fairness, and real-world applicability, ensuring that new methods are compared on a level playing field."
+            )
+        
+        gap_focuses = list(dict.fromkeys(self._gap_focus(g) for g in gaps if self._gap_focus(g)))
+        
+        # Analyze gap themes
+        evaluation_gaps = [g for g in gap_focuses if "evaluat" in g or "benchmark" in g or "baseline" in g or "metric" in g]
+        data_gaps = [g for g in gap_focuses if "data" in g or "sample" in g or "population" in g]
+        robustness_gaps = [g for g in gap_focuses if "robust" in g or "safety" in g or "real-world" in g or "real workflow" in g]
+
+        if evaluation_gaps and data_gaps:
+            proposal = f"develop a new evaluation protocol for {theme} using more diverse datasets and stronger, standardized baselines"
+        elif robustness_gaps:
+            proposal = f"design a novel {theme} method with a built-in robustness framework, tested under real-world conditions to validate its safety and reliability"
+        else:
+            proposal = f"create a unified {theme} pipeline that synthesizes the strengths of the selected papers while directly addressing their shared limitations in evaluation and data diversity"
+
+        return collapse_text(f"A valuable next step would be to {proposal}. This approach would not only push the state-of-the-art forward but also provide a more reliable framework for future research.", 900)
 
     def _implementation_steps(self, gaps: list[str], rows: list[dict], idea: str) -> list[str]:
         """Generate implementation steps for a research idea."""
@@ -243,28 +260,24 @@ class ResearchResponseComposer:
         gap_focus = list(dict.fromkeys(self._gap_focus(g) for g in gaps[:3] if self._gap_focus(g)))
 
         steps: list[str] = []
-        if len(titles) >= 2:
-            steps.append(f"Use {primary_title} and {secondary_title} as the baseline comparison set.")
-        elif titles:
-            steps.append(f"Use {primary_title} as the main comparison anchor.")
-        else:
-            steps.append(f"Use the selected papers as the baseline comparison set for {self._topic_theme()}.")
+        steps.append(f"Begin by implementing the core methods from '{primary_title}' and '{secondary_title}' to establish a strong, reproducible baseline.")
+
         if gap_focus:
-            steps.append(f"Target the main weakness: {gap_focus[0]}.")
+            steps.append(f"Design the novel approach to directly solve the most critical shared weakness: {gap_focus[0]}. This is the core of the new contribution.")
         else:
-            steps.append("Target the main weakness shared across the selected papers.")
+            steps.append("Develop a new component for the baseline model that specifically targets the primary limitation identified in the generated research idea.")
 
         if len(gap_focus) > 1:
-            steps.append(f"Design the first experiment to check whether the method still works when {gap_focus[1]}.")
+            steps.append(f"Create a new benchmark dataset or evaluation protocol that explicitly tests for the secondary weakness identified: {gap_focus[1]}.")
         else:
-            steps.append("Design the first experiment to test the method on a harder or more diverse dataset.")
+            steps.append("Construct a challenging evaluation suite with diverse, real-world data to test the new approach's generalizability and robustness beyond standard benchmarks.")
 
-        steps.append("Add strong baselines from the same problem area and compare them under one shared evaluation setup.")
-        steps.append("Run an ablation or sensitivity study so the contribution of each component is clear.")
-        steps.append("Finish with an error analysis that explains where the approach fails and what the next refinement should be.")
+        steps.append("Compare the new model against the original baselines and at least two other state-of-the-art methods from the literature under the new, unified evaluation framework.")
+        steps.append("Conduct a thorough ablation study to prove that the novel components of your model are responsible for the performance gains, not just confounding factors.")
+        steps.append("Conclude with a detailed error analysis to identify the specific failure modes of the new approach, providing a clear and honest roadmap for future research.")
 
         # Keep the steps concise and aligned with the generated idea instead of returning a fixed template.
-        cleaned_steps = [collapse_text(step, 220) for step in steps if step]
+        cleaned_steps = [collapse_text(step, 360) for step in steps if step]
         return cleaned_steps[:6]
 
     def _metadata_limited(self, row: dict) -> bool:
@@ -563,60 +576,6 @@ class ResearchResponseComposer:
         final_approach = " ".join(cleaned[:5])
         final_approach = final_approach.replace(" .", ".").replace("  ", " ")
         return collapse_text(final_approach, 1400 if fulltext else 1100)
-
-    def _gaps(self, rows: list[dict]) -> list[str]: # type: ignore
-        """Generate a list of research gaps from the selected papers."""
-        gaps: list[str] = []
-        for row in rows[:5]:
-            title = clean_text(row.get("title", "")) or "Paper"
-            if self._metadata_limited(row):
-                gap = (
-                    f"The paper '{title}' provides limited metadata, making it difficult to pinpoint a specific gap. "
-                    "A deeper analysis of the full text is needed to form a confident recommendation."
-                )
-            else:
-                gap = f"The work in '{title}' could be extended by addressing that {self._domain_gap(row)}."
-            gaps.append(collapse_text(gap, 500))
-        return gaps
-
-    def _idea(self, gaps: list[str]) -> str: # type: ignore
-        """Synthesize a natural-sounding research idea from the identified gaps."""
-        theme = self._topic_theme()
-        if not gaps:
-            return (
-                f"A promising research direction is to build a more rigorous and transparent evaluation framework for {theme}. "
-                "This would involve creating a shared benchmark that tests for robustness, fairness, and real-world applicability, ensuring that new methods are compared on a level playing field."
-            )
-        return collapse_text(
-            f"A valuable next step would be to develop a unified {theme} pipeline that addresses the common weaknesses found in the literature. "
-            "Such a study should focus on creating a standardized evaluation protocol with stronger baselines and more diverse datasets, ensuring that conclusions are both reliable and generalizable.",
-            900,
-        )
-
-    def _implementation_steps(self, gaps: list[str], rows: list[dict], idea: str) -> list[str]: # type: ignore
-        """Generate actionable implementation steps for the research idea."""
-        titles = [self._paper_label(row.get("paper_name", "")) for row in rows if clean_text(row.get("paper_name", ""))]
-        primary_title = titles[0] if titles else self._topic_theme().title()
-        secondary_title = titles[1] if len(titles) > 1 else primary_title
-        gap_focus = list(dict.fromkeys(self._gap_focus(g) for g in gaps[:3] if self._gap_focus(g)))
-
-        steps: list[str] = []
-        steps.append(f"Begin by establishing a strong baseline, using the methods from '{primary_title}' and '{secondary_title}' as initial comparison points.")
-
-        if gap_focus:
-            steps.append(f"Focus the initial experiments on addressing the most critical shared weakness: {gap_focus[0]}.")
-        else:
-            steps.append("Define a primary research question that targets the most significant weakness shared across the selected papers, ensuring it is measurable.")
-
-        if len(gap_focus) > 1:
-            steps.append(f"Design a follow-up experiment to test the system's robustness, specifically by evaluating if the approach holds up when you {gap_focus[1]}.")
-        else:
-            steps.append("Expand the evaluation to include a more diverse and challenging dataset to ensure the findings are generalizable beyond a narrow academic setting.")
-
-        steps.append("Incorporate several strong, alternative baselines from the same problem domain to ensure the comparison is fair and comprehensive under a unified evaluation framework.")
-        steps.append("Conduct an ablation study to isolate the impact of each component in your proposed model, clarifying what parts are truly responsible for any performance gains.")
-        steps.append("Conclude with a detailed error analysis to identify where the new approach fails, which will provide clear directions for future refinements and follow-up studies.")
-        return [collapse_text(step, 360) for step in steps[:6]]
 
     def build(
         self,
