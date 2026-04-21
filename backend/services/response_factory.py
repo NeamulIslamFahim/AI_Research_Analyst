@@ -669,22 +669,37 @@ class ResearchResponseComposer:
         }
 
     def build_insufficient(self) -> dict[str, Any]:
-        return {
-            "table": [],
-            "research_gaps": [],
-            "assistant_reply": (
+        broad_topic = not self.policy.is_specific()
+        assistant_reply = (
+            f"'{self.topic}' is too broad to turn into a trustworthy paper comparison yet. "
+            "Add one concrete subdomain, task, dataset, or application area so retrieval can stay focused."
+            if broad_topic
+            else (
                 f"I couldn't find five closely relevant papers for '{self.topic}'. "
                 "Try a narrower topic or add one concrete domain term so the retrieval can stay focused."
-            ),
-            "generated_idea": (
-                "A better next move is to narrow the topic, retrieve a tighter paper set, and derive the research gaps from those papers before proposing a new idea."
-            ),
-            "generated_idea_steps": [
+            )
+        )
+        guidance_steps = (
+            [
+                f"Replace {self._topic_theme()} with a narrower prompt such as 'AI for healthcare', 'AI in education', or 'AI for phishing detection'.",
+                "Retrieve the top five close-match papers first.",
+                "Ignore broad fallback results that only mention the field in passing.",
+                "Generate research gaps and a new idea only after the paper set is clearly on-topic.",
+            ]
+            if broad_topic
+            else [
                 f"Add one concrete keyword that narrows the topic to {self._topic_theme()}.",
                 "Retrieve the top five close-match papers first.",
                 "Filter out broad fallback results that do not match the topic.",
                 "Generate the idea only after the paper set is clearly on-topic and comparable.",
-            ],
+            ]
+        )
+        return {
+            "table": [],
+            "research_gaps": [],
+            "assistant_reply": assistant_reply,
+            "generated_idea": "",
+            "generated_idea_steps": guidance_steps,
             "generated_idea_citations": [],
         }
 

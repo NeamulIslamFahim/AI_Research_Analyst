@@ -18,9 +18,9 @@ def validate_research_result(result: Dict[str, Any]) -> Dict[str, Any]:
         result["research_gaps"] = []
     if not result.get("assistant_reply"):
         result["assistant_reply"] = "Research summary prepared."
-    if not result.get("generated_idea"):
+    if "generated_idea" not in result:
         result["generated_idea"] = "Not provided."
-    if not result.get("generated_idea_steps"):
+    if "generated_idea_steps" not in result:
         result["generated_idea_steps"] = []
     return result
 

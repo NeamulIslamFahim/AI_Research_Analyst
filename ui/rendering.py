@@ -47,8 +47,8 @@ def render_research_result(result: dict[str, Any]) -> None:
         st.markdown("#### Research Gaps")
         BulletListRenderer.render(gaps, max_chars=360)
 
-    idea = result.get("generated_idea")
-    if idea:
+    idea = str(result.get("generated_idea") or "").strip()
+    if idea and idea.lower() != "not provided.":
         IdeaCardRenderer.render(idea)
 
     steps = result.get("generated_idea_steps") or []
