@@ -240,16 +240,15 @@ def _follow_up_query_variants(topic: str, prior_titles: list[str] | None = None)
     if prior_titles:
         for title in (prior_titles or []):
             clean_title = " ".join(str(title or "").split())
-            if not clean_title:
-                continue
-            variants.extend(
-                [
-                    clean_title,
-                    f"{clean_title} recent papers",
-                    f"{clean_title} survey review",
-                    f"{clean_title} comparison benchmark",
-                ]
-            )
+            if clean_title:
+                variants.extend(
+                    [
+                        clean_title,
+                        f"{clean_title} recent papers",
+                        f"{clean_title} survey review",
+                        f"{clean_title} comparison benchmark",
+                    ]
+                )
 
 
     seen: set[str] = set()
