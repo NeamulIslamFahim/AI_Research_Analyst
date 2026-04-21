@@ -37,3 +37,5 @@ logs/
 *.csv # Ignore data formats
 
 node_modules/ # Node dependencies
+.env
+.streamlit/secrets.toml

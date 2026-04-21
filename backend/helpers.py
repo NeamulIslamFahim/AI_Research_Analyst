@@ -12,11 +12,45 @@ from typing import Any, Dict, List
 
 from dotenv import load_dotenv
 
+try:
+    import tomllib
+except ImportError:  # pragma: no cover
+    tomllib = None
+
 
 # Ensure we load the .env from the project root relative to this file's location
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ENV_PATH = os.path.join(BASE_DIR, ".env")
-load_dotenv(dotenv_path=ENV_PATH, override=True)
+SECRETS_PATH = os.path.join(BASE_DIR, ".streamlit", "secrets.toml")
+
+
+def _coerce_secret_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
+
+
+def _load_streamlit_secrets_file(path: str) -> None:
+    if not tomllib or not os.path.exists(path):
+        return
+    try:
+        with open(path, "rb") as handle:
+            payload = tomllib.load(handle)
+    except Exception:
+        return
+
+    for key, value in payload.items():
+        if isinstance(value, dict):
+            for nested_key, nested_value in value.items():
+                os.environ.setdefault(nested_key, _coerce_secret_value(nested_value))
+        else:
+            os.environ.setdefault(key, _coerce_secret_value(value))
+
+
+_load_streamlit_secrets_file(SECRETS_PATH)
+load_dotenv(dotenv_path=ENV_PATH, override=False)
 
 
 def _sanitize_json_like(text: str) -> str:
@@ -55,8 +89,19 @@ def load_env_var(name: str, default: str | None = None) -> str | None:
     Returns:
         The value if present, otherwise default.
     """
-    value = os.getenv(name, default)
-    return value
+    value = os.getenv(name)
+    if value is not None:
+        return value
+
+    try:
+        import streamlit as st
+
+        if name in st.secrets:
+            return _coerce_secret_value(st.secrets[name])
+    except Exception:
+        pass
+
+    return default
 
 
 def safe_json_loads(text: Any) -> Any:

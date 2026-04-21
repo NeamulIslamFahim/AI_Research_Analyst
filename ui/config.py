@@ -21,21 +21,23 @@ else:
 # Ensure we load the .env from the project root relative to this file's location
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ENV_PATH = os.path.join(BASE_DIR, ".env")
+SECRETS_PATH = os.path.join(BASE_DIR, ".streamlit", "secrets.toml")
+
+if tomllib and os.path.exists(SECRETS_PATH):
+    try:
+        with open(SECRETS_PATH, "rb") as f:
+            config = tomllib.load(f)
+            for key, value in config.items():
+                if isinstance(value, dict):
+                    for nested_key, nested_value in value.items():
+                        os.environ.setdefault(nested_key, str(nested_value))
+                else:
+                    os.environ.setdefault(key, str(value))
+    except (tomllib.TOMLDecodeError, TypeError):
+        pass
 
 if os.path.exists(ENV_PATH):
-    try:
-        # First, try to load as a TOML file, which is what Streamlit secrets use.
-        if tomllib:
-            with open(ENV_PATH, "rb") as f:
-                config = tomllib.load(f)
-                for section in config.values():
-                    if isinstance(section, dict):
-                        for key, value in section.items():
-                            if isinstance(value, str):
-                                os.environ[key] = value
-    except (tomllib.TOMLDecodeError, TypeError):
-        # If it's not a valid TOML file, fall back to the standard .env format.
-        load_dotenv(dotenv_path=ENV_PATH, override=True)
+    load_dotenv(dotenv_path=ENV_PATH, override=False)
 
 ASSISTANT_ONLY = (os.getenv("ASSISTANT_ONLY", "false") or "false").lower() == "true"
 MODES = ["Research Explorer"] if ASSISTANT_ONLY else [
