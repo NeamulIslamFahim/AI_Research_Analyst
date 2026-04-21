@@ -179,7 +179,7 @@ def research_explore(payload: ResearchExplorerRequest) -> Dict[str, Any]:
         use_live=effective_use_live,
         force_refresh=force_refresh,
         previously_returned_titles=payload.previously_returned_titles,
-        previously_returned_papers=payload.previously_returned_papers,
+        previously_returned_papers=payload.previously_returned_papers or [],
     )
     if isinstance(result, dict) and result.get("error"):
         return fallback_error_result(resolved_topic, str(result.get("error", "")))

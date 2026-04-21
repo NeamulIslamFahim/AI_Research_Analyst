@@ -18,7 +18,7 @@
       "topic": "ai in data analysi"
     }
   ],
-  "updated_at": "2026-04-21T14:39:39.194455Z",
+  "updated_at": "2026-04-21T14:46:45.944490Z",
   "messages": [
     {
       "role": "user",
@@ -73,9 +73,21 @@
     },
     {
       "role": "assistant",
-      "type": "loading",
-      "display_text": "Research assistant is analyzing your request...",
-      "content": "Loading...",
+      "type": "research",
+      "display_text": "Here are additional papers on ai in data analysi. I couldn't find additional new papers for 'ai in data analysi' in the current VectorDB without repeating papers you've already seen. Try asking for a narrower extension, or index more papers for this topic first.",
+      "content": {
+        "table": [],
+        "research_gaps": [],
+        "assistant_reply": "I couldn't find additional new papers for 'ai in data analysi' in the current VectorDB without repeating papers you've already seen. Try asking for a narrower extension, or index more papers for this topic first.",
+        "generated_idea": "",
+        "generated_idea_steps": [
+          "Add one concrete keyword that narrows the topic to data analysis.",
+          "Retrieve the top five close-match papers first.",
+          "Filter out broad fallback results that do not match the topic.",
+          "Generate the idea only after the paper set is clearly on-topic and comparable."
+        ],
+        "generated_idea_citations": []
+      },
       "effective_query": null
     }
   ]
