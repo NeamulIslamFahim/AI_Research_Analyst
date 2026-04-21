@@ -32,7 +32,7 @@
       "topic": "ai"
     }
   ],
-  "updated_at": "2026-04-21T14:30:12.947085Z",
+  "updated_at": "2026-04-21T14:39:39.197488Z",
   "messages": [
     {
       "role": "user",
@@ -113,9 +113,47 @@
     },
     {
       "role": "assistant",
-      "type": "loading",
-      "display_text": "Research assistant is analyzing your request...",
-      "content": "Loading...",
+      "type": "research",
+      "display_text": "Here are additional papers on ai. I couldn't find additional new papers for 'ai' in the current VectorDB without repeating papers you've already seen. Try asking for a narrower extension, or index more papers for this topic first.",
+      "content": {
+        "table": [],
+        "research_gaps": [],
+        "assistant_reply": "I couldn't find additional new papers for 'ai' in the current VectorDB without repeating papers you've already seen. Try asking for a narrower extension, or index more papers for this topic first.",
+        "generated_idea": "",
+        "generated_idea_steps": [
+          "Replace ai with a narrower prompt such as 'AI for healthcare', 'AI in education', or 'AI for phishing detection'.",
+          "Retrieve the top five close-match papers first.",
+          "Ignore broad fallback results that only mention the field in passing.",
+          "Generate research gaps and a new idea only after the paper set is clearly on-topic."
+        ],
+        "generated_idea_citations": []
+      },
+      "effective_query": null
+    },
+    {
+      "role": "user",
+      "type": null,
+      "display_text": "more",
+      "content": "more",
+      "effective_query": "more"
+    },
+    {
+      "role": "assistant",
+      "type": "research",
+      "display_text": "Here are additional papers on ai. I couldn't find additional new papers for 'ai' in the current VectorDB without repeating papers you've already seen. Try asking for a narrower extension, or index more papers for this topic first.",
+      "content": {
+        "table": [],
+        "research_gaps": [],
+        "assistant_reply": "I couldn't find additional new papers for 'ai' in the current VectorDB without repeating papers you've already seen. Try asking for a narrower extension, or index more papers for this topic first.",
+        "generated_idea": "",
+        "generated_idea_steps": [
+          "Replace ai with a narrower prompt such as 'AI for healthcare', 'AI in education', or 'AI for phishing detection'.",
+          "Retrieve the top five close-match papers first.",
+          "Ignore broad fallback results that only mention the field in passing.",
+          "Generate research gaps and a new idea only after the paper set is clearly on-topic."
+        ],
+        "generated_idea_citations": []
+      },
       "effective_query": null
     }
   ]
