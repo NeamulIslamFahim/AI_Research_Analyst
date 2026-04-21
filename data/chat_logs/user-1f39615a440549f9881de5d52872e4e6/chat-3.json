@@ -1,0 +1,370 @@
+{
+  "id": "chat-3",
+  "title": "ai in education",
+  "mode": "Research Explorer",
+  "paper_text": "",
+  "last_uploaded_pdf_signature": "",
+  "writer_state": {
+    "phase": "start"
+  },
+  "writer_intro_shown": false,
+  "research_last_topic": "ai in education",
+  "research_seen_papers": [
+    {
+      "title": "Integrating AI in Healthcare Management Education",
+      "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC12763009/pdf",
+      "pdf_url": "",
+      "source": "europe_pmc",
+      "topic": "ai in education"
+    },
+    {
+      "title": "Applications of Artificial Intelligence (AI) in Medical Education: A Scoping Review",
+      "url": "https://doi.org/10.3233/shti230581",
+      "pdf_url": "",
+      "source": "openalex",
+      "topic": "ai in education"
+    },
+    {
+      "title": "Using AI in healthcare education: a rapid review and commentary",
+      "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC13006665/pdf",
+      "pdf_url": "",
+      "source": "europe_pmc",
+      "topic": "ai in education"
+    },
+    {
+      "title": "From Algorithms to Tutors: Tracing the Evolution of Generative AI in Education",
+      "url": "https://doi.org/10.21203/rs.3.rs-8316595/v1",
+      "pdf_url": "",
+      "source": "europe_pmc",
+      "topic": "ai in education"
+    },
+    {
+      "title": "Teacher charisma and AI-mediated education: Effects on EFL learners' attitudes and self-efficacy.",
+      "url": "https://doi.org/10.1016/j.actpsy.2026.106244",
+      "pdf_url": "",
+      "source": "europe_pmc",
+      "topic": "ai in education"
+    },
+    {
+      "title": "Need of AI in Modern Education: in the Eyes of Explainable AI (xAI)",
+      "url": "http://arxiv.org/abs/2408.00025v3",
+      "pdf_url": "",
+      "source": "arxiv",
+      "topic": "ai in education"
+    },
+    {
+      "title": "Exploring utilization of generative AI for research and education in data-driven materials science",
+      "url": "http://arxiv.org/abs/2504.08817v2",
+      "pdf_url": "",
+      "source": "arxiv",
+      "topic": "ai in education"
+    },
+    {
+      "title": "Student-Created Screencasts: A Constructivist Response to the Challenges of Generative AI in Education",
+      "url": "https://doi.org/10.20944/preprints202511.0309.v1",
+      "pdf_url": "",
+      "source": "europe_pmc",
+      "topic": "ai in education"
+    },
+    {
+      "title": "Explainable AI in education: integrating educational domain knowledge into the deep learning model for improved student performance prediction.",
+      "url": "https://doi.org/10.1038/s41598-026-40538-y",
+      "pdf_url": "",
+      "source": "europe_pmc",
+      "topic": "ai in education"
+    },
+    {
+      "title": "AI for education: Trends and insights.",
+      "url": "https://doi.org/10.1016/j.xinn.2025.100872",
+      "pdf_url": "",
+      "source": "europe_pmc",
+      "topic": "ai in education"
+    },
+    {
+      "title": "Transforming Learning or Empty Promise? A Meta-Analysis of Generative AI in Education",
+      "url": "https://doi.org/10.21203/rs.3.rs-7577394/v1",
+      "pdf_url": "",
+      "source": "europe_pmc",
+      "topic": "ai in education"
+    },
+    {
+      "title": "A comprehensive AI policy education framework for university teaching and learning",
+      "url": "https://doi.org/10.1186/s41239-023-00408-3",
+      "pdf_url": "",
+      "source": "openalex",
+      "topic": "ai in education"
+    },
+    {
+      "title": "Unlocking the Power of ChatGPT: A Framework for Applying Generative AI in Education",
+      "url": "https://doi.org/10.1177/20965311231168423",
+      "pdf_url": "",
+      "source": "openalex",
+      "topic": "ai in education"
+    }
+  ],
+  "updated_at": "2026-04-21T15:57:46.711812Z",
+  "messages": [
+    {
+      "role": "user",
+      "type": null,
+      "display_text": "ai in education",
+      "content": "ai in education",
+      "effective_query": "ai in education"
+    },
+    {
+      "role": "assistant",
+      "type": "research",
+      "display_text": "I found 3 papers on ai in education. The common thread across them is ai in education. The papers point to recurring weaknesses around evaluation depth, the quality of baseline comparisons, and the confidence with which results can be interpreted. A sensible next step is to focus only on the most relevant papers, compare them within a shared evaluation framework, and avoid making strong claims based on thin metadata.",
+      "content": {
+        "table": [
+          {
+            "paper_name": "Integrating AI in Healthcare Management Education",
+            "paper_url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC12763009/pdf",
+            "authors_name": "",
+            "summary_full_paper": "The paper looks at Integrating AI in Healthcare Management Education addressing the core challenge described in the paper. The paper frames its method as a meaningful contribution, though the visible text lacks precise quantitative results. Overall, the paper provides a grounded account of the problem, method, and reported outcomes.",
+            "problem_solved": "The paper focuses on Integrating AI in Healthcare Management Education.",
+            "proposed_model_or_approach": "The paper's core contribution is a method based on. Taken together, the methodology connects the modeling choice, data, and evaluation into a coherent workflow. The available text does not clearly name a more specific model family beyond the general methodology described in the paper.",
+            "source": "europe_pmc",
+            "score_relevance": 10,
+            "score_quality": 8
+          },
+          {
+            "paper_name": "Applications of Artificial Intelligence (AI) in Medical Education: A Scoping Review",
+            "paper_url": "https://doi.org/10.3233/shti230581",
+            "authors_name": "Fatima Nagi, Rayyan Mahmood Salih, Mahmood Alzubaidi, Hurmat Ali Shah, Tanvir Alam, Zubair Shah",
+            "summary_full_paper": "The paper looks at Applications of Artificial Intelligence (AI) in Medical Education addressing the core challenge described in the paper. The paper frames its method as a meaningful contribution, though the visible text lacks precise quantitative results. Overall, the paper provides a grounded account of the problem, method, and reported outcomes.",
+            "problem_solved": "The paper focuses on Applications of Artificial Intelligence (AI) in Medical Education: A Scoping Review.",
+            "proposed_model_or_approach": "The paper's core contribution is a method based on. The paper does not revolve around a named benchmark dataset and instead reads as a conceptual or review-oriented study. Its contribution is framed more as synthesis and design guidance than as a benchmark-style comparison on one fixed dataset. Taken together, the methodology should be interpreted as a conceptual synthesis rather than a single deployable model.",
+            "source": "openalex",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "Using AI in healthcare education: a rapid review and commentary",
+            "paper_url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC13006665/pdf",
+            "authors_name": "Hamed R, Van D.",
+            "summary_full_paper": "The paper looks at Using AI in healthcare education addressing the core challenge described in the paper. The paper frames its method as a meaningful contribution, though the visible text lacks precise quantitative results. Overall, the paper provides a grounded account of the problem, method, and reported outcomes.",
+            "problem_solved": "The paper focuses on Using AI in healthcare education: a rapid review and commentary.",
+            "proposed_model_or_approach": "The paper's core contribution is a method based on. Taken together, the methodology connects the modeling choice, data, and evaluation into a coherent workflow. The available text does not clearly name a more specific model family beyond the general methodology described in the paper.",
+            "source": "europe_pmc",
+            "score_relevance": 10,
+            "score_quality": 10
+          }
+        ],
+        "research_gaps": [
+          "The paper 'Integrating AI in Healthcare Management Education' provides limited metadata, making it difficult to pinpoint a specific gap. A deeper analysis of the full text is needed to form a confident recommendation.",
+          "The paper 'Applications of Artificial Intelligence (AI) in Medical Education: A Scoping Review' provides limited metadata, making it difficult to pinpoint a specific gap. A deeper analysis of the full text is needed to form a confident recommendation.",
+          "The paper 'Using AI in healthcare education: a rapid review and commentary' provides limited metadata, making it difficult to pinpoint a specific gap. A deeper analysis of the full text is needed to form a confident recommendation."
+        ],
+        "assistant_reply": "I found 3 papers on ai in education. The common thread across them is ai in education. The papers point to recurring weaknesses around evaluation depth, the quality of baseline comparisons, and the confidence with which results can be interpreted. A sensible next step is to focus only on the most relevant papers, compare them within a shared evaluation framework, and avoid making strong claims based on thin metadata.",
+        "generated_idea": "A valuable next step would be to develop a unified ai in education pipeline that addresses the common weaknesses found in the literature. Such a study should focus on creating a standardized evaluation protocol with stronger baselines and more diverse datasets, ensuring that conclusions are both reliable and generalizable.",
+        "generated_idea_steps": [
+          "Begin by establishing a strong baseline, using the methods from 'Integrating AI in Healthcare Management Education' and 'Applications of Artificial Intelligence (AI) in Medical Education: A Scoping Review' as initial comparison points.",
+          "Focus the initial experiments on addressing the most critical shared weakness: The paper 'Integrating AI in Healthcare Management Education' provides limited metadata, making it difficult to pinpoint a specific gap. A deeper analysis of the full text is needed to form a confident recommendation.",
+          "Design a follow-up experiment to test the system's robustness, specifically by evaluating if the approach holds up when you A Scoping Review' provides limited metadata, making it difficult to pinpoint a specific gap. A deeper analysis of the full text is needed to form a confident recommendation.",
+          "Incorporate several strong, alternative baselines from the same problem domain to ensure the comparison is fair and comprehensive under a unified evaluation framework.",
+          "Conduct an ablation study to isolate the impact of each component in your proposed model, clarifying what parts are truly responsible for any performance gains.",
+          "Conclude with a detailed error analysis to identify where the new approach fails, which will provide clear directions for future refinements and follow-up studies."
+        ],
+        "generated_idea_citations": [
+          "Integrating AI in Healthcare Management Education",
+          "Applications of Artificial Intelligence (AI) in Medical Education: A Scoping Review",
+          "Using AI in healthcare education: a rapid review and commentary"
+        ]
+      },
+      "effective_query": null
+    },
+    {
+      "role": "user",
+      "type": null,
+      "display_text": "more",
+      "content": "more",
+      "effective_query": "more"
+    },
+    {
+      "role": "assistant",
+      "type": "research",
+      "display_text": "Here are additional papers on ai in education. I found 5 papers on ai in education. The common thread across them is ai in education. The papers point to recurring weaknesses around evaluation depth, the quality of baseline comparisons, and the confidence with which results can be interpreted. A sensible next step is to focus only on the most relevant papers, compare them within a shared evaluation framework, and avoid making strong claims based on thin metadata.",
+      "content": {
+        "table": [
+          {
+            "paper_name": "From Algorithms to Tutors: Tracing the Evolution of Generative AI in Education",
+            "paper_url": "https://doi.org/10.21203/rs.3.rs-8316595/v1",
+            "authors_name": "Aggarwal D.",
+            "summary_full_paper": "This paper investigates the integration of Artificial Intelligence (AI) into educational settings has historically been characterized by reactive, rule-based systems designed for administrative efficiency and corrective feedback addressing the core challenge of early technologies, relying on decision trees and support vector machines, functioned primarily as digital gatekeepers—flagging errors without offering the reasoning capabilities required for deep learning by proposing a method centered on abstract The integration of Artificial Intelligence (AI) into educational settings has historically been characterized by reactive, rule-based systems designed for administrative efficiency and corrective feedback. The analysis suggests that the findings indicate that as AI evolves from a tool for correction to a tool for creation, traditional output-based assessment becomes obsolete, necessitating a pivot toward. Overall, this summary is based on the abstract and metadata, not a full reconstruction of the paper.",
+            "problem_solved": "The paper focuses on early technologies, relying on decision trees and support vector machines, functioned primarily as digital gatekeepers—flagging errors without offering the reasoning capabilities required for deep learning.",
+            "proposed_model_or_approach": "The paper's core contribution is a method based on the integration of Artificial Intelligence (AI) into educational settings has historically been characterized by reactive, rule-based systems designed for administrative efficiency and corrective feedback. The paper does not revolve around a named benchmark dataset and instead reads as a conceptual or review-oriented study. Its contribution is framed more as synthesis and design guidance than as a benchmark-style comparison on one fixed dataset. Taken together, the methodology should be interpreted as a conceptual synthesis rather than a single deployable model.",
+            "source": "europe_pmc",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "Teacher charisma and AI-mediated education: Effects on EFL learners' attitudes and self-efficacy.",
+            "paper_url": "https://doi.org/10.1016/j.actpsy.2026.106244",
+            "authors_name": "Ali El Deen AAMM, Albasis HH, Mohamed AM.",
+            "summary_full_paper": "This paper investigates although Artificial Intelligence (AI) is being rapidly incorporated into the education sector, a glaring gap remains in understanding how AI-mediated education (AME) interacts with addressing the core challenge of although Artificial Intelligence (AI) is being rapidly incorporated into the education sector, a glaring gap remains in understanding how AI-mediated education (AME) interacts with vital human by proposing a method centered on although Artificial Intelligence (AI) is being rapidly incorporated into the education sector, a glaring gap remains in understanding how AI-mediated education (AME) interacts with vital human components, including. The analysis suggests that the findings verified a strong model of measurement and offered evidence in support of all seven hypotheses that were suggested. Overall, this summary is based on the abstract and metadata, not a full reconstruction of the paper.",
+            "problem_solved": "The paper focuses on although Artificial Intelligence (AI) is being rapidly incorporated into the education sector, a glaring gap remains in understanding how AI-mediated education (AME) interacts with vital human.",
+            "proposed_model_or_approach": "The paper's core contribution is a method based on although Artificial Intelligence (AI) is being rapidly incorporated into the education sector, a glaring gap remains in understanding how AI-mediated education (AME) interacts with vital human components, including teacher influence. Analysis of the results suggests that the results indicate that teacher charisma and AI-mediated learning predict learner attitudes and self-efficacy with significant and positive effects, but AI has a relatively higher impact. Taken together, the methodology connects the modeling choice, data, and evaluation into a coherent workflow.",
+            "source": "europe_pmc",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "Need of AI in Modern Education: in the Eyes of Explainable AI (xAI)",
+            "paper_url": "http://arxiv.org/abs/2408.00025v3",
+            "authors_name": "Supriya Manna, Niladri Sett",
+            "summary_full_paper": "This paper investigates modern Education is not \\textit{Modern} without AI addressing the core challenge of however, AI's complex nature makes understanding and fixing problems challenging. The analysis suggests that research worldwide shows that a parent's income greatly influences a child's education. Overall, this summary is based on the abstract and metadata, not a full reconstruction of the paper.",
+            "problem_solved": "The paper focuses on however, AI's complex nature makes understanding and fixing problems challenging.",
+            "proposed_model_or_approach": "The paper's core contribution is a method based on modern Education is not \\textit{Modern} without AI. Taken together, the methodology connects the modeling choice, data, and evaluation into a coherent workflow. The available text does not clearly name a more specific model family beyond the general methodology described in the paper.",
+            "source": "arxiv",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "Exploring utilization of generative AI for research and education in data-driven materials science",
+            "paper_url": "http://arxiv.org/abs/2504.08817v2",
+            "authors_name": "Takahiro Misawa, Ai Koizumi, Ryo Tamura, Kazuyoshi Yoshimi",
+            "summary_full_paper": "This paper investigates generative AI has recently had a profound impact on various fields, including daily life, research, and education addressing the core challenge described in the paper by proposing a method centered on topics related to (1) conducting AI-assisted software trials, (2) building AI tutors for software, and (3) developing GUI applications for software. The analysis suggests that generative AI has recently had a profound impact on various fields, including daily life, research, and education. Overall, this summary is based on the abstract and metadata, not a full reconstruction of the paper.",
+            "problem_solved": "The paper focuses on generative AI has recently had a profound impact on various fields, including daily life, research, and education.",
+            "proposed_model_or_approach": "The paper's core contribution is a method based on topics related to (1) conducting AI-assisted software trials, (2) building AI tutors for software, and (3) developing GUI applications for software. Its evaluation setup is centered on based on the results of the hackathon, this paper presents topics related to (1) conducting AI-assisted software trials, (2) building AI tutors for software, and (3). Analysis of the results suggests that based on the results of the hackathon, this paper presents topics related to (1) conducting AI-assisted software trials, (2) building AI tutors for software, and (3). Taken together, the methodology connects the modeling choice, data, and evaluation into a coherent workflow.",
+            "source": "arxiv",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "Student-Created Screencasts: A Constructivist Response to the Challenges of Generative AI in Education",
+            "paper_url": "https://doi.org/10.20944/preprints202511.0309.v1",
+            "authors_name": "Wong A, Tsang K, Lin S, Chan LL.",
+            "summary_full_paper": "This paper investigates screencasts have traditionally been used in education as teacher-created videos for delivering instruction or feedback, reflecting a teacher-centered model of learning addressing the core challenge described in the paper. The analysis suggests that the results show that students generally hold positive attitudes toward creating screencasts, with perceived usefulness for future applications exerting the strongest influence on ac-ceptance, followed by. Overall, this summary is based on the abstract and metadata, not a full reconstruction of the paper.",
+            "problem_solved": "The paper focuses on screencasts have traditionally been used in education as teacher-created videos for delivering instruction or feedback, reflecting a teacher-centered model of learning.",
+            "proposed_model_or_approach": "The paper's core contribution is a method based on screencasts have traditionally been used in education as teacher-created videos for delivering instruction or feedback, reflecting a teacher-centered model of learning. The paper does not revolve around a named benchmark dataset and instead reads as a conceptual or review-oriented study. Its contribution is framed more as synthesis and design guidance than as a benchmark-style comparison on one fixed dataset. Taken together, the methodology should be interpreted as a conceptual synthesis rather than a single deployable model.",
+            "source": "europe_pmc",
+            "score_relevance": 10,
+            "score_quality": 10
+          }
+        ],
+        "research_gaps": [
+          "The work in 'From Algorithms to Tutors: Tracing the Evolution of Generative AI in Education' could be extended by addressing that the next step is to turn the conceptual contribution into a comparative empirical study with a shared evaluation setup, so readers can assess how the proposed ideas perform in practice.",
+          "The work in 'Teacher charisma and AI-mediated education: Effects on EFL learners' attitudes and self-efficacy.' could be extended by addressing that the paper's conclusions would be more credible with stronger empirical comparisons, clearer evaluation criteria, and a more explicit analysis of where the approach succeeds or fails.",
+          "The work in 'Need of AI in Modern Education: in the Eyes of Explainable AI (xAI)' could be extended by addressing that the paper's conclusions would be more credible with stronger empirical comparisons, clearer evaluation criteria, and a more explicit analysis of where the approach succeeds or fails.",
+          "The work in 'Exploring utilization of generative AI for research and education in data-driven materials science' could be extended by addressing that the paper's conclusions would be more credible with stronger empirical comparisons, clearer evaluation criteria, and a more explicit analysis of where the approach succeeds or fails.",
+          "The work in 'Student-Created Screencasts: A Constructivist Response to the Challenges of Generative AI in Education' could be extended by addressing that the next step is to turn the conceptual contribution into a comparative empirical study with a shared evaluation setup, so readers can assess how the proposed ideas perform in practice."
+        ],
+        "assistant_reply": "I found 5 papers on ai in education. The common thread across them is ai in education. The papers point to recurring weaknesses around evaluation depth, the quality of baseline comparisons, and the confidence with which results can be interpreted. A sensible next step is to focus only on the most relevant papers, compare them within a shared evaluation framework, and avoid making strong claims based on thin metadata.",
+        "generated_idea": "A valuable next step would be to develop a unified ai in education pipeline that addresses the common weaknesses found in the literature. Such a study should focus on creating a standardized evaluation protocol with stronger baselines and more diverse datasets, ensuring that conclusions are both reliable and generalizable.",
+        "generated_idea_steps": [
+          "Begin by establishing a strong baseline, using the methods from 'From Algorithms to Tutors' and 'Teacher charisma and AI-mediated education' as initial comparison points.",
+          "Focus the initial experiments on addressing the most critical shared weakness: Tracing the Evolution of Generative AI in Education' could be extended by addressing that the next step is to turn the conceptual contribution into a comparative empirical study with a shared evaluation setup, so readers can assess how the proposed ideas perform in practice.",
+          "Design a follow-up experiment to test the system's robustness, specifically by evaluating if the approach holds up when you Effects on EFL learners' attitudes and self-efficacy.' could be extended by addressing that the paper's conclusions would be more credible with stronger empirical comparisons, clearer evaluation criteria, and a more explicit analysis...",
+          "Incorporate several strong, alternative baselines from the same problem domain to ensure the comparison is fair and comprehensive under a unified evaluation framework.",
+          "Conduct an ablation study to isolate the impact of each component in your proposed model, clarifying what parts are truly responsible for any performance gains.",
+          "Conclude with a detailed error analysis to identify where the new approach fails, which will provide clear directions for future refinements and follow-up studies."
+        ],
+        "generated_idea_citations": [
+          "From Algorithms to Tutors: Tracing the Evolution of Generative AI in Education",
+          "Teacher charisma and AI-mediated education: Effects on EFL learners' attitudes and self-efficacy.",
+          "Need of AI in Modern Education: in the Eyes of Explainable AI (xAI)",
+          "Exploring utilization of generative AI for research and education in data-driven materials science",
+          "Student-Created Screencasts: A Constructivist Response to the Challenges of Generative AI in Education"
+        ]
+      },
+      "effective_query": null
+    },
+    {
+      "role": "user",
+      "type": null,
+      "display_text": "more",
+      "content": "more",
+      "effective_query": "more"
+    },
+    {
+      "role": "assistant",
+      "type": "research",
+      "display_text": "Here are additional papers on ai in education. I found 5 papers on ai in education. The common thread across them is ai in education. The papers point to recurring weaknesses around evaluation depth, the quality of baseline comparisons, and the confidence with which results can be interpreted. A sensible next step is to focus only on the most relevant papers, compare them within a shared evaluation framework, and avoid making strong claims based on thin metadata.",
+      "content": {
+        "table": [
+          {
+            "paper_name": "Explainable AI in education: integrating educational domain knowledge into the deep learning model for improved student performance prediction.",
+            "paper_url": "https://doi.org/10.1038/s41598-026-40538-y",
+            "authors_name": "Qiang M, Liu Z, Zhang R.",
+            "summary_full_paper": "This paper investigates although deep learning models, especially the Artificial Neural Network (ANN), are widely used for student performance prediction, their \"black-box\" nature often leads to unreliable addressing the core challenge of although deep learning models, especially the Artificial Neural Network (ANN), are widely used for student performance prediction, their \"black-box\" nature often leads to unreliable learned relationships by proposing a method centered on we proposed the Student Performance Prediction Explanation (SPPE) algorithm for optimizing ANN, which reassessed the contribution of 30 features under the guidance of educational domain knowledge. The analysis suggests that additional experiments further confirmed that the proposed SPPE strategy is applicable to various ANN architectures, supporting its robustness across model structures within this dataset and reinforcing. Overall, this summary is based on the abstract and metadata, not a full reconstruction of the paper.",
+            "problem_solved": "The paper focuses on although deep learning models, especially the Artificial Neural Network (ANN), are widely used for student performance prediction, their \"black-box\" nature often leads to unreliable learned relationships.",
+            "proposed_model_or_approach": "The paper's core contribution is a method based on we proposed the Student Performance Prediction Explanation (SPPE) algorithm for optimizing ANN, which reassessed the contribution of 30 features under the guidance of educational domain knowledge. Its evaluation setup is centered on based on Shapley Additive Explanations (SHAP), this study developed an ANN using a public dataset containing 395 Portuguese high school students' mathematics performance records. Analysis of the results suggests that although deep learning models, especially the Artificial Neural Network (ANN), are widely used for student performance prediction, their \"black-box\" nature often leads to unreliable learned relationships. Taken together, the methodology connects the modeling choice, data, and evaluation into a coherent workflow.",
+            "source": "europe_pmc",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "AI for education: Trends and insights.",
+            "paper_url": "https://doi.org/10.1016/j.xinn.2025.100872",
+            "authors_name": "Wang Y, Jiang X.",
+            "summary_full_paper": "While 'AI for education: Trends and insights.' appears relevant to ai in education, the available metadata is too limited to support a trustworthy paper-level summary. The source does not clearly expose the problem setting, the concrete method, or the main findings, so this row should be treated as metadata-only evidence.",
+            "problem_solved": "The paper centers on the question suggested by its title, AI for education: Trends and insights..",
+            "proposed_model_or_approach": "The available metadata suggests a method centered on aI for education. However, the visible record does not expose enough detail to reconstruct the full pipeline with confidence. The dataset, benchmark, and evaluation setup are also unclear from the metadata alone.",
+            "source": "europe_pmc",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "Transforming Learning or Empty Promise? A Meta-Analysis of Generative AI in Education",
+            "paper_url": "https://doi.org/10.21203/rs.3.rs-7577394/v1",
+            "authors_name": "Tang X, Wang X, Dong L, Zhang JC.",
+            "summary_full_paper": "This paper investigates this meta-analysis examines the impact of generative artificial intelligence (GenAI) tools, such as ChatGPT, on students’ academic achievement addressing the core challenge of drawing on 52 experimental and quasi-experimental studies across educational levels and domains, we synthesized evidence from interventions using GenAI to support learning by proposing a method centered on abstract This meta-analysis examines the impact of generative artificial intelligence (GenAI) tools, such as ChatGPT, on students’ academic achievement. The analysis suggests that this meta-analysis examines the impact of generative artificial intelligence (GenAI) tools, such as ChatGPT, on students’ academic achievement. Overall, this summary is based on the abstract and metadata, not a full reconstruction of the paper.",
+            "problem_solved": "The paper focuses on drawing on 52 experimental and quasi-experimental studies across educational levels and domains, we synthesized evidence from interventions using GenAI to support learning.",
+            "proposed_model_or_approach": "The paper's core contribution is a method based on this meta-analysis examines the impact of generative artificial intelligence (GenAI) tools, such as ChatGPT, on students’ academic achievement. The paper does not revolve around a named benchmark dataset and instead reads as a conceptual or review-oriented study. Its contribution is framed more as synthesis and design guidance than as a benchmark-style comparison on one fixed dataset. Taken together, the methodology should be interpreted as a conceptual synthesis rather than a single deployable model.",
+            "source": "europe_pmc",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "A comprehensive AI policy education framework for university teaching and learning",
+            "paper_url": "https://doi.org/10.1186/s41239-023-00408-3",
+            "authors_name": "Cecilia Ka Yuk Chan",
+            "summary_full_paper": "This paper investigates this study aims to develop an AI education policy for higher education by examining the perceptions and implications of text generative AI technologies addressing the core challenge of based on the findings, the study proposes an AI Ecological Education Policy Framework to address the multifaceted implications of AI integration in university teaching and learning by proposing a method centered on abstract This study aims to develop an AI education policy for higher education by examining the perceptions and implications of text generative AI technologies. The analysis suggests that this study aims to develop an AI education policy for higher education by examining the perceptions and implications of text generative AI technologies. Overall, this summary is based on the abstract and metadata, not a full reconstruction of the paper.",
+            "problem_solved": "The paper focuses on based on the findings, the study proposes an AI Ecological Education Policy Framework to address the multifaceted implications of AI integration in university teaching and learning.",
+            "proposed_model_or_approach": "The paper's core contribution is a method based on this study aims to develop an AI education policy for higher education by examining the perceptions and implications of text generative AI technologies. Taken together, the methodology connects the modeling choice, data, and evaluation into a coherent workflow. The available text does not clearly name a more specific model family beyond the general methodology described in the paper.",
+            "source": "openalex",
+            "score_relevance": 10,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "Unlocking the Power of ChatGPT: A Framework for Applying Generative AI in Education",
+            "paper_url": "https://doi.org/10.1177/20965311231168423",
+            "authors_name": "Jiahong Su, Weipeng Yang",
+            "summary_full_paper": "This paper investigates purpose Artificial intelligence (AI) chatbots, such as ChatGPT and GPT-4, developed by OpenAI, have the potential to revolutionize education addressing the core challenge of the potential benefits and challenges of using ChatGPT in education (or “educative AI”) by proposing a method centered on a theoretical framework called “IDEE” for educative AI such as using ChatGPT and other generative AI in education, which includes identifying the desired outcomes, determining the appropriate level. The analysis suggests that design/Approach/Methods This paper proposes a theoretical framework called “IDEE” for educative AI such as using ChatGPT and other generative AI in education, which includes identifying the. Overall, this summary is based on the abstract and metadata, not a full reconstruction of the paper.",
+            "problem_solved": "The paper focuses on the potential benefits and challenges of using ChatGPT in education (or “educative AI”).",
+            "proposed_model_or_approach": "The paper's core contribution is a method based on a theoretical framework called “IDEE” for educative AI such as using ChatGPT and other generative AI in education, which includes identifying the desired outcomes, determining the appropriate level of. Analysis of the results suggests that design/Approach/Methods This paper proposes a theoretical framework called “IDEE” for educative AI such as using ChatGPT and other generative AI in education, which includes identifying the. Taken together, the methodology connects the modeling choice, data, and evaluation into a coherent workflow.",
+            "source": "openalex",
+            "score_relevance": 10,
+            "score_quality": 10
+          }
+        ],
+        "research_gaps": [
+          "The work in 'Explainable AI in education: integrating educational domain knowledge into the deep learning model for improved student performance prediction.' could be extended by addressing that the next step is to turn the conceptual contribution into a comparative empirical study with a shared evaluation setup, so readers can assess how the proposed ideas perform in practice.",
+          "The paper 'AI for education: Trends and insights.' provides limited metadata, making it difficult to pinpoint a specific gap. A deeper analysis of the full text is needed to form a confident recommendation.",
+          "The work in 'Transforming Learning or Empty Promise? A Meta-Analysis of Generative AI in Education' could be extended by addressing that a strong follow-up would test the system in a real user workflow, measure sustained behavior change, and report safety, reliability, and human-AI interaction outcomes together.",
+          "The work in 'A comprehensive AI policy education framework for university teaching and learning' could be extended by addressing that the next step is to turn the conceptual contribution into a comparative empirical study with a shared evaluation setup, so readers can assess how the proposed ideas perform in practice.",
+          "The work in 'Unlocking the Power of ChatGPT: A Framework for Applying Generative AI in Education' could be extended by addressing that the next step is to turn the conceptual contribution into a comparative empirical study with a shared evaluation setup, so readers can assess how the proposed ideas perform in practice."
+        ],
+        "assistant_reply": "I found 5 papers on ai in education. The common thread across them is ai in education. The papers point to recurring weaknesses around evaluation depth, the quality of baseline comparisons, and the confidence with which results can be interpreted. A sensible next step is to focus only on the most relevant papers, compare them within a shared evaluation framework, and avoid making strong claims based on thin metadata.",
+        "generated_idea": "A valuable next step would be to develop a unified ai in education pipeline that addresses the common weaknesses found in the literature. Such a study should focus on creating a standardized evaluation protocol with stronger baselines and more diverse datasets, ensuring that conclusions are both reliable and generalizable.",
+        "generated_idea_steps": [
+          "Begin by establishing a strong baseline, using the methods from 'Explainable AI in education' and 'AI for education' as initial comparison points.",
+          "Focus the initial experiments on addressing the most critical shared weakness: integrating educational domain knowledge into the deep learning model for improved student performance prediction.' could be extended by addressing that the next step is to turn the conceptual contribution into a comparative empirical study with a shared evaluation setup, so re...",
+          "Design a follow-up experiment to test the system's robustness, specifically by evaluating if the approach holds up when you Trends and insights.' provides limited metadata, making it difficult to pinpoint a specific gap. A deeper analysis of the full text is needed to form a confident recommendation.",
+          "Incorporate several strong, alternative baselines from the same problem domain to ensure the comparison is fair and comprehensive under a unified evaluation framework.",
+          "Conduct an ablation study to isolate the impact of each component in your proposed model, clarifying what parts are truly responsible for any performance gains.",
+          "Conclude with a detailed error analysis to identify where the new approach fails, which will provide clear directions for future refinements and follow-up studies."
+        ],
+        "generated_idea_citations": [
+          "Explainable AI in education: integrating educational domain knowledge into the deep learning model for improved student performance prediction.",
+          "AI for education: Trends and insights.",
+          "Transforming Learning or Empty Promise? A Meta-Analysis of Generative AI in Education",
+          "A comprehensive AI policy education framework for university teaching and learning",
+          "Unlocking the Power of ChatGPT: A Framework for Applying Generative AI in Education"
+        ]
+      },
+      "effective_query": null
+    }
+  ]
+}
