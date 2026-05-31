@@ -1230,7 +1230,11 @@ def _run_research_explorer_impl_legacy(
                 return rows_local, selected_docs
 
             rows, selected_docs = _local_rows_from_store(vector_store)
-            if len(rows) >= 5:
+            if not rows:
+                # Local vector store exists but has no coverage for this query.
+                # Fall back to live search to avoid an empty response for narrow topics.
+                use_live_sources = True
+            elif len(rows) >= 5:
                 all_docs = list(selected_docs)
                 fulltext_docs = list(selected_docs)
 
