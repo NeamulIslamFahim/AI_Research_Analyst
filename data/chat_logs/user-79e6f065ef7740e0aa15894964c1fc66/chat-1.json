@@ -1,0 +1,148 @@
+{
+  "id": "chat-1",
+  "title": "Adaptive Personal Emotion Network",
+  "mode": "Research Explorer",
+  "paper_text": "",
+  "last_uploaded_pdf_signature": "",
+  "writer_state": {
+    "phase": "start"
+  },
+  "writer_intro_shown": false,
+  "research_last_topic": "Adaptive Personal Emotion Network",
+  "research_seen_papers": [
+    {
+      "title": "Vision-Language Modeling Meets Remote Sensing: Models, Datasets and Perspectives",
+      "url": "http://arxiv.org/abs/2505.14361v1",
+      "pdf_url": "",
+      "source": "",
+      "topic": "Adaptive Personal Emotion Network"
+    },
+    {
+      "title": "The digital workplace and meeting accessibility: A qualitative study on listening effort in video meetings for employees with hearing loss.",
+      "url": "https://doi.org/10.1177/10519815251398498",
+      "pdf_url": "",
+      "source": "europe_pmc",
+      "topic": "Adaptive Personal Emotion Network"
+    },
+    {
+      "title": "Feasibility and safety of remote robotic hepatectomy: a prospective single-arm study with MP1000 system in China.",
+      "url": "https://doi.org/10.1016/j.eclinm.2025.103579",
+      "pdf_url": "",
+      "source": "europe_pmc",
+      "topic": "Adaptive Personal Emotion Network"
+    },
+    {
+      "title": "In the eye of the beholder? Universality and cultural specificity in the expression and perception of emotion",
+      "url": "https://doi.org/10.1080/00207594.2011.626049",
+      "pdf_url": "",
+      "source": "openalex",
+      "topic": "Adaptive Personal Emotion Network"
+    },
+    {
+      "title": "An Experimental Comparison of Three Methods for Constructing Ensembles of Decision Trees: Bagging, Boosting, and Randomization",
+      "url": "https://doi.org/10.1023/a:1007607513941",
+      "pdf_url": "",
+      "source": "openalex",
+      "topic": "Adaptive Personal Emotion Network"
+    }
+  ],
+  "updated_at": "2026-05-31T12:00:07.178462Z",
+  "messages": [
+    {
+      "role": "user",
+      "type": null,
+      "display_text": "Adaptive Personal Emotion Network",
+      "content": "Adaptive Personal Emotion Network",
+      "effective_query": "Adaptive Personal Emotion Network"
+    },
+    {
+      "role": "assistant",
+      "type": "research",
+      "display_text": "I found 5 papers on Adaptive Personal Emotion Network. The common thread across them is Adaptive Personal Emotion Network. The papers point to recurring weaknesses around evaluation depth, the quality of baseline comparisons, and the confidence with which results can be interpreted. A sensible next step is to focus only on the most relevant papers, compare them within a shared evaluation framework, and avoid making strong claims based on thin metadata.",
+      "content": {
+        "table": [
+          {
+            "paper_name": "Vision-Language Modeling Meets Remote Sensing: Models, Datasets and Perspectives",
+            "paper_url": "http://arxiv.org/abs/2505.14361v1",
+            "authors_name": "Xingxing Weng, Chao Pang, Gui-Song Xia",
+            "summary_full_paper": "This paper investigates vision-language modeling (VLM) aims to bridge the information gap between images and natural language addressing the core challenge of vision-language modeling (VLM) aims to bridge the information gap between images and natural language. The analysis suggests that the resulting models benefit from the absorption of extensive general knowledge and demonstrate strong performance across a variety of remote sensing data analysis tasks. Overall, the paper provides a grounded account of the problem, method, and reported outcomes.",
+            "problem_solved": "The paper focuses on vision-language modeling (VLM) aims to bridge the information gap between images and natural language.",
+            "proposed_model_or_approach": "The paper's core contribution is a method based on vision-language modeling (VLM) aims to bridge the information gap between images and natural language. The paper does not revolve around a named benchmark dataset and instead reads as a conceptual or review-oriented study. Its contribution is framed more as synthesis and design guidance than as a benchmark-style comparison on one fixed dataset. Taken together, the methodology should be interpreted as a conceptual synthesis rather than a single deployable model.",
+            "source": "",
+            "score_relevance": 0,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "The digital workplace and meeting accessibility: A qualitative study on listening effort in video meetings for employees with hearing loss.",
+            "paper_url": "https://doi.org/10.1177/10519815251398498",
+            "authors_name": "Marsja E, Signoret C, Stenbäck V.",
+            "summary_full_paper": "This paper investigates backgroundHearing loss is a common workplace disability that presents communication challenges addressing the core challenge of backgroundHearing loss is a common workplace disability that presents communication challenges. The analysis suggests that more research is needed to understand how video meetings are experienced by these employees and how to create more inclusive and effective work environments.ObjectiveThis study aimed. Overall, the paper provides a grounded account of the problem, method, and reported outcomes.",
+            "problem_solved": "The paper focuses on backgroundHearing loss is a common workplace disability that presents communication challenges.",
+            "proposed_model_or_approach": "The paper's core contribution is a method based on backgroundHearing loss is a common workplace disability that presents communication challenges. Its evaluation setup is centered on all participants used hearing aids except for one who had a cochlear implant. Analysis of the results suggests that they were recruited through professional networks and audiology clinics.ResultsListening effort emerged as the overarching theme, experienced as both physically and mentally demanding. Taken together, the methodology connects the modeling choice, data, and evaluation into a coherent workflow.",
+            "source": "europe_pmc",
+            "score_relevance": 0,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "Feasibility and safety of remote robotic hepatectomy: a prospective single-arm study with MP1000 system in China.",
+            "paper_url": "https://doi.org/10.1016/j.eclinm.2025.103579",
+            "authors_name": "Liao W, Zhu HT, Guo YT, Cheng G, Qiao N, Zhang BX, Chen XP, Zhu P.",
+            "summary_full_paper": "This paper investigates backgroundTelesurgery has demonstrated many advantages in certain scenarios addressing the core challenge of nevertheless, further multi-center, large-scale randomized controlled trials are required to verify its effectiveness and safety.FundingThis work was supported by the Noncommunicable Chronic DiseasesNational Science and Technology. The analysis suggests that however, given the high risks of liver resection, there have been no prospective studies to evaluate the safety and effectiveness of robotic remote liver resection. Overall, the paper provides a grounded account of the problem, method, and reported outcomes.",
+            "problem_solved": "The paper focuses on nevertheless, further multi-center, large-scale randomized controlled trials are required to verify its effectiveness and safety.FundingThis work was supported by the Noncommunicable Chronic DiseasesNational Science and Technology.",
+            "proposed_model_or_approach": "The paper's core contribution is a method based on backgroundTelesurgery has demonstrated many advantages in certain scenarios. Its evaluation setup is centered on this study aimed to evaluate the safety and effectiveness of the MP1000 remote surgical system in robot-assisted remote liver resection using the first prospective single-arm cohort. Analysis of the results suggests that however, given the high risks of liver resection, there have been no prospective studies to evaluate the safety and effectiveness of robotic remote liver resection. Taken together, the methodology connects the modeling choice, data, and evaluation into a coherent workflow.",
+            "source": "europe_pmc",
+            "score_relevance": 0,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "In the eye of the beholder? Universality and cultural specificity in the expression and perception of emotion",
+            "paper_url": "https://doi.org/10.1080/00207594.2011.626049",
+            "authors_name": "Klaus R. Scherer, Elizabeth Clark‐Polner, Marcello Mortillaro",
+            "summary_full_paper": "This paper investigates in the eye of the beholder? addressing the core challenge described in the paper. The paper frames its method as a meaningful contribution, though the visible text lacks precise quantitative results. Overall, the paper provides a grounded account of the problem, method, and reported outcomes.",
+            "problem_solved": "The paper focuses on in the eye of the beholder?",
+            "proposed_model_or_approach": "The paper's core contribution is a method based on in the eye of the beholder? Taken together, the methodology connects the modeling choice, data, and evaluation into a coherent workflow. The available text does not clearly name a more specific model family beyond the general methodology described in the paper.",
+            "source": "openalex",
+            "score_relevance": 2,
+            "score_quality": 10
+          },
+          {
+            "paper_name": "An Experimental Comparison of Three Methods for Constructing Ensembles of Decision Trees: Bagging, Boosting, and Randomization",
+            "paper_url": "https://doi.org/10.1023/a:1007607513941",
+            "authors_name": "",
+            "summary_full_paper": "This paper investigates national Conference on Artiﬁcial Intelligence (pp addressing the core challenge described in the paper. The paper frames its method as a meaningful contribution, though the visible text lacks precise quantitative results. Overall, the paper provides a grounded account of the problem, method, and reported outcomes.",
+            "problem_solved": "The paper focuses on national Conference on Artiﬁcial Intelligence (pp.",
+            "proposed_model_or_approach": "The paper's core contribution is a method based on national Conference on Artiﬁcial Intelligence (pp. Taken together, the methodology connects the modeling choice, data, and evaluation into a coherent workflow. The available text does not clearly name a more specific model family beyond the general methodology described in the paper.",
+            "source": "openalex",
+            "score_relevance": 0,
+            "score_quality": 8
+          }
+        ],
+        "research_gaps": [
+          "Vision-Language Modeling Meets Remote Sensing: Models, Datasets and Perspectives: test the claims on a larger and more diverse student sample, not just one institution.",
+          "The digital workplace and meeting accessibility: A qualitative study on listening effort in video meetings for employees with hearing loss.: evaluate the method in a real workflow and measure how it affects human-AI collaboration.",
+          "Feasibility and safety of remote robotic hepatectomy: a prospective single-arm study with MP1000 system in China.: evaluate the method in a real workflow and measure how it affects human-AI collaboration.",
+          "In the eye of the beholder? Universality and cultural specificity in the expression and perception of emotion: the evaluation lacks strong baselines and a clear error analysis, making it difficult to assess the method's true performance.",
+          "An Experimental Comparison of Three Methods for Constructing Ensembles of Decision Trees: Bagging, Boosting, and Randomization: test the claims on a larger and more diverse student sample, not just one institution."
+        ],
+        "assistant_reply": "I found 5 papers on Adaptive Personal Emotion Network. The common thread across them is Adaptive Personal Emotion Network. The papers point to recurring weaknesses around evaluation depth, the quality of baseline comparisons, and the confidence with which results can be interpreted. A sensible next step is to focus only on the most relevant papers, compare them within a shared evaluation framework, and avoid making strong claims based on thin metadata.",
+        "generated_idea": "A valuable next step would be to develop a new evaluation protocol for Adaptive Personal Emotion Network using more diverse datasets and stronger, standardized baselines. This approach would not only push the state-of-the-art forward but also provide a more reliable framework for future research.",
+        "generated_idea_steps": [
+          "Begin by implementing the core methods from 'Vision-Language Modeling Meets Remote Sensing' and 'The digital workplace and meeting accessibility' to establish a strong, reproducible baseline.",
+          "Design the novel approach to directly solve the most critical shared weakness: test the claims on a larger and more diverse student sample, not just one institution. This is the core of the new contribution.",
+          "Create a new benchmark dataset or evaluation protocol that explicitly tests for the secondary weakness identified: evaluate the method in a real workflow and measure how it affects human-AI collaboration.",
+          "Compare the new model against the original baselines and at least two other state-of-the-art methods from the literature under the new, unified evaluation framework.",
+          "Conduct a thorough ablation study to prove that the novel components of your model are responsible for the performance gains, not just confounding factors.",
+          "Conclude with a detailed error analysis to identify the specific failure modes of the new approach, providing a clear and honest roadmap for future research."
+        ],
+        "generated_idea_citations": [
+          "Vision-Language Modeling Meets Remote Sensing: Models, Datasets and Perspectives",
+          "The digital workplace and meeting accessibility: A qualitative study on listening effort in video meetings for employees with hearing loss.",
+          "Feasibility and safety of remote robotic hepatectomy: a prospective single-arm study with MP1000 system in China.",
+          "In the eye of the beholder? Universality and cultural specificity in the expression and perception of emotion",
+          "An Experimental Comparison of Three Methods for Constructing Ensembles of Decision Trees: Bagging, Boosting, and Randomization"
+        ]
+      },
+      "effective_query": null
+    }
+  ]
+}

@@ -356,8 +356,8 @@ class ResearchResponseComposer:
 
         def _sentence_close() -> str:
             if fulltext:
-                return "Overall, the paper provides a grounded account of the problem, method, and reported outcomes."
-            return "Overall, this summary is based on the abstract and metadata, not a full reconstruction of the paper."
+                return "The available text supports a reliable summary of the paper's problem, method, and reported findings."
+            return "This summary is based on the abstract and metadata, not a full reconstruction of the paper."
 
         about_fragment = self._clean_fragment(overview or title, title=title, max_words=24)
         if not about_fragment:

@@ -189,6 +189,23 @@ GAP_LIST_PROMPT = PromptTemplate(
     ),
 )
 
+PAPER_SECTION_WRITER_PROMPT = PromptTemplate(
+    input_variables=["title", "section_name", "venue_mode", "user_details", "research_context"],
+    template=(
+        "You are an academic writing assistant drafting a paper section. Use ONLY the provided title, section name, venue mode, user details, and research context. "
+        "Do not invent any new methods, results, datasets, or citations. "
+        "If the user details are sparse, rely on the research context to ground the section in real papers and evidence.\n\n"
+        "Title: {title}\n"
+        "Section: {section_name}\n"
+        "Venue mode: {venue_mode}\n"
+        "User details: {user_details}\n\n"
+        "Research context:\n{research_context}\n\n"
+        "Write a polished, academic-style draft for the requested section. "
+        "Keep the tone formal, clear, and concise. "
+        "When the research context contains paper summaries, incorporate those insights naturally into the section."
+    ),
+)
+
 ASSISTANT_QA_PROMPT = PromptTemplate(
     input_variables=["prompt", "chat_history", "context"],
     template=(
