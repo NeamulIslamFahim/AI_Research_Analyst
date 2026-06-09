@@ -218,6 +218,19 @@ def research_error_result(detail: str) -> dict[str, Any]:
     return build_research_error_response(detail)
 
 
+def _assistant_answer_text(result: Any) -> str:
+    """Return visible text for assistant-like backend payloads."""
+    if isinstance(result, dict):
+        for key in ("answer", "assistant_reply", "message", "error", "detail"):
+            value = result.get(key)
+            if value:
+                return str(value)
+        return "The assistant returned a response, but it did not include displayable answer text."
+    if result is None:
+        return "The assistant did not return a response."
+    return str(result)
+
+
 def handle_upload(uploaded_file: Any) -> bool:
     """Process an uploaded PDF for the reviewer mode."""
     session = current_session()
@@ -333,7 +346,7 @@ def handle_send(prompt: str) -> None:
                     final_msg = {"role": "assistant", "content": "Please upload a PDF first.", "type": "text", "display_text": "Please upload a PDF first."}
                 else:
                     result = _backend_main().run_paper_reviewer_followup(trimmed, paper_text)
-                    answer = result.get("answer") or "No answer found."
+                    answer = _assistant_answer_text(result)
                     final_msg = {"role": "assistant", "content": answer, "type": "text", "display_text": answer}
                 update_current_session(messages=replace_or_append_assistant(session["messages"], final_msg))
                 _maybe_schedule_assistant_retrain()
@@ -356,14 +369,12 @@ def handle_send(prompt: str) -> None:
                             research_seen_papers=_merge_session_seen_papers(session, result, trimmed),
                         )
                     else:
-                        answer_text = ""
-                        if isinstance(result, dict):
-                            answer_text = str(result.get("answer") or result.get("message") or "No answer found.")
+                        answer_text = _assistant_answer_text(result)
                         final_msg = {
                             "role": "assistant",
                             "content": result if isinstance(result, dict) else {"answer": str(result), "sources": []},
                             "type": "assistant",
-                            "display_text": answer_text or "Research assistant response",
+                            "display_text": answer_text,
                         }
                         update_current_session(messages=replace_or_append_assistant(session["messages"], final_msg))
                     _maybe_schedule_assistant_retrain()

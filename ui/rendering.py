@@ -62,6 +62,12 @@ def render_research_result(result: dict[str, Any]) -> None:
 
 def render_assistant_result(result: dict[str, Any]) -> None:
     """Render a generic assistant answer with optional sources."""
+    if result.get("error"):
+        st.error(str(result["error"]))
+        if result.get("message"):
+            st.caption(str(result["message"]))
+        return
+
     source = result.get("answer_source")
     if source == "vectordb":
         st.caption("Source: Local VectorDB")
@@ -71,7 +77,8 @@ def render_assistant_result(result: dict[str, Any]) -> None:
             label += " | incremental learning started in background"
         st.caption(label)
 
-    st.write(result.get("answer") or "No answer found.")
+    answer = result.get("answer") or result.get("assistant_reply") or result.get("message")
+    st.write(answer or "The assistant returned a response, but it did not include displayable answer text.")
     sources = result.get("sources") or []
     if sources:
         st.markdown("**Sources**")
