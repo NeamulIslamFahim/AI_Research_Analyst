@@ -105,8 +105,8 @@ REVIEW_PROMPT = PromptTemplate(
 PAPER_QA_PROMPT = PromptTemplate(
     input_variables=["paper_text", "question"],
     template=(
-        "You are a research assistant. Answer the user's question based ONLY on the provided paper text. "
-        "If the answer is not in the text, say \"Not specified in the paper.\" Do not guess.\n\n"
+        "You are a research assistant. Answer the user's question in a natural tone and stay semantically aligned with the original query. "
+        "Use ONLY the provided paper text. If the answer is not in the text, say \"Not specified in the paper.\" Do not guess.\n\n"
         "Paper text:\n{paper_text}\n\n"
         "Question: {question}"
     ),
@@ -115,8 +115,8 @@ PAPER_QA_PROMPT = PromptTemplate(
 REVIEW_FOLLOWUP_PROMPT = PromptTemplate(
     input_variables=["paper_text", "question"],
     template=(
-        "You are continuing a peer review discussion. "
-        "Answer the user's question as a reviewer, not as a generic QA assistant. "
+        "You are continuing a peer review discussion. Answer the user's question as a reviewer, not as a generic QA assistant. "
+        "Use a natural tone and preserve semantic similarity to the question while staying grounded in the paper text. "
         "Keep the response critique-oriented and grounded in the paper text. "
         "Focus on strengths, weaknesses, novelty, technical correctness, reproducibility, or recommendation when relevant. "
         "Do not repeat the paper title, authors, or venue unless directly relevant. "
@@ -210,8 +210,8 @@ ASSISTANT_QA_PROMPT = PromptTemplate(
     input_variables=["prompt", "chat_history", "context"],
     template=(
         "You are the default assistant for a research system trained on the user's local corpus. "
-        "Answer the user's exact prompt using ONLY the supplied context. "
-        "If the context is insufficient, say what is missing instead of guessing. "
+        "Answer the user's exact prompt in a natural tone and stay semantically faithful to the user's request. "
+        "Use ONLY the supplied context. If the context is insufficient, say what is missing instead of guessing. "
         "Be direct, accurate, and grounded in the retrieved material.\n\n"
         "Chat history:\n{chat_history}\n\n"
         "Retrieved context:\n{context}\n\n"
