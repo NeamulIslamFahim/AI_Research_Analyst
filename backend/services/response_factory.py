@@ -104,26 +104,51 @@ class ResearchResponseComposer:
         # pool when no rows match at all, so follow-ups stay on-topic instead of
         # filling the table with unrelated papers.
         pool = matched if matched else rows
+        loose_tokens = [token for token in self.policy.strong_tokens() if len(token) > 4] or self.policy.strong_tokens() or self.policy.tokens()
         excluded = [clean_text(title) for title in (excluded_titles or []) if clean_text(title)]
         seen_urls: set[str] = set()
         seen_titles: list[str] = []
         selected: list[dict] = []
-        for row in pool:
+
+        def _row_has_loose_match(row: dict) -> bool:
+            if not loose_tokens:
+                return True
+            hay = " ".join(
+                [
+                    clean_text(row.get("title", "")),
+                    clean_text(row.get("abstract", "")),
+                    str(row.get("authors", "")),
+                ]
+            ).lower()
+            return any(token in hay for token in loose_tokens)
+
+        def _add_row(row: dict) -> bool:
             title = clean_text(row.get("title", ""))
             url = str(row.get("url", "") or row.get("pdf_url", "") or row.get("doi", "")).strip().lower()
             if excluded and any(titles_look_equivalent(title, old_title) for old_title in excluded):
-                continue
+                return False
             if url and url in seen_urls:
-                continue
+                return False
             if title and any(titles_look_equivalent(title, seen_title) for seen_title in seen_titles):
-                continue
+                return False
             selected.append(row)
             if url:
                 seen_urls.add(url)
             if title:
                 seen_titles.append(title)
+            return True
+
+        for row in pool:
+            _add_row(row)
             if len(selected) >= limit:
                 break
+        if len(selected) < limit and matched:
+            for row in rows:
+                if row in selected or not _row_has_loose_match(row):
+                    continue
+                _add_row(row)
+                if len(selected) >= limit:
+                    break
         return selected
 
     def _problem(self, row: dict, fulltext_snippet: str = "", abstract: str = "") -> str:
@@ -658,7 +683,7 @@ class ResearchResponseComposer:
             "research_gaps": [],
             "assistant_reply": assistant_reply,
             "generated_idea": "",
-            "generated_idea_steps": guidance_steps,
+            "generated_idea_steps": [],
             "generated_idea_citations": [],
         }
 

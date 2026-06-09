@@ -1227,6 +1227,30 @@ def _run_research_explorer_impl_legacy(
                             seen_urls.add(url_value)
                         if len(rows_local) >= 5:
                             break
+
+                if len(rows_local) < 5:
+                    recovery_rows = _simple_fallback_source_rows(topic)
+                    seen_urls = {
+                        _normalize_url(str(row.get("url", ""))) or _normalize_url(str(row.get("pdf_url", "")))
+                        for row in rows_local
+                        if str(row.get("url", "") or row.get("pdf_url", "")).strip()
+                    }
+                    seen_titles = [clean_text(row.get("title", "")) for row in rows_local if clean_text(row.get("title", ""))]
+                    for row in recovery_rows:
+                        title_value = clean_text(row.get("title", ""))
+                        if not title_value or _matches_excluded_paper(row):
+                            continue
+                        url_value = _normalize_url(str(row.get("url", ""))) or _normalize_url(str(row.get("pdf_url", "")))
+                        if title_value and _seen_title_match(title_value, seen_titles):
+                            continue
+                        if url_value and url_value in seen_urls:
+                            continue
+                        rows_local.append(row)
+                        seen_titles.append(title_value)
+                        if url_value:
+                            seen_urls.add(url_value)
+                        if len(rows_local) >= 5:
+                            break
                 return rows_local, selected_docs
 
             rows, selected_docs = _local_rows_from_store(vector_store)
