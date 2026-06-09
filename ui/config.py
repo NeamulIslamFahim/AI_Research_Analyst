@@ -36,6 +36,16 @@ if tomllib and os.path.exists(SECRETS_PATH):
     except (tomllib.TOMLDecodeError, TypeError):
         pass
 
+try:
+    for key, value in st.secrets.items():
+        if isinstance(value, dict):
+            for nested_key, nested_value in value.items():
+                os.environ.setdefault(nested_key, str(nested_value))
+        else:
+            os.environ.setdefault(key, str(value))
+except Exception:
+    pass
+
 if os.path.exists(ENV_PATH):
     load_dotenv(dotenv_path=ENV_PATH, override=False)
 

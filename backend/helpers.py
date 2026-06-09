@@ -49,7 +49,23 @@ def _load_streamlit_secrets_file(path: str) -> None:
             os.environ.setdefault(key, _coerce_secret_value(value))
 
 
+def _load_streamlit_runtime_secrets() -> None:
+    """Expose Streamlit Cloud secrets to env-style config readers."""
+    try:
+        import streamlit as st
+
+        for key, value in st.secrets.items():
+            if isinstance(value, dict):
+                for nested_key, nested_value in value.items():
+                    os.environ.setdefault(nested_key, _coerce_secret_value(nested_value))
+            else:
+                os.environ.setdefault(key, _coerce_secret_value(value))
+    except Exception:
+        pass
+
+
 _load_streamlit_secrets_file(SECRETS_PATH)
+_load_streamlit_runtime_secrets()
 load_dotenv(dotenv_path=ENV_PATH, override=False)
 
 
