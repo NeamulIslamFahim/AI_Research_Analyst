@@ -1254,9 +1254,9 @@ def _run_research_explorer_impl_legacy(
                 return rows_local, selected_docs
 
             rows, selected_docs = _local_rows_from_store(vector_store)
-            if not rows:
-                # Local vector store exists but has no coverage for this query.
-                # Fall back to live search to avoid an empty response for narrow topics.
+            if not rows or len(rows) < 3:
+                # Local vector store exists but has insufficient coverage for this query.
+                # Fall back to live search to retrieve new papers for a fresh topic.
                 use_live_sources = True
             elif len(rows) >= 5:
                 all_docs = list(selected_docs)
@@ -1419,6 +1419,16 @@ def _run_research_explorer_impl_legacy(
         tokens = _topic_terms(topic)
 
         if use_live_sources:
+            if not follow_up_request:
+                try:
+                    download_papers_for_topic(
+                        topic,
+                        excluded_titles=excluded_title_values,
+                        excluded_papers=previously_returned_papers,
+                    )
+                except Exception:
+                    pass
+
             def _append_unique_rows(target: List[dict], new_rows: List[dict], excluded: set[str]) -> None:
                 seen_titles = [clean_text(r.get("title", "")) for r in target if clean_text(r.get("title", ""))]
                 for row in new_rows:
