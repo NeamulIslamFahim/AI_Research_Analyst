@@ -858,6 +858,10 @@ def _run_research_explorer_impl_legacy(
     if not topic:
         return {"error": "Topic is required."}
 
+    with open("debug.log", "a") as f:
+        f.write(f"DEBUG _run_research_explorer_impl_legacy: topic={topic}, use_live_sources={use_live_sources}, focus_topic={focus_topic}\n")
+        f.flush()
+
     is_more_request = ResearchService.is_expansion_request(topic)
     # Resolve generic prompts like "more" into the actual research topic.
     topic = ResearchService.resolve_topic_from_history(topic, chat_history)
@@ -1254,13 +1258,32 @@ def _run_research_explorer_impl_legacy(
                 return rows_local, selected_docs
 
             rows, selected_docs = _local_rows_from_store(vector_store)
+            with open("debug.log", "a") as f:
+                f.write(f"DEBUG: Local rows count = {len(rows)}, use_live_sources was={use_live_sources}\n")
+                f.flush()
             if not rows or len(rows) < 3:
                 # Local vector store exists but has insufficient coverage for this query.
                 # Fall back to live search to retrieve new papers for a fresh topic.
                 use_live_sources = True
-            elif len(rows) >= 5:
-                all_docs = list(selected_docs)
-                fulltext_docs = list(selected_docs)
+                with open("debug.log", "a") as f:
+                    f.write(f"DEBUG: Setting use_live_sources=True (len(rows)={len(rows)})\n")
+                    f.flush()
+            else:
+                # Check if the rows will pass topic filtering for the response composer
+                # If filtered result would be < 5, also trigger live search to augment results
+                preview_selected = response_composer.select_rows(rows, limit=5)
+                with open("debug.log", "a") as f:
+                    f.write(f"DEBUG: preview_selected count = {len(preview_selected)}\n")
+                    f.flush()
+                if len(preview_selected) < 5:
+                    use_live_sources = True
+                    with open("debug.log", "a") as f:
+                        f.write(f"DEBUG: Setting use_live_sources=True (preview_selected={len(preview_selected)})\n")
+                        f.flush()
+                    # Keep local rows and merge with live search results later
+                elif len(rows) >= 5:
+                    all_docs = list(selected_docs)
+                    fulltext_docs = list(selected_docs)
 
         def _topic_terms(text: str) -> List[str]:
             return topic_tokens(text)
@@ -1452,10 +1475,14 @@ def _run_research_explorer_impl_legacy(
                 docs = []
 
             # Multi-source retrieval
+            # Preserve existing local rows if we're augmenting with live search
+            local_rows_backup = rows if rows else []
             rows = docs_to_rows(docs, source="arxiv")
             # Filter arXiv rows by topic tokens to avoid unrelated results.
             if tokens:
                 rows = [r for r in rows if _row_matches(r, tokens)]
+            # Append backed-up local rows to merge results
+            rows.extend(local_rows_backup)
 
             def _run_task(fn, max_results: int) -> Any:
                 try:
