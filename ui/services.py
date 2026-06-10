@@ -23,14 +23,18 @@ from .state import (
 )
 
 
-def _backend_main():
-    # If `BACKEND_URL` is set, use the remote FastAPI backend (Streamlit Cloud deployment).
-    backend_url = (
+def _get_backend_url() -> str | None:
+    return (
         os.getenv("BACKEND_URL")
         or os.getenv("RESEARCH_BACKEND_URL")
         or st.secrets.get("BACKEND_URL")
         or st.secrets.get("RESEARCH_BACKEND_URL")
     )
+
+
+def _backend_main():
+    # If `BACKEND_URL` is set, use the remote FastAPI backend (Streamlit Cloud deployment).
+    backend_url = _get_backend_url()
     if backend_url:
         base = backend_url.rstrip("/")
 
@@ -312,7 +316,7 @@ def handle_upload(uploaded_file: Any) -> bool:
         from backend.explorer_utils import format_review_reply
         from backend.pdf_utils import extract_text
 
-        backend_url = os.getenv("BACKEND_URL") or os.getenv("RESEARCH_BACKEND_URL")
+        backend_url = _get_backend_url()
         file_bytes = uploaded_file.getvalue()
         if backend_url:
             # Send multipart upload to remote FastAPI backend
