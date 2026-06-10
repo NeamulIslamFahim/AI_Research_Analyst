@@ -7,6 +7,7 @@ import os
 import re
 from typing import Any
 
+import requests
 import streamlit as st
 from fastapi import HTTPException
 
@@ -23,6 +24,44 @@ from .state import (
 
 
 def _backend_main():
+    # If `BACKEND_URL` is set, use the remote FastAPI backend (Streamlit Cloud deployment).
+    backend_url = os.getenv("BACKEND_URL") or os.getenv("RESEARCH_BACKEND_URL")
+    if backend_url:
+        base = backend_url.rstrip("/")
+
+        class RestBackendClient:
+            def __init__(self, base_url: str):
+                self.base = base_url
+
+            def _post(self, path: str, payload: dict[str, Any] | None = None, files: dict | None = None, timeout: int = 60):
+                url = f"{self.base}{path}"
+                try:
+                    if files:
+                        resp = requests.post(url, files=files, timeout=timeout)
+                    else:
+                        resp = requests.post(url, json=payload or {}, timeout=timeout)
+                    resp.raise_for_status()
+                    return resp.json()
+                except requests.RequestException as exc:
+                    raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+            def assistant_chat(self, prompt: str, chat_history: str | None = None):
+                return self._post("/api/assistant/chat", {"prompt": prompt, "chat_history": chat_history})
+
+            def run_research_explorer(self, topic: str, chat_history: str | None = None, use_live=None, focus_topic: str | None = None, previously_returned_titles: list | None = None, previously_returned_papers: list | None = None, force_refresh: bool = False):
+                payload = {
+                    "topic": topic,
+                    "chat_history": chat_history,
+                    "use_live": use_live,
+                    "focus_topic": focus_topic,
+                    "previously_returned_titles": previously_returned_titles or [],
+                    "previously_returned_papers": previously_returned_papers or [],
+                    "force_refresh": force_refresh,
+                }
+                return self._post("/api/research/explore", payload, timeout=120)
+
+        return RestBackendClient(base)
+
     from backend import main as backend_main
 
     return backend_main
@@ -254,9 +293,26 @@ def handle_upload(uploaded_file: Any) -> bool:
         from backend.explorer_utils import format_review_reply
         from backend.pdf_utils import extract_text
 
-        temp_path = save_uploaded_pdf(uploaded_file)
-        paper_text = extract_text(temp_path)
-        review_result = _backend_main().run_paper_reviewer(paper_text)
+        backend_url = os.getenv("BACKEND_URL") or os.getenv("RESEARCH_BACKEND_URL")
+        file_bytes = uploaded_file.getvalue()
+        if backend_url:
+            # Send multipart upload to remote FastAPI backend
+            url = backend_url.rstrip("/") + "/api/review/upload"
+            files = {"file": (uploaded_file.name or "upload.pdf", file_bytes, "application/pdf")}
+            try:
+                resp = requests.post(url, files=files, timeout=120)
+                resp.raise_for_status()
+                review_json = resp.json()
+            except requests.RequestException as exc:
+                raise RuntimeError(f"Remote review upload failed: {exc}") from exc
+
+            review_result = review_json.get("review") or review_json
+            paper_text = review_json.get("paper_text") or extract_text(save_uploaded_pdf(uploaded_file))
+
+        else:
+            temp_path = save_uploaded_pdf(uploaded_file)
+            paper_text = extract_text(temp_path)
+            review_result = _backend_main().run_paper_reviewer(paper_text)
 
         if isinstance(review_result, dict) and review_result.get("error"):
             raise RuntimeError(str(review_result["error"]))
