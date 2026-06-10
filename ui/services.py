@@ -23,7 +23,20 @@ from .state import (
 )
 
 
+def _is_local_only_mode() -> bool:
+    return str(
+        os.getenv("LOCAL_ONLY")
+        or os.getenv("ASSISTANT_MODEL_ONLY")
+        or st.secrets.get("LOCAL_ONLY")
+        or st.secrets.get("ASSISTANT_MODEL_ONLY")
+        or "false"
+    ).strip().lower() == "true"
+
+
 def _get_backend_url() -> str | None:
+    if _is_local_only_mode():
+        return None
+
     return (
         os.getenv("BACKEND_URL")
         or os.getenv("RESEARCH_BACKEND_URL")
