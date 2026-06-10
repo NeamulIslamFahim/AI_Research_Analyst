@@ -923,7 +923,10 @@ def assistant_chat(prompt: str, chat_history: str | None = None) -> dict[str, An
         effective_topic = _topic_from_history(chat_history) or clean_prompt
 
     try:
-        hits = _vector_hits(effective_topic, limit=8)
+        # Use hybrid retrieval (dense + BM25) to gather a richer set of candidate hits,
+        # then enforce a strict "strong-hit" gating similar to Claude: require at
+        # least one semantically-strong hit plus a minimum total hit count.
+        hits = _hybrid_retrieve(effective_topic, limit=12)
     except Exception as exc:
         status = get_assistant_status()
         error_answer = (
@@ -948,8 +951,36 @@ def assistant_chat(prompt: str, chat_history: str | None = None) -> dict[str, An
         )
         return response_payload
     wants_more_papers = _generic_follow_up(clean_prompt)
-    local_relevant = (not wants_more_papers) and _has_relevant_local_answer(
-        hits, effective_topic
+    # Require a minimum number of vector-DB hits before treating local results as sufficient.
+    # This prevents sparse vector matches from blocking the external research pipeline.
+    MIN_VECTOR_HITS = int((load_env_var("ASSISTANT_MIN_VECTOR_HITS", "5") or "5"))
+    hits_count = len(hits)
+
+    # Count semantically strong hits. A strong hit has at least one of:
+    # - title_overlap >= 1
+    # - overlap >= 2 (strong token overlap in title/text)
+    # - extra overlap between query tokens and hit text tokens >= 2
+    query_terms = set(_query_tokens(effective_topic))
+    strong_hits = 0
+    for hit in hits[:8]:
+        try:
+            title_overlap = int(hit.get("title_overlap", 0) or 0)
+            overlap = int(hit.get("overlap", 0) or 0)
+        except Exception:
+            title_overlap = 0
+            overlap = 0
+        text_tokens = set(_query_tokens(str(hit.get("text", ""))[:1200]))
+        extra_overlap = len(query_terms.intersection(text_tokens))
+        if title_overlap >= 1 or overlap >= 2 or extra_overlap >= 2:
+            strong_hits += 1
+
+    # Local results are relevant only when we have at least one strong hit and
+    # a minimum number of candidate hits overall. This mirrors Claude's conservative
+    # grounding: prefer external retrieval when local evidence is weak.
+    local_relevant = (
+        (not wants_more_papers)
+        and strong_hits >= 1
+        and hits_count >= MIN_VECTOR_HITS
     )
     answer = ""
 
@@ -990,11 +1021,14 @@ def assistant_chat(prompt: str, chat_history: str | None = None) -> dict[str, An
     if not assistant_only:
         _start_incremental_learning(effective_topic)
         external_result = _run_external_research_and_get_answer(effective_topic, chat_history)
+        # Record that the vector DB had insufficient local hits and we fell back to external search.
+        extra = {"hits_found": len(hits), "min_required_hits": MIN_VECTOR_HITS}
         _record_chat_interaction(
             prompt=clean_prompt,
             response=str(external_result),
             chat_history=chat_history,
             answer_source="external_search",
+            extra=extra,
         )
         return external_result
 
