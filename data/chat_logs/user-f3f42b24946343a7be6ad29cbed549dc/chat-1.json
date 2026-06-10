@@ -1,0 +1,101 @@
+{
+  "id": "chat-1",
+  "title": "What is Ebola?",
+  "mode": "Research Explorer",
+  "paper_text": "",
+  "last_uploaded_pdf_signature": "",
+  "writer_state": {
+    "phase": "start"
+  },
+  "writer_intro_shown": false,
+  "research_last_topic": "",
+  "research_seen_papers": [],
+  "updated_at": "2026-06-10T10:37:00.598416Z",
+  "messages": [
+    {
+      "role": "user",
+      "type": null,
+      "display_text": "What is Ebola?",
+      "content": "What is Ebola?",
+      "effective_query": "What is Ebola?"
+    },
+    {
+      "role": "assistant",
+      "type": "assistant",
+      "display_text": "Based on the trained assistant knowledge base, the closest relevant material comes from Vision-Language Modeling Meets Remote Sensing: Models, Datasets and Perspectives.\n\nVision-language modeling (VLM) aims to bridge the information gap between images and natural language. Under the new paradigm of first pre-training on massive image-text pairs and then fine-tuning on task-specific data, VLM in the remote sensing domain has made significant progress. The resulting models benefit from the absorption of extensive general knowledge and demonstrate strong performance across a variety of remote sensing data analysis tasks. Moreover, they are capable of interacting with users in a conversational manner. In this paper, we aim to provide the remote sensing community with a timely and comprehensive review of the developments in VLM using the two-stage paradigm. Specifically, we first cover a taxonomy of VLM in remote sensing: contrastive learning, visual instruction tuning, and text-conditioned image generation. For each category, we detail the commonly used netwo",
+      "content": {
+        "model": "trained-local-corpus",
+        "assistant_only": true,
+        "trained_at": 1776598917,
+        "answer": "Based on the trained assistant knowledge base, the closest relevant material comes from Vision-Language Modeling Meets Remote Sensing: Models, Datasets and Perspectives.\n\nVision-language modeling (VLM) aims to bridge the information gap between images and natural language. Under the new paradigm of first pre-training on massive image-text pairs and then fine-tuning on task-specific data, VLM in the remote sensing domain has made significant progress. The resulting models benefit from the absorption of extensive general knowledge and demonstrate strong performance across a variety of remote sensing data analysis tasks. Moreover, they are capable of interacting with users in a conversational manner. In this paper, we aim to provide the remote sensing community with a timely and comprehensive review of the developments in VLM using the two-stage paradigm. Specifically, we first cover a taxonomy of VLM in remote sensing: contrastive learning, visual instruction tuning, and text-conditioned image generation. For each category, we detail the commonly used netwo",
+        "sources": [
+          {
+            "title": "Vision-Language Modeling Meets Remote Sensing: Models, Datasets and Perspectives",
+            "source": "unknown",
+            "url": "http://arxiv.org/abs/2505.14361v1",
+            "pdf_url": "http://arxiv.org/pdf/2505.14361v1.pdf",
+            "authors": [
+              "Xingxing Weng",
+              "Chao Pang",
+              "Gui-Song Xia"
+            ],
+            "snippet": "Vision-language modeling (VLM) aims to bridge the information gap between images and natural language. Under the new paradigm of first pre-training on massive image-text pairs and then fine-tuning on task-specific data, VLM in the remote sensing domain has made significant progre",
+            "chunk": ""
+          },
+          {
+            "title": "Aggregated Deep Local Features for Remote Sensing Image Retrieval",
+            "source": "unknown",
+            "url": "http://arxiv.org/abs/1903.09469v1",
+            "pdf_url": "http://arxiv.org/pdf/1903.09469v1.pdf",
+            "authors": [
+              "Raffaele Imbriaco",
+              "Clint Sebastian",
+              "Egor Bondarev",
+              "Peter H. N. de With"
+            ],
+            "snippet": "Remote Sensing Image Retrieval remains a challenging topic due to the special nature of Remote Sensing Imagery. Such images contain various different semantic objects, which clearly complicates the retrieval task. In this paper, we present an image retrieval pipeline that uses at",
+            "chunk": ""
+          },
+          {
+            "title": "Change-Agent: Towards Interactive Comprehensive Remote Sensing Change Interpretation and Analysis",
+            "source": "unknown",
+            "url": "http://arxiv.org/abs/2403.19646v3",
+            "pdf_url": "http://arxiv.org/pdf/2403.19646v3.pdf",
+            "authors": [
+              "Chenyang Liu",
+              "Keyan Chen",
+              "Haotian Zhang",
+              "Zipeng Qi",
+              "Zhengxia Zou",
+              "Zhenwei Shi"
+            ],
+            "snippet": "Monitoring changes in the Earth's surface is crucial for understanding natural processes and human impacts, necessitating precise and comprehensive interpretation methodologies. Remote sensing satellite imagery offers a unique perspective for monitoring these changes, leading to",
+            "chunk": ""
+          },
+          {
+            "title": "Meeting the challenge for effective antimicrobial stewardship programs in regional, rural and remote hospitals - what can we learn from the published literature?",
+            "source": "openalex",
+            "url": "https://doi.org/10.22605/rrh4442",
+            "pdf_url": "https://www.rrh.org.au/journal/download/pdf/4442/",
+            "authors": "Jaclyn Bishop, David C. M. Kong, Thomas Schulz, Karin Thursky, Kirsty Buising",
+            "snippet": "Meeting the challenge for effective antimicrobial stewardship programs in regional, rural and remote hospitals - what can we learn from the published literature?",
+            "chunk": ""
+          },
+          {
+            "title": "How the COVID-19 pandemic will change the future of critical care",
+            "source": "openalex",
+            "url": "https://doi.org/10.1007/s00134-021-06352-y",
+            "pdf_url": "https://link.springer.com/content/pdf/10.1007/s00134-021-06352-y.pdf",
+            "authors": "Yaseen M. Arabi, Élie Azoulay, Hasan M. Al‐Dorzi, Jason Phua, Jorge I. Salluh, Alexandra Binnie",
+            "snippet": "How the COVID-19 pandemic will change the future of critical care",
+            "chunk": ""
+          }
+        ],
+        "answer_source": "vectordb",
+        "incremental_learning_started": false,
+        "status": "ready"
+      },
+      "effective_query": null
+    }
+  ]
+}
