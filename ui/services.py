@@ -386,7 +386,7 @@ def handle_send(prompt: str) -> None:
                 previously_returned_papers = _session_seen_papers(session) if is_expansion_request else []
                 previously_returned_titles = _session_seen_titles(session) if is_expansion_request else []
                 force_refresh = is_expansion_request
-                focus_topic = resolved_topic if is_expansion_request else (trimmed if len(trimmed.split()) > 8 else None)
+                focus_topic = resolved_topic
                 try:
                     result = _backend_main().run_research_explorer( # type: ignore
                         topic=resolved_topic,

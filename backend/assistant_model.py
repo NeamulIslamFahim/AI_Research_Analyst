@@ -923,7 +923,7 @@ def assistant_chat(prompt: str, chat_history: str | None = None) -> dict[str, An
         effective_topic = _topic_from_history(chat_history) or clean_prompt
 
     try:
-        hits = _hybrid_retrieve(effective_topic)
+        hits = _vector_hits(effective_topic, limit=8)
     except Exception as exc:
         status = get_assistant_status()
         error_answer = (

@@ -106,7 +106,8 @@ def assistant_chat_route(payload: AssistantChatRequest) -> Dict[str, Any]:
 
 @app.post("/api/review/upload")
 async def review_upload(file: UploadFile = File(...)) -> Dict[str, Any]:
-    if not file.filename.lower().endswith(".pdf"):
+    filename = file.filename or ""
+    if not filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported.")
     from .pdf_utils import extract_text
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
