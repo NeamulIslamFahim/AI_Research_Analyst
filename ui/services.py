@@ -43,20 +43,40 @@ def _backend_main():
                 self.base = base_url
 
             def _post(self, path: str, payload: dict[str, Any] | None = None, files: dict | None = None, timeout: int = 60):
-                url = f"{self.base}{path}"
+                normalized_path = path
+                if self.base.endswith("/api") and normalized_path.startswith("/api"):
+                    normalized_path = normalized_path[len("/api") :]
+                    if not normalized_path.startswith("/"):
+                        normalized_path = "/" + normalized_path
+                url = f"{self.base}{normalized_path}"
                 try:
                     if files:
                         resp = requests.post(url, files=files, timeout=timeout)
                     else:
                         resp = requests.post(url, json=payload or {}, timeout=timeout)
                     resp.raise_for_status()
+                    content_type = resp.headers.get("Content-Type", "") or ""
+                    if "html" in content_type.lower() or resp.text.lstrip().startswith("<!doctype html>"):
+                        body = resp.text[:500]
+                        raise HTTPException(
+                            status_code=500,
+                            detail=(
+                                "Remote backend returned HTML instead of JSON. "
+                                "This often means BACKEND_URL is pointing at the wrong host or path. "
+                                f"URL: {url}. Response body: {body}"
+                            ),
+                        )
                     try:
                         return resp.json()
                     except ValueError as exc:
                         body = resp.text[:500]
                         raise HTTPException(
                             status_code=500,
-                            detail=f"Invalid JSON response from backend: {exc}. Response body: {body}",
+                            detail=(
+                                "Invalid JSON response from backend. "
+                                "Confirm BACKEND_URL is set to the backend API root and not a static web page. "
+                                f"URL: {url}. Response body: {body}"
+                            ),
                         ) from exc
                 except requests.RequestException as exc:
                     raise HTTPException(status_code=500, detail=str(exc)) from exc
