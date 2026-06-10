@@ -25,7 +25,12 @@ from .state import (
 
 def _backend_main():
     # If `BACKEND_URL` is set, use the remote FastAPI backend (Streamlit Cloud deployment).
-    backend_url = os.getenv("BACKEND_URL") or os.getenv("RESEARCH_BACKEND_URL")
+    backend_url = (
+        os.getenv("BACKEND_URL")
+        or os.getenv("RESEARCH_BACKEND_URL")
+        or st.secrets.get("BACKEND_URL")
+        or st.secrets.get("RESEARCH_BACKEND_URL")
+    )
     if backend_url:
         base = backend_url.rstrip("/")
 
@@ -65,6 +70,20 @@ def _backend_main():
     from backend import main as backend_main
 
     return backend_main
+
+
+def _is_insufficient_research_result(result: dict[str, Any]) -> bool:
+    if not isinstance(result, dict):
+        return False
+    assistant_reply = str(result.get("assistant_reply") or result.get("answer") or "").lower()
+    return any(
+        phrase in assistant_reply
+        for phrase in [
+            "couldn't find five closely relevant papers",
+            "is too broad to turn into a trustworthy paper comparison yet",
+            "try a narrower topic or add one concrete domain term",
+        ]
+    )
 
 
 def ensure_writer_intro(session: dict[str, Any]) -> None:
@@ -453,6 +472,16 @@ def handle_send(prompt: str) -> None:
                         previously_returned_papers=previously_returned_papers,
                         force_refresh=force_refresh,
                     )
+                    if _is_insufficient_research_result(result) and not force_refresh:
+                        result = _backend_main().run_research_explorer( # type: ignore
+                            topic=resolved_topic,
+                            chat_history="",
+                            use_live=True,
+                            focus_topic=focus_topic,
+                            previously_returned_titles=previously_returned_titles,
+                            previously_returned_papers=previously_returned_papers,
+                            force_refresh=True,
+                        )
                 except HTTPException as exc:
                     detail = exc.detail if hasattr(exc, "detail") else str(exc)
                     result = research_error_result(str(detail))
