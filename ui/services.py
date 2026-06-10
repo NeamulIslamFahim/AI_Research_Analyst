@@ -50,7 +50,14 @@ def _backend_main():
                     else:
                         resp = requests.post(url, json=payload or {}, timeout=timeout)
                     resp.raise_for_status()
-                    return resp.json()
+                    try:
+                        return resp.json()
+                    except ValueError as exc:
+                        body = resp.text[:500]
+                        raise HTTPException(
+                            status_code=500,
+                            detail=f"Invalid JSON response from backend: {exc}. Response body: {body}",
+                        ) from exc
                 except requests.RequestException as exc:
                     raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -325,7 +332,12 @@ def handle_upload(uploaded_file: Any) -> bool:
             try:
                 resp = requests.post(url, files=files, timeout=120)
                 resp.raise_for_status()
-                review_json = resp.json()
+                try:
+                    review_json = resp.json()
+                except ValueError as exc:
+                    raise RuntimeError(
+                        f"Remote review upload failed: invalid JSON response from backend: {exc}. Body: {resp.text[:500]}"
+                    ) from exc
             except requests.RequestException as exc:
                 raise RuntimeError(f"Remote review upload failed: {exc}") from exc
 
@@ -486,7 +498,7 @@ def handle_send(prompt: str) -> None:
                             previously_returned_papers=previously_returned_papers,
                             force_refresh=True,
                         )
-                except HTTPException as exc:
+                except Exception as exc:
                     detail = exc.detail if hasattr(exc, "detail") else str(exc)
                     result = research_error_result(str(detail))
                 if isinstance(result, dict) and result.get("error"):
